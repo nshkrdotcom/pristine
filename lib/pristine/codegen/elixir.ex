@@ -23,18 +23,47 @@ defmodule Pristine.Codegen.Elixir do
 
   @spec render_client_module(String.t(), map()) :: String.t()
   def render_client_module(module_name, manifest) when is_map(manifest) do
-    manifest_literal = inspect(manifest, pretty: true)
-    endpoint_fns = render_endpoints(manifest)
+    manifest_literal = inspect(manifest, pretty: true, limit: :infinity)
     moduledoc = render_moduledoc(manifest)
+    endpoints = Map.get(manifest, :endpoints) || Map.get(manifest, "endpoints") || []
+    resources = get_unique_resources(endpoints)
+    ungrouped = get_ungrouped_endpoints(endpoints)
+    base_namespace = get_base_namespace(module_name)
 
     """
     defmodule #{module_name} do
     #{moduledoc}
+      alias Pristine.Core.Context
+
+      defstruct [:context]
+
+      @type t :: %__MODULE__{context: Context.t()}
+
       @manifest #{manifest_literal}
 
-      def manifest(), do: @manifest
+      @doc "Returns the manifest used to generate this client."
+      @spec manifest() :: map()
+      def manifest, do: @manifest
 
-    #{endpoint_fns}
+      @doc \"\"\"
+      Create a new client instance.
+
+      ## Options
+
+        * `:base_url` - Override the default base URL
+        * `:headers` - Additional headers to include
+        * `:auth` - Authentication configuration
+        * `:transport` - Transport adapter module
+        * `:timeout` - Request timeout in milliseconds
+
+      \"\"\"
+      @spec new(keyword()) :: t()
+      def new(opts \\\\ []) do
+        %__MODULE__{context: Context.new(opts)}
+      end
+
+    #{render_resource_accessors(base_namespace, resources)}
+    #{render_ungrouped_endpoints(ungrouped)}
 
       @doc "Execute an endpoint by ID."
       @spec execute(atom() | String.t(), map(), Pristine.Core.Context.t(), keyword()) ::
@@ -82,12 +111,6 @@ defmodule Pristine.Codegen.Elixir do
       \"\"\"
     """
   end
-
-  defp render_endpoints(%{endpoints: endpoints}) when is_list(endpoints) do
-    Enum.map_join(endpoints, "\n\n", &render_endpoint_fn/1)
-  end
-
-  defp render_endpoints(_), do: ""
 
   defp render_endpoint_doc(endpoint) do
     desc = Map.get(endpoint, :description) || Map.get(endpoint, "description")
@@ -170,4 +193,58 @@ defmodule Pristine.Codegen.Elixir do
   defp normalize_key(key), do: to_string(key)
 
   defp fetch(defn, key), do: Map.get(defn, key) || Map.get(defn, to_string(key))
+
+  # Resource accessor helpers
+
+  defp get_unique_resources(endpoints) when is_list(endpoints) do
+    endpoints
+    |> Enum.map(fn ep ->
+      Map.get(ep, :resource) || Map.get(ep, "resource")
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp get_unique_resources(_), do: []
+
+  defp get_ungrouped_endpoints(endpoints) when is_list(endpoints) do
+    Enum.filter(endpoints, fn ep ->
+      resource = Map.get(ep, :resource) || Map.get(ep, "resource")
+      is_nil(resource)
+    end)
+  end
+
+  defp get_ungrouped_endpoints(_), do: []
+
+  defp get_base_namespace(module_name) do
+    # Remove ".Client" suffix if present to get base namespace
+    String.replace_suffix(module_name, ".Client", "")
+  end
+
+  defp render_resource_accessors(_namespace, []), do: ""
+
+  defp render_resource_accessors(namespace, resources) do
+    Enum.map_join(resources, "\n", fn resource ->
+      module = resource_to_module_name(namespace, resource)
+
+      """
+        @doc "Access #{resource} resource endpoints."
+        @spec #{resource}(t()) :: #{module}.t()
+        def #{resource}(%__MODULE__{} = client) do
+          #{module}.with_client(client)
+        end
+      """
+    end)
+  end
+
+  defp render_ungrouped_endpoints([]), do: ""
+
+  defp render_ungrouped_endpoints(endpoints) do
+    Enum.map_join(endpoints, "\n\n", &render_endpoint_fn/1)
+  end
+
+  defp resource_to_module_name(namespace, resource) do
+    module_part = resource |> String.split("_") |> Enum.map_join(&String.capitalize/1)
+    "#{namespace}.#{module_part}"
+  end
 end

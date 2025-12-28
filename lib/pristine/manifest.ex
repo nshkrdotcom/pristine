@@ -125,6 +125,8 @@ defmodule Pristine.Manifest do
            id: normalize_key(id),
            method: normalize_method(method),
            path: to_string(path),
+           description: normalize_value(endpoint, :description),
+           resource: normalize_optional(endpoint, :resource),
            request: normalize_optional(endpoint, :request),
            response: normalize_optional(endpoint, :response),
            retry: normalize_optional(endpoint, :retry),
@@ -136,7 +138,8 @@ defmodule Pristine.Manifest do
            content_type: normalize_value(endpoint, :content_type),
            auth: normalize_optional(endpoint, :auth),
            circuit_breaker: normalize_optional(endpoint, :circuit_breaker),
-           rate_limit: normalize_optional(endpoint, :rate_limit)
+           rate_limit: normalize_optional(endpoint, :rate_limit),
+           idempotency: normalize_boolean(endpoint, :idempotency, false)
          }}
     end
   end
