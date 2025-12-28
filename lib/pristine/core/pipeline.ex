@@ -1,9 +1,12 @@
 defmodule Pristine.Core.Pipeline do
   @moduledoc """
   Execute manifest-defined endpoints through the request pipeline.
+
+  Provides both synchronous (`execute/5`) and streaming (`execute_stream/5`)
+  execution modes for manifest-defined API endpoints.
   """
 
-  alias Pristine.Core.{Context, Headers, Request, Response, Url}
+  alias Pristine.Core.{Context, Headers, Request, Response, StreamResponse, Url}
   alias Pristine.Manifest
 
   @spec execute(Manifest.t(), String.t() | atom(), term(), Context.t(), keyword()) ::
@@ -56,6 +59,146 @@ defmodule Pristine.Core.Pipeline do
           duration_ms: stop_time - start_time
         })
 
+        error
+    end
+  end
+
+  @doc """
+  Execute a streaming endpoint and return a StreamResponse.
+
+  This is used for SSE (Server-Sent Events) and other streaming endpoints
+  where the response body is delivered incrementally.
+
+  ## Parameters
+
+    * `manifest` - The loaded manifest
+    * `endpoint_id` - Endpoint identifier
+    * `payload` - Request payload
+    * `context` - Runtime context (must have `stream_transport` configured)
+    * `opts` - Additional options (headers, query, path_params)
+
+  ## Returns
+
+    * `{:ok, StreamResponse.t()}` - Streaming response with enumerable events
+    * `{:error, term()}` - Error during request setup or connection
+
+  ## Example
+
+      {:ok, response} = Pipeline.execute_stream(manifest, :sample_stream, payload, context)
+
+      response.stream
+      |> Stream.each(fn event ->
+        IO.puts("Event: \#{event.data}")
+      end)
+      |> Stream.run()
+  """
+  @spec execute_stream(Manifest.t(), String.t() | atom(), term(), Context.t(), keyword()) ::
+          {:ok, StreamResponse.t()} | {:error, term()}
+  def execute_stream(
+        %Manifest{} = manifest,
+        endpoint_id,
+        payload,
+        %Context{} = context,
+        opts \\ []
+      ) do
+    endpoint = Manifest.fetch_endpoint!(manifest, endpoint_id)
+
+    serializer = context.serializer || raise ArgumentError, "serializer is required"
+
+    stream_transport =
+      context.stream_transport || raise ArgumentError, "stream_transport is required"
+
+    telemetry = context.telemetry || Pristine.Adapters.Telemetry.Noop
+
+    request_schema = Map.get(context.type_schemas, endpoint.request)
+
+    telemetry.emit(:stream_start, %{endpoint_id: endpoint.id}, %{})
+    start_time = System.monotonic_time(:millisecond)
+
+    with {:ok, {body, content_type}} <-
+           encode_body(serializer, endpoint, payload, context, request_schema),
+         request <- build_request(endpoint, body, content_type, context, opts),
+         {:ok, %StreamResponse{} = response} <- stream_transport.stream(request, context) do
+      # Add timing metadata to the response
+      response_with_metadata = %{
+        response
+        | metadata: Map.put(response.metadata, :start_time, start_time)
+      }
+
+      telemetry.emit(
+        :stream_connected,
+        %{endpoint_id: endpoint.id, status: response.status},
+        %{duration_ms: System.monotonic_time(:millisecond) - start_time}
+      )
+
+      {:ok, response_with_metadata}
+    else
+      {:error, reason} = error ->
+        stop_time = System.monotonic_time(:millisecond)
+
+        telemetry.emit(:stream_error, %{endpoint_id: endpoint.id, reason: reason}, %{
+          duration_ms: stop_time - start_time
+        })
+
+        error
+    end
+  end
+
+  @doc """
+  Execute a request and poll for a future result.
+
+  This is used for long-running operations where the server returns
+  a request ID that can be polled for the final result.
+
+  ## Parameters
+
+    * `manifest` - The loaded manifest
+    * `endpoint_id` - Endpoint identifier for the initial request
+    * `payload` - Request payload
+    * `context` - Runtime context (must have `future` adapter configured)
+    * `opts` - Additional options including future polling options
+
+  ## Future Options
+
+    * `:poll_interval_ms` - Base interval between polls (default: 1000)
+    * `:max_poll_time_ms` - Maximum polling duration (default: 300000)
+    * `:backoff` - Backoff strategy: `:none`, `:linear`, `:exponential`
+
+  ## Returns
+
+    * `{:ok, Task.t()}` - A task that will resolve to the final result
+    * `{:error, term()}` - Error during initial request
+
+  ## Example
+
+      {:ok, task} = Pipeline.execute_future(manifest, :long_operation, payload, context)
+      {:ok, result} = Future.await(task, 600_000)
+  """
+  @spec execute_future(Manifest.t(), String.t() | atom(), term(), Context.t(), keyword()) ::
+          {:ok, Task.t()} | {:error, term()}
+  def execute_future(
+        %Manifest{} = manifest,
+        endpoint_id,
+        payload,
+        %Context{} = context,
+        opts \\ []
+      ) do
+    future = context.future || raise ArgumentError, "future adapter is required"
+    future_opts = Keyword.merge(context.future_opts, Keyword.get(opts, :future_opts, []))
+
+    # First, execute the initial request to get the request_id
+    case execute(manifest, endpoint_id, payload, context, opts) do
+      {:ok, %{"request_id" => request_id}} ->
+        future.poll(request_id, context, future_opts)
+
+      {:ok, %{request_id: request_id}} ->
+        future.poll(request_id, context, future_opts)
+
+      {:ok, response} ->
+        # Response doesn't contain a request_id - return it directly
+        {:ok, Task.async(fn -> {:ok, response} end)}
+
+      {:error, _} = error ->
         error
     end
   end
