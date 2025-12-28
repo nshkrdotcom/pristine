@@ -18,15 +18,16 @@ The `BaseClient` is a generic class parameterized by HTTP client type and stream
 **BaseClient Class Hierarchy:**
 ```
 BaseClient[_HttpxClientT, _DefaultStreamT] (Generic)
-    ├── AsyncAPIClient extends BaseClient[httpx.AsyncClient, AsyncStream[Any]]
-    └── [Potential SyncAPIClient - not shown but pattern suggests it exists]
+    └── AsyncAPIClient extends BaseClient[httpx.AsyncClient, AsyncStream[Any]]
 ```
+
+> Note: The Tinker SDK is async-only. No SyncAPIClient exists.
 
 **Critical Configuration:**
 - `_version`: SDK version for user agent
 - `_base_url`: Normalized URL with trailing slash enforcement
-- `max_retries`: Retry policy (defaults to `DEFAULT_MAX_RETRIES`)
-- `timeout`: Request timeout (defaults to `DEFAULT_TIMEOUT = 5.0`)
+- `max_retries`: Retry policy (defaults to `DEFAULT_MAX_RETRIES = 10`)
+- `timeout`: Request timeout (defaults to `DEFAULT_TIMEOUT = httpx.Timeout(timeout=60, connect=5.0)`)
 - `_strict_response_validation`: Flag for strict Pydantic validation
 - `_idempotency_header`: Optional idempotency key header name
 - `_custom_headers`: Injected headers for all requests

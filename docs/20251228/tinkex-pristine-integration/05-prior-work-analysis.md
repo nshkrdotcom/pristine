@@ -87,7 +87,7 @@ Pristine <- All: Consume unified libraries for SDK generation
 - **Strict Safety**: Explicit `{:path, path}` tuples
 - **Streaming First**: `Stream.t()` support for large uploads
 - **Pluggable Serialization**: `:bracket`, `:dot`, `:flat` strategies
-- **Client Agnostic**: Separate adapters for Finch/Req/Tesla/Hackney
+- **Client Agnostic**: Separate adapters for Finch and Req (Tesla/Hackney planned)
 - **Part Model**: `Multipart.Part` struct with body, headers, Content-Disposition
 
 ### TelemetryReporter
@@ -100,10 +100,13 @@ Pristine <- All: Consume unified libraries for SDK generation
 
 ### TikToken Integration
 
-- **Generic HF Resolution**: `TiktokenEx.HuggingFace.resolve_file/4` with ETS cache
+- **Generic HF Resolution**: `TiktokenEx.HuggingFace.resolve_file/4` with filesystem cache
 - **Atomic Writes**: Download to temp file then rename
 - **Path Sanitization**: Prevents `../` traversal
 - **Injection Points**: `fetch_fun` for testing
+
+> **Note**: tiktoken_ex uses filesystem-based caching (not ETS) to persist
+> downloaded tokenizer files across application restarts.
 
 ### Sinter Refactor
 

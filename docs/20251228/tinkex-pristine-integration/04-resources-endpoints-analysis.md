@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Tinker SDK defines 8 resource modules with a total of 25 endpoints. All endpoints follow an async pattern (AsyncResource classes) and use HTTP POST/GET/DELETE methods with JSON request/response bodies. The architecture emphasizes idempotency through idempotency_key support and async/future-based result retrieval for long-running operations.
+The Tinker SDK defines 7 resource modules with a total of 20 endpoints. All endpoints follow an async pattern (AsyncResource classes) and use HTTP POST/GET/DELETE methods with JSON request/response bodies. The architecture emphasizes idempotency through idempotency_key support and async/future-based result retrieval for long-running operations.
 
 ---
 
@@ -356,22 +356,22 @@ The Tinker SDK defines 8 resource modules with a total of 25 endpoints. All endp
 
 | Metric | Value |
 |--------|-------|
-| **Total Endpoints** | 25 |
+| **Total Endpoints** | 20 |
 | **HTTP GET** | 4 |
-| **HTTP POST** | 20 |
+| **HTTP POST** | 15 |
 | **HTTP DELETE** | 1 |
-| **Idempotent Endpoints** | 15 |
-| **Async/Future Endpoints** | 8 |
+| **Idempotent Endpoints** | 12 |
+| **Async/Future Endpoints** | 9 |
 | **Streaming** | 0 |
 
-**Resource Distribution:**
-- Service: 5 endpoints
-- Models: 3 endpoints
-- Weights: 6 endpoints
-- Training: 3 endpoints
-- Sampling: 1 endpoint
-- Futures: 1 endpoint
-- Telemetry: 1 endpoint
+**Resource Distribution (7 resources):**
+- Service: 5 endpoints (2 GET, 3 POST)
+- Models: 3 endpoints (3 POST)
+- Weights: 6 endpoints (2 GET, 3 POST, 1 DELETE)
+- Training: 3 endpoints (3 POST)
+- Sampling: 1 endpoint (1 POST)
+- Futures: 1 endpoint (1 POST)
+- Telemetry: 1 endpoint (1 POST)
 
 ---
 

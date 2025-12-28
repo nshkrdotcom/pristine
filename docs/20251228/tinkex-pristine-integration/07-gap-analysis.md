@@ -10,7 +10,7 @@ This document provides a comprehensive gap analysis comparing the capabilities o
 
 ## 1. Type System Gaps
 
-### 1.1 Discriminated Unions (CRITICAL)
+### 1.1 Discriminated Unions (CODE GENERATION GAP)
 
 **Tinker Has**:
 ```python
@@ -20,19 +20,27 @@ ModelInputChunk: TypeAlias = Annotated[
 ]
 ```
 
-**Pristine Has**:
-- Basic union type support via Sinter
-- No discriminator metadata
-- No smart deserialization based on discriminator field
+**Sinter Has** (already implemented at `sinter/lib/sinter/types.ex:320-368`):
+```elixir
+{:discriminated_union, [
+  discriminator: :type,
+  variants: %{
+    "encoded_text" => EncodedTextChunk.schema(),
+    "image" => ImageChunk.schema()
+  }
+]}
+```
 
-**Gap Severity**: CRITICAL - Blocks event type handling, streaming events, response unions
+**Gap**: Pristine's code generation doesn't yet use Sinter's discriminated union support.
+
+**Gap Severity**: HIGH - Code generation enhancement, NOT type system limitation
 
 **Required Enhancement**:
 - Add `discriminator` field to type definitions in manifest
-- Implement discriminator-aware union resolution in Sinter
-- Generate pattern-matching code for discriminated unions
+- Update `Pristine.Codegen.Type` to generate `{:discriminated_union, opts}`
+- Generate pattern-matching decode functions using Sinter's union validation
 
-### 1.2 Literal Types
+### 1.2 Literal Types (CODE GENERATION GAP)
 
 **Tinker Has**:
 ```python
@@ -40,16 +48,20 @@ type: Literal["encoded_text"] = "encoded_text"
 Severity: TypeAlias = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 ```
 
-**Pristine Has**:
-- `choices` field for enums in manifest
-- No literal type annotation in generated code
+**Sinter Has** (already supported):
+```elixir
+{:literal, "encoded_text"}          # Single literal value
+{:choices, ["DEBUG", "INFO", ...]}  # Enum of allowed values
+```
 
-**Gap Severity**: HIGH - Affects type discrimination, validation
+**Gap**: Pristine's code generation uses `choices` but not `{:literal, value}`.
+
+**Gap Severity**: MEDIUM - Code generation enhancement
 
 **Required Enhancement**:
 - Add `literal` type to manifest schema
-- Generate Sinter schemas with literal validation
-- Support literal defaults
+- Generate `{:literal, value}` for single-value literals
+- Continue using `{:choices, [...]}` for enum literals
 
 ### 1.3 Nested Type References
 
@@ -267,16 +279,21 @@ Exception Hierarchy:
     └── APIConnectionError
 ```
 
-**Pristine Has**:
-- Generic `Pristine.Error` struct
-- No status code mapping
+**Pristine Has** (already implemented at `lib/pristine/error.ex:196-204`):
+```elixir
+# Pristine.Error struct with status-to-type mapping:
+defp status_to_type(400), do: :bad_request
+defp status_to_type(401), do: :authentication
+defp status_to_type(429), do: :rate_limit
+defp status_to_type(status) when status >= 500, do: :internal_server
+# ... plus retriable? detection and x-should-retry header support
+```
 
-**Gap Severity**: HIGH
+**Gap Severity**: LOW - Optional enhancement
 
-**Required Enhancement**:
-- Add typed error structs per status code
-- Map HTTP status codes to specific error types
-- Extract error body details
+**Optional Enhancement**:
+- Add typed exception modules for exception-based pattern matching
+- Current struct-based approach is already production-ready
 
 ### 4.2 Response Unwrapping
 
@@ -303,17 +320,17 @@ Exception Hierarchy:
 - Idempotency key reuse across retries
 - Status code based retry decisions (408, 429, 5xx)
 
-**Pristine Has**:
-- Basic retry with Foundation.Retry
-- No Retry-After parsing
-- No automatic idempotency key generation
+**Pristine Has** (already implemented):
+- Per-endpoint retry via manifest `retry` field
+- Exponential backoff with jitter via Foundation.Retry
+- Idempotency key generation (lib/pristine/core/pipeline.ex:326-332)
+- Status code based retriable detection (lib/pristine/error.ex:173-186)
 
-**Gap Severity**: MEDIUM
+**Gap Severity**: LOW
 
-**Required Enhancement**:
+**Remaining Enhancement**:
 - Add Retry-After header parsing
-- Auto-generate idempotency keys for non-GET requests
-- Per-endpoint timeout configuration
+- Per-endpoint timeout configuration (manifest field exists, needs wiring)
 
 ### 4.4 Streaming
 
@@ -429,32 +446,36 @@ Exception Hierarchy:
 
 ## 6. Gap Priority Matrix
 
-### Critical (Blocks Core Functionality)
-1. Discriminated unions in type system
+> **Note**: Many items previously listed as gaps are already implemented.
+> This matrix reflects the actual remaining work.
+
+### High (Blocks Full Functionality)
+1. Discriminated union code generation (Sinter support exists)
 2. Async endpoint variants in code generation
 3. Streaming function generation
-4. Error type hierarchy
+4. Nested type reference resolution in codegen
 
-### High (Major Feature Gaps)
-1. Literal types
-2. Nested type references
-3. Typed function parameters
-4. Future polling enhancements
-5. Base URL and auth in manifest
+### Medium (Feature Enhancements)
+1. Literal type code generation (Sinter support exists)
+2. Typed function parameters in codegen
+3. Future polling enhancements
+4. Base URL and auth in manifest
+5. Response unwrapping
 
-### Medium (Important but Workable)
+### Low (Polish Items)
 1. Custom validators/serializers
-2. NotGiven sentinel integration
-3. Per-endpoint timeout
-4. Response unwrapping
-5. Query string format options
-6. Retry-After parsing
+2. Per-endpoint timeout wiring
+3. Query string format options
+4. Retry-After header parsing
+5. Deprecation markers
+6. Endpoint tags
+7. Platform telemetry headers
 
-### Low (Nice to Have)
-1. Deprecation markers
-2. Endpoint tags
-3. Platform telemetry headers
-4. Multiple server URLs
+### Already Implemented ✓
+1. ~~Error type hierarchy~~ - Status mapping exists (lib/pristine/error.ex)
+2. ~~Idempotency key generation~~ - Automatic (lib/pristine/core/pipeline.ex)
+3. ~~Per-endpoint retry~~ - Via manifest retry field
+4. ~~Retriable detection~~ - x-should-retry + status codes
 
 ---
 

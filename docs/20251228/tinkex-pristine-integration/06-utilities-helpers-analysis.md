@@ -43,6 +43,10 @@ array_format: Literal["comma", "repeat", "indices", "brackets"]
 nested_format: Literal["dots", "brackets"]
 ```
 
+**Key Methods**:
+- `stringify(params, *, encoder=...)`: Encode params to query string
+- `parse(query_string)`: Parse query string back to dict (inverse of stringify)
+
 ### Array Format Handling
 
 | Format | Example Output |

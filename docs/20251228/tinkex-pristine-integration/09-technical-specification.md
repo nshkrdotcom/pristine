@@ -9,10 +9,15 @@ This specification defines the technical requirements and implementation details
 ### 1.2 Scope
 
 This specification covers:
-- Type system enhancements (discriminated unions, literals, nested types)
-- Manifest schema extensions
+- Type system integration (Sinter already supports discriminated unions and literals)
+- Manifest schema extensions for code generation
 - Code generation improvements
 - Runtime pipeline enhancements
+
+> **Note**: Sinter already provides discriminated union support via
+> `{:discriminated_union, opts}` type (see `sinter/lib/sinter/types.ex:320-368`).
+> The enhancements in this spec focus on integrating these existing capabilities
+> into Pristine's code generation pipeline.
 
 ### 1.3 References
 
@@ -201,9 +206,18 @@ defmodule Tinkex.Types.SampleResponse do
   end
 
   def decode(data) do
-    with {:ok, validated} <- Sinter.validate(data, schema()) do
-      {:ok, struct(__MODULE__, validated)}
+    # Note: Sinter.Validator.validate/2 is the correct API
+    # Output keys match input keys (string -> string, atom -> atom)
+    with {:ok, validated} <- Sinter.Validator.validate(schema(), data) do
+      {:ok, struct(__MODULE__, atomize_keys(validated))}
     end
+  end
+
+  defp atomize_keys(map) when is_map(map) do
+    Map.new(map, fn
+      {k, v} when is_binary(k) -> {String.to_existing_atom(k), v}
+      {k, v} -> {k, v}
+    end)
   end
 end
 ```
@@ -510,11 +524,17 @@ defmodule Tinkex.Types.SampledSequence do
 
   @spec decode(map()) :: {:ok, t()} | {:error, term()}
   def decode(data) when is_map(data) do
-    with {:ok, validated} <- Sinter.validate(data, schema()) do
+    # Sinter.Validator.validate/2 - note schema comes first
+    with {:ok, validated} <- Sinter.Validator.validate(schema(), data) do
+      # Handle both string and atom keys from validation output
+      stop_reason = validated["stop_reason"] || validated[:stop_reason]
+      tokens = validated["tokens"] || validated[:tokens]
+      logprobs = validated["logprobs"] || validated[:logprobs]
+
       {:ok, %__MODULE__{
-        stop_reason: String.to_existing_atom(validated["stop_reason"]),
-        tokens: validated["tokens"],
-        logprobs: validated["logprobs"]
+        stop_reason: String.to_existing_atom(stop_reason),
+        tokens: tokens,
+        logprobs: logprobs
       }}
     end
   end
@@ -618,11 +638,29 @@ end
 
 ## 5. Runtime Pipeline Specification
 
-### 5.1 Error Hierarchy
+> **NOTE**: Several features described in this section already exist in Pristine:
+> - Status code mapping: `lib/pristine/error.ex` (lines 196-204)
+> - Idempotency key generation: `lib/pristine/core/pipeline.ex` (lines 326-332)
+> - Error types: `lib/pristine/error.ex` (unified struct with `:type` field)
+>
+> The enhancements below describe optional typed exception modules for more
+> granular pattern matching, not a replacement for existing functionality.
+
+### 5.1 Error Hierarchy (OPTIONAL ENHANCEMENT)
+
+The existing `Pristine.Error` struct with status-to-type mapping is production-ready.
+The typed exception modules below are an optional enhancement for applications
+that prefer pattern matching on exception types:
 
 ```elixir
 defmodule Pristine.Errors do
-  @moduledoc "Typed error hierarchy for API responses"
+  @moduledoc """
+  OPTIONAL typed error hierarchy for API responses.
+
+  Note: `Pristine.Error` already provides status code mapping via `status_to_type/1`.
+  These typed exceptions are an optional enhancement for applications preferring
+  exception-based pattern matching.
+  """
 
   defmodule APIError do
     @moduledoc "Base API error"
@@ -909,11 +947,12 @@ end
 - [ ] Generate comprehensive @doc
 
 ### 6.4 Runtime
-- [ ] Implement typed error hierarchy
+- [x] Status code to error type mapping (EXISTS: lib/pristine/error.ex:196-204)
+- [x] Idempotency key generation (EXISTS: lib/pristine/core/pipeline.ex:326-332)
+- [ ] Implement typed error hierarchy (OPTIONAL: for exception-based matching)
 - [ ] Add Retry-After header parsing
 - [ ] Implement Future with polling
 - [ ] Enhance StreamResponse with dispatch
-- [ ] Add idempotency key generation
 
 ### 6.5 Utilities
 - [ ] Implement query string format options

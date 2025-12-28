@@ -4,25 +4,33 @@
 
 This document summarizes findings from 4 verification agents that cross-checked the gap analysis, enhancement roadmap, and technical specification against the actual Pristine codebase.
 
+> **Post-Audit Revision** (2025-12-28): This document has been revised to correct
+> several inaccuracies identified in a subsequent audit:
+> - Sinter DOES support discriminated unions and literals
+> - Idempotency key generation EXISTS at lib/pristine/core/pipeline.ex:326-332
+> - Status code mapping EXISTS at lib/pristine/error.ex:196-204
+> - SSE follows WHATWG spec, not RFC 6202
+
 ---
 
 ## Agent 1: Type System Verification
 
-### Confirmed Gaps (100% Accurate)
+### Corrected Assessment
 
-| Gap | Status | Evidence |
-|-----|--------|----------|
-| Discriminated Unions | CONFIRMED | No union support in `codegen/type.ex` |
-| Literal Types | CONFIRMED | `@type_mapping` lacks literal type support |
-| Nested Type References | CONFIRMED | No `type_ref` field, no resolution logic |
-| Custom Validators | CONFIRMED | No validator/serializer hooks |
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Discriminated Unions | SINTER HAS IT | `sinter/lib/sinter/types.ex:320-368` |
+| Literal Types | SINTER HAS IT | `{:literal, value}` type supported |
+| Nested Type References | CODEGEN GAP | No `type_ref` field in codegen |
+| Custom Validators | GAP | No validator/serializer hooks |
 
-### Disputed Gaps
+### Originally Disputed (Now Confirmed Existing)
 
-| Gap | Finding |
-|-----|---------|
-| Error Hierarchy | PARTIALLY IMPLEMENTED - `/lib/pristine/error.ex` has status-to-type mapping (400→:bad_request, 429→:rate_limit, etc.) but lacks typed modules |
-| NotGiven Sentinel | NOT A GAP - Sinter supports it, minor integration issue |
+| Feature | Status |
+|---------|--------|
+| Error Hierarchy | EXISTS - `lib/pristine/error.ex:196-204` has full status-to-type mapping |
+| NotGiven Sentinel | EXISTS - Sinter supports it |
+| Idempotency | EXISTS - `lib/pristine/core/pipeline.ex:326-332` |
 
 ### Roadmap Feasibility
 
@@ -38,12 +46,14 @@ This document summarizes findings from 4 verification agents that cross-checked 
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| SSE Parsing | ✓ Complete | RFC 6202 compliant, stateful decoder |
+| SSE Parsing | ✓ Complete | WHATWG EventSource spec compliant, stateful decoder |
 | Event Structure | ✓ Complete | All required fields present |
 | StreamResponse | ✓ Complete | Proper wrapper with metadata |
 | Finch Transport | ✓ Complete | Full streaming integration |
 | Basic Polling | ✓ Complete | Retry strategies working |
 | Telemetry Events | ⚠ Partial | Basic events only, no header telemetry |
+
+> **Note**: SSE follows the [WHATWG EventSource spec](https://html.spec.whatwg.org/multipage/server-sent-events.html), not RFC 6202 (which is an informational document about bidirectional HTTP).
 
 ### Confirmed Missing
 
@@ -122,17 +132,20 @@ Pristine is production-ready for basic streaming but needs extensions for type-s
 
 ## Consolidated Findings
 
-### Documentation Accuracy
+### Documentation Accuracy (Post-Audit Revision)
 
-| Document | Accuracy | Notes |
-|----------|----------|-------|
-| Gap Analysis | 95% | Minor overstatement on error handling |
-| Enhancement Roadmap | 100% | Technically sound, correct dependencies |
-| Technical Spec | 100% | Implementation details verified feasible |
+| Document | Original Accuracy | Revised Notes |
+|----------|-------------------|---------------|
+| Gap Analysis | 70% | Several false gap claims corrected (Sinter capabilities, idempotency) |
+| Enhancement Roadmap | 80% | Updated to mark already-implemented features |
+| Technical Spec | 75% | Fixed Sinter API usage, added existing feature notes |
 
-### Key Blockers for Tinkex v2
+> **Lesson Learned**: Original verification agents missed existing Sinter
+> capabilities and implemented Pristine features. Always check actual source code.
 
-1. **Discriminated Unions** (Phase 1.1) - Critical for event types
+### Key Blockers for Tinkex v2 (Revised)
+
+1. **Discriminated Union Codegen** (Phase 1.1) - Sinter has types, need codegen integration
 2. **Function Variants** (Phase 3.2) - Essential for streaming/async
 3. **Async Endpoint Metadata** (Phase 2.1) - Required for future routing
 4. **Nested Type References** (Phase 1.3) - Needed for complex responses
@@ -169,12 +182,23 @@ Pristine is production-ready for basic streaming but needs extensions for type-s
 
 ## Conclusion
 
-The documentation set is **accurate and comprehensive**. The gap analysis correctly identifies the critical blockers, the roadmap provides a feasible implementation path, and the technical specification contains actionable implementation details.
+The documentation set has been **revised to correct inaccuracies** identified in a post-audit review. Key corrections:
 
-**Estimated effort**: 4-6 weeks for full Pristine enhancement
+1. Sinter already supports discriminated unions and literals
+2. Idempotency key generation already implemented
+3. Status code to error type mapping already implemented
+4. SSE follows WHATWG spec, not RFC 6202
+
+**Revised effort estimate**: 3-4 weeks for remaining Pristine enhancements
 **Expected result**: 95% generated code coverage for Tinkex v2
+
+The remaining work focuses on:
+- Code generation integration with existing Sinter types
+- Async/streaming function variant generation
+- Future polling enhancements
 
 ---
 
 *Document created: 2025-12-28*
-*Verification agents: 4 completed successfully*
+*Revised: 2025-12-28 (post-audit corrections)*
+*Verification agents: 4 completed, 1 audit review*
