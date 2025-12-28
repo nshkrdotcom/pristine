@@ -35,10 +35,13 @@ The Tinker SDK implements Server-Sent Event streaming with two main classes:
 
 **SSEDecoder** class provides stateful parsing:
 - Maintains internal state: `_event`, `_data[]`, `_event_id`, `_retry`
-- Implements RFC 6202 SSE spec compliance
+- Implements [WHATWG EventSource spec](https://html.spec.whatwg.org/multipage/server-sent-events.html) compliance
 - Accumulates multi-line data fields with newline joining
 - Chunk detection: responds to `\r\r`, `\n\n`, `\r\n\r\n` separators
 - Method: `iter_bytes()` (sync), `aiter_bytes()` (async)
+
+> **Note**: SSE follows the WHATWG EventSource spec, not RFC 6202 (which is an
+> informational document about bidirectional HTTP, not SSE).
 
 **Event Lifecycle**:
 1. Reads byte chunks from response
@@ -83,8 +86,8 @@ async def close(self):  # AsyncStream version
 
 **At SSE Level**:
 - `ServerSentEvent.json()` calls `json.loads(self.data)` - can raise `JSONDecodeError`
-- Invalid UTF-8 in chunks: decoder silently processes by design
-- Lines starting with `:` (comments) are silently ignored
+- UTF-8 decoding: handled by httpx transport layer before reaching decoder
+- Lines starting with `:` (comments) are silently ignored per WHATWG spec
 
 **At Stream Level**:
 - Exceptions in `_process_response_data()` propagate to caller
@@ -258,7 +261,7 @@ result = future.result()  # Blocks via concurrent.futures
 
 ### Streaming Essentials:
 1. HTTP response streaming with progressive event delivery
-2. SSE format parsing (RFC 6202 compliant)
+2. SSE format parsing (WHATWG EventSource spec compliant)
 3. Line-based protocol with double-newline delimiters
 4. Stateful event accumulation across chunks
 5. JSON deserialization of event data
@@ -285,7 +288,7 @@ result = future.result()  # Blocks via concurrent.futures
 ## 12. Critical Implementation Details
 
 1. **Stateful Decoder**: SSEDecoder maintains state across calls - can't be shared or reset unexpectedly
-2. **Last Event ID Persistence**: Never reset after event emission (per RFC 6202)
+2. **Last Event ID Persistence**: Never reset after event emission (per WHATWG spec)
 3. **Multi-line Data Fields**: Multiple `data:` lines joined with newlines
 4. **Telemetry Headers**: Must be added on EVERY polling attempt (not just first)
 5. **Cached Results**: Prevent re-polling after first success

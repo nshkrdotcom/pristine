@@ -61,18 +61,21 @@ defp map_type_to_sinter("integer"), do: ":integer"
 # ... basic types only
 ```
 
-**Missing type features**:
+**Type features status**:
 
 | Feature | Example in Tinker | Current Support |
 |---------|-------------------|-----------------|
-| Discriminated unions | `type: "text" \| "tool_use"` | ❌ None |
-| Literal types | `type: Literal["pending"]` | ❌ None |
-| Nested type refs | `content: List[ContentBlock]` | ⚠️ Partial |
-| Optional with default | `max_tokens: int = 1024` | ⚠️ Partial |
-| Union types | `str \| None` | ❌ None |
+| Discriminated unions | `type: "text" \| "tool_use"` | ✓ Sinter `{:discriminated_union, opts}` |
+| Literal types | `type: Literal["pending"]` | ✓ Sinter `{:literal, value}` |
+| Nested type refs | `content: List[ContentBlock]` | ⚠️ Partial (codegen integration needed) |
+| Optional with default | `max_tokens: int = 1024` | ✓ Sinter `[default: value]` |
+| Union types | `str \| None` | ⚠️ Via `{:nullable, type}` |
 | Recursive types | Self-referencing types | ❌ None |
-| Enum types | Fixed set of values | ⚠️ Via choices |
-| Generic maps | `Dict[str, Any]` | ⚠️ Limited |
+| Enum types | Fixed set of values | ✓ Via `{:choices, [values]}` |
+| Generic maps | `Dict[str, Any]` | ✓ Via `:map` type |
+
+> **Note**: Sinter supports discriminated unions at `sinter/lib/sinter/types.ex:320-368`.
+> The gap is in Pristine's code generation integrating these Sinter types.
 
 ### 1.3 Manifest-Level Gaps
 
@@ -159,29 +162,34 @@ Current `Pipeline.build_request/5` handles:
 - Header merging
 - Body encoding
 - Auth header injection
-- Idempotency keys
+- Idempotency key generation (automatic when `endpoint.idempotency: true`)
+- Custom idempotency key override via `opts[:idempotency_key]`
 
 **Missing**:
 
 - Query parameter serialization (nested, arrays)
-- File upload handling
+- File upload handling (basic multipart exists)
 - Request signing
 - Request ID injection
-- Custom header injection per endpoint
 
 ### 3.2 Response Handling
 
 Current response flow:
 1. Transport sends request
 2. Response decoded by serializer
-3. Data returned
+3. Error responses converted via `Pristine.Error.from_response/1`
+4. Data returned
+
+**Existing capabilities**:
+- Status code to error type mapping (lib/pristine/error.ex:196-204)
+- Retriable error detection (lib/pristine/error.ex:173-186)
+- x-should-retry header support
 
 **Missing**:
 
-- Status code to error type mapping
 - Response unwrapping (extract nested data)
 - Pagination handling
-- Response validation against schema
+- Typed response validation against generated schemas
 - Response transformation/normalization
 
 ### 3.3 Streaming
@@ -219,17 +227,17 @@ Current `Pipeline.execute_future/5`:
 
 ### 4.1 What Tinker Does Well
 
-| Feature | Tinker Implementation | Pristine Gap |
-|---------|----------------------|--------------|
-| Typed requests | Pydantic models with validation | Generic maps |
-| Typed responses | Auto-parsed to typed objects | Returns raw maps |
-| Streaming events | Strongly typed event classes | Untyped events |
-| Futures | Full lifecycle management | Basic polling |
-| File uploads | Multipart with progress | Basic multipart |
-| Error handling | Typed exception hierarchy | Generic errors |
-| Retry logic | Per-endpoint configuration | Global only |
+| Feature | Tinker Implementation | Pristine Status |
+|---------|----------------------|-----------------|
+| Typed requests | Pydantic models with validation | Generic maps (codegen enhancement needed) |
+| Typed responses | Auto-parsed to typed objects | Returns raw maps (codegen enhancement needed) |
+| Streaming events | Strongly typed event classes | Untyped events (dispatch enhancement needed) |
+| Futures | Full lifecycle management | Basic polling (enhancement needed) |
+| File uploads | Multipart with progress | Basic multipart ✓ |
+| Error handling | Typed exception hierarchy | Status mapping exists ✓ (typed exceptions optional) |
+| Retry logic | Per-endpoint configuration | Per-endpoint via manifest ✓ |
 | Rate limiting | Built-in with headers | External adapter |
-| Idempotency | Automatic key generation | Manual |
+| Idempotency | Automatic key generation | Automatic key generation ✓ |
 
 ### 4.2 Code Volume Comparison
 
@@ -258,12 +266,15 @@ With Pristine enhancements:
 
 ## 5. Critical Path for Enhancement
 
-### Priority 1: Type System (Blocks Everything)
+### Priority 1: Code Generation Type Integration (Blocks Everything)
 
-1. Discriminated unions - Required for event types
-2. Nested type references - Required for complex types
-3. Literal types - Required for type discrimination
-4. Optional/default handling - Required for request building
+> **Note**: Sinter already provides these type features. The work needed is
+> integrating them into Pristine's code generation pipeline.
+
+1. Discriminated union codegen - Use Sinter's `{:discriminated_union, opts}`
+2. Nested type reference resolution - Wire up type refs in codegen
+3. Literal type codegen - Use Sinter's `{:literal, value}`
+4. Optional/default handling - Already supported, ensure codegen uses it
 
 ### Priority 2: Manifest Schema
 
@@ -281,7 +292,7 @@ With Pristine enhancements:
 
 ### Priority 4: Runtime
 
-1. Status code to error mapping
+1. Status code to error mapping - ✓ Already exists (lib/pristine/error.ex)
 2. Response unwrapping
 3. Enhanced streaming with event dispatch
 4. Proper future lifecycle

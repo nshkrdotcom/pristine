@@ -4,18 +4,27 @@
 
 This roadmap outlines the specific enhancements required to make Pristine capable of generating a production-quality Tinkex v2 client with minimal hand-written code. Enhancements are organized by phase with clear dependencies and deliverables.
 
+> **Important Corrections** (2025-12-28):
+> - Sinter already supports discriminated unions (`{:discriminated_union, opts}`) and
+>   literals (`{:literal, value}`). Phase 1 focuses on code generation integration.
+> - Idempotency key generation already exists at `lib/pristine/core/pipeline.ex:326-332`
+> - Status code mapping already exists at `lib/pristine/error.ex:196-204`
+
 ---
 
-## Phase 1: Type System Foundation (CRITICAL)
+## Phase 1: Type System Code Generation (CRITICAL)
 
-**Goal**: Enable representation of all Tinker type patterns
+**Goal**: Integrate Sinter's existing type capabilities into Pristine's code generation
 
-### 1.1 Discriminated Unions
+> **Note**: Sinter already provides discriminated unions at `sinter/lib/sinter/types.ex:320-368`
+> and literal types. This phase focuses on code generation integration, not type system work.
+
+### 1.1 Discriminated Union Code Generation
 
 **Files to Modify**:
-- `lib/pristine/manifest/type.ex` - Add discriminator field
-- `lib/pristine/codegen/type.ex` - Generate union handling code
-- `lib/pristine/manifest.ex` - Parse union definitions
+- `lib/pristine/manifest/type.ex` - Add discriminator field to struct
+- `lib/pristine/codegen/type.ex` - Generate `{:discriminated_union, opts}` schemas
+- `lib/pristine/manifest.ex` - Parse union definitions from JSON
 
 **Manifest Schema Addition**:
 ```json
@@ -50,15 +59,15 @@ end
 
 **Deliverables**:
 - [ ] Update Type struct with `kind`, `discriminator`, `variants`
-- [ ] Implement union type code generation
-- [ ] Add Sinter schema support for discriminated unions
+- [ ] Implement union type code generation using `{:discriminated_union, opts}`
+- [ ] Wire up to existing Sinter discriminated union validation
 - [ ] Tests for union parsing and generation
 
-### 1.2 Literal Types
+### 1.2 Literal Type Code Generation
 
 **Files to Modify**:
 - `lib/pristine/manifest/field.ex` - Add literal field
-- `lib/pristine/codegen/type.ex` - Generate literal validation
+- `lib/pristine/codegen/type.ex` - Generate `{:literal, value}` schemas
 
 **Manifest Schema Addition**:
 ```json
@@ -74,7 +83,7 @@ end
 
 **Deliverables**:
 - [ ] Add `literal` type to field definitions
-- [ ] Generate Sinter.choices validation for literals
+- [ ] Generate `{:literal, value}` or `{:choices, [...]}` as appropriate
 - [ ] Support literal defaults in generated structs
 
 ### 1.3 Nested Type References
@@ -285,41 +294,26 @@ Creates a new model with optional LoRA fine-tuning configuration.
 
 **Goal**: Full-featured request/response handling
 
-### 4.1 Error Type Hierarchy
+### 4.1 Error Type Hierarchy (ALREADY IMPLEMENTED)
 
-**New Files**:
-- `lib/pristine/errors.ex` - Error struct definitions
+> **Status**: Core functionality already exists at `lib/pristine/error.ex`
+> - Status code to type mapping: lines 196-204
+> - Retriable detection: lines 173-186
+> - x-should-retry header support: lines 178-181
 
-**Implementation**:
+**Optional Enhancement** - Typed exception modules for exception-based matching:
 ```elixir
-defmodule Pristine.Errors do
-  defmodule APIError do
-    defstruct [:message, :request, :body]
-  end
-
-  defmodule BadRequestError do
-    defstruct [:message, :request, :body, status_code: 400]
-  end
-
-  defmodule AuthenticationError do
-    defstruct [:message, :request, :body, status_code: 401]
-  end
-
-  defmodule RateLimitError do
-    defstruct [:message, :request, :body, :retry_after, status_code: 429]
-  end
-
-  def from_status(400, body, request), do: %BadRequestError{...}
-  def from_status(401, body, request), do: %AuthenticationError{...}
-  def from_status(429, body, request), do: %RateLimitError{...}
+# Optional: If exception-based pattern matching is preferred
+defmodule Pristine.Errors.BadRequestError do
+  defexception [:message, :request, :body, status_code: 400]
 end
 ```
 
-**Deliverables**:
-- [ ] Create error struct hierarchy
-- [ ] Implement status code -> error mapping
-- [ ] Extract Retry-After header
-- [ ] Update pipeline to use typed errors
+**Remaining Deliverables**:
+- [x] Status code -> error type mapping (EXISTS)
+- [x] Retriable detection (EXISTS)
+- [ ] Extract Retry-After header from response
+- [ ] Optional: Typed exception modules
 
 ### 4.2 Response Unwrapping
 
@@ -432,31 +426,26 @@ end
 - [ ] Implement nested format options (dots, brackets)
 - [ ] Make configurable per-client
 
-### 5.2 Idempotency Key Generation
+### 5.2 Idempotency Key Generation (ALREADY IMPLEMENTED)
 
-**Files to Modify**:
-- `lib/pristine/core/pipeline.ex` - Auto-generate keys
+> **Status**: Already implemented at `lib/pristine/core/pipeline.ex:326-332`
 
-**Implementation**:
+**Existing Implementation**:
 ```elixir
-defp maybe_add_idempotency_key(request, endpoint, opts) do
-  if endpoint.idempotency and endpoint.method != :get do
-    key = Keyword.get(opts, :idempotency_key, generate_idempotency_key())
-    add_header(request, "X-Idempotency-Key", key)
-  else
-    request
-  end
+# From lib/pristine/core/pipeline.ex:326-332
+defp maybe_add_idempotency_header(headers, %{idempotency: true}, context, opts) do
+  header_name = context.idempotency_header || "X-Idempotency-Key"
+  key = Keyword.get(opts, :idempotency_key) || UUID.uuid4()
+  Map.put(headers, header_name, key)
 end
 
-defp generate_idempotency_key do
-  "pristine-elixir-#{UUID.uuid4()}"
-end
+defp maybe_add_idempotency_header(headers, _endpoint, _context, _opts), do: headers
 ```
 
 **Deliverables**:
-- [ ] Auto-generate idempotency keys for non-GET requests
-- [ ] Allow user override via opts
-- [ ] Reuse key across retries
+- [x] Auto-generate idempotency keys when endpoint.idempotency: true (EXISTS)
+- [x] Allow user override via opts[:idempotency_key] (EXISTS)
+- [ ] Reuse key across retries (enhancement needed)
 
 ### 5.3 Platform Telemetry Headers
 
@@ -485,16 +474,16 @@ end
 ## Dependency Graph
 
 ```
-Phase 1 (Type System)
-  ├── 1.1 Discriminated Unions
-  ├── 1.2 Literal Types
+Phase 1 (Type System Code Generation)
+  ├── 1.1 Discriminated Union Codegen (uses existing Sinter support)
+  ├── 1.2 Literal Type Codegen (uses existing Sinter support)
   └── 1.3 Nested Type References
 
 Phase 2 (Manifest Schema) ─────────► depends on Phase 1
   ├── 2.1 Async Endpoint Support
   ├── 2.2 Stream Configuration
   ├── 2.3 Base URL and Auth
-  └── 2.4 Error Type Definitions
+  └── 2.4 Error Type Definitions (optional, core exists)
 
 Phase 3 (Code Generation) ─────────► depends on Phase 1 + 2
   ├── 3.1 Typed Function Parameters
@@ -502,14 +491,14 @@ Phase 3 (Code Generation) ─────────► depends on Phase 1 + 2
   └── 3.3 Documentation Generation
 
 Phase 4 (Runtime Pipeline) ─────────► depends on Phase 2
-  ├── 4.1 Error Type Hierarchy ────► depends on 2.4
+  ├── 4.1 Error Type Hierarchy ────► ALREADY IMPLEMENTED (status mapping)
   ├── 4.2 Response Unwrapping
   ├── 4.3 Enhanced Streaming ──────► depends on 2.2
   └── 4.4 Enhanced Futures ────────► depends on 2.1
 
 Phase 5 (Utilities) ───────────────► independent
   ├── 5.1 Query String Formatting
-  ├── 5.2 Idempotency Keys
+  ├── 5.2 Idempotency Keys ────────► ALREADY IMPLEMENTED
   └── 5.3 Platform Headers
 ```
 
@@ -533,13 +522,13 @@ Phase 5 (Utilities) ───────────────► independent
 - [ ] Documentation includes all parameters
 
 ### After Phase 4
-- [ ] Errors return typed structs
+- [x] Errors return typed structs (EXISTS: Pristine.Error with :type field)
 - [ ] Streaming events dispatched by type
 - [ ] Futures poll with caching
 
 ### After Phase 5
 - [ ] Query strings formatted correctly
-- [ ] Idempotency keys auto-generated
+- [x] Idempotency keys auto-generated (EXISTS: lib/pristine/core/pipeline.ex:326)
 - [ ] Platform headers injected
 
 ---

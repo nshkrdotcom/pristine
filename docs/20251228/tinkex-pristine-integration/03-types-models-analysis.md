@@ -38,6 +38,10 @@ The Tinker SDK implements a sophisticated type system built on Pydantic (v1 and 
 - Essential for optional request parameters
 - Used in: `Union[value, NotGiven]`
 
+> **Sinter Note**: Sinter already supports the NotGiven pattern. Generated code
+> should use `Sinter.NotGiven` for optional parameters that distinguish between
+> "not provided" and "explicitly set to nil".
+
 **Type Aliases**:
 ```python
 ModelID: TypeAlias = str
