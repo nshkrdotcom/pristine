@@ -1,0 +1,306 @@
+{
+  "name": "Tinkex",
+  "version": "1.0.0",
+
+  "endpoints": [
+    {
+      "id": "list_models",
+      "resource": "models",
+      "method": "GET",
+      "path": "/models",
+      "description": "List all available models",
+      "response": "ModelList"
+    },
+    {
+      "id": "get_model",
+      "resource": "models",
+      "method": "GET",
+      "path": "/models/{model_id}",
+      "description": "Get details for a specific model",
+      "response": "Model"
+    },
+    {
+      "id": "create_sample",
+      "resource": "sampling",
+      "method": "POST",
+      "path": "/samples",
+      "description": "Create a new sample from a model",
+      "request": "SampleRequest",
+      "response": "SampleResult",
+      "idempotency": true
+    },
+    {
+      "id": "create_sample_stream",
+      "resource": "sampling",
+      "method": "POST",
+      "path": "/samples",
+      "description": "Create a streaming sample from a model",
+      "request": "SampleRequest",
+      "response": "SampleStreamEvent",
+      "streaming": true
+    },
+    {
+      "id": "get_sample",
+      "resource": "sampling",
+      "method": "GET",
+      "path": "/samples/{sample_id}",
+      "description": "Get a sample result by ID",
+      "response": "SampleResult"
+    },
+    {
+      "id": "create_sample_async",
+      "resource": "sampling",
+      "method": "POST",
+      "path": "/samples/async",
+      "description": "Create a sample asynchronously, returns a future",
+      "request": "SampleRequest",
+      "response": "AsyncSampleResponse"
+    }
+  ],
+
+  "types": {
+    "Model": {
+      "fields": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "Unique model identifier"
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "description": "Human-readable model name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Model description"
+        },
+        "context_length": {
+          "type": "integer",
+          "required": true,
+          "description": "Maximum context length in tokens"
+        },
+        "capabilities": {
+          "type": "array",
+          "items": "string",
+          "description": "List of model capabilities"
+        },
+        "created_at": {
+          "type": "string",
+          "description": "When the model was created"
+        }
+      }
+    },
+    "ModelList": {
+      "fields": {
+        "data": {
+          "type": "array",
+          "items": "Model",
+          "required": true
+        },
+        "has_more": {
+          "type": "boolean",
+          "required": true
+        },
+        "next_cursor": {
+          "type": "string"
+        }
+      }
+    },
+    "SampleRequest": {
+      "fields": {
+        "model": {
+          "type": "string",
+          "required": true,
+          "description": "Model ID to use"
+        },
+        "prompt": {
+          "type": "string",
+          "required": true,
+          "description": "Input prompt"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "default": 1024,
+          "description": "Maximum tokens to generate"
+        },
+        "temperature": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Sampling temperature"
+        },
+        "top_p": {
+          "type": "number",
+          "description": "Nucleus sampling parameter"
+        },
+        "stop_sequences": {
+          "type": "array",
+          "items": "string",
+          "description": "Sequences that stop generation"
+        },
+        "stream": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to stream the response"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Custom metadata to attach"
+        }
+      }
+    },
+    "SampleResult": {
+      "fields": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "Unique sample ID"
+        },
+        "model": {
+          "type": "string",
+          "required": true,
+          "description": "Model used"
+        },
+        "content": {
+          "type": "array",
+          "items": "ContentBlock",
+          "required": true,
+          "description": "Generated content blocks"
+        },
+        "stop_reason": {
+          "type": "string",
+          "required": true,
+          "description": "Why generation stopped",
+          "choices": ["end_turn", "max_tokens", "stop_sequence", "tool_use"]
+        },
+        "usage": {
+          "type": "object",
+          "required": true,
+          "description": "Token usage information"
+        },
+        "created_at": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    "ContentBlock": {
+      "fields": {
+        "type": {
+          "type": "string",
+          "required": true,
+          "choices": ["text", "tool_use"]
+        },
+        "text": {
+          "type": "string",
+          "description": "Text content (for text blocks)"
+        },
+        "id": {
+          "type": "string",
+          "description": "Tool use ID (for tool_use blocks)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Tool name (for tool_use blocks)"
+        },
+        "input": {
+          "type": "object",
+          "description": "Tool input (for tool_use blocks)"
+        }
+      }
+    },
+    "Usage": {
+      "fields": {
+        "input_tokens": {
+          "type": "integer",
+          "required": true
+        },
+        "output_tokens": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    "SampleStreamEvent": {
+      "fields": {
+        "type": {
+          "type": "string",
+          "required": true,
+          "choices": [
+            "message_start",
+            "content_block_start",
+            "content_block_delta",
+            "content_block_stop",
+            "message_delta",
+            "message_stop",
+            "ping",
+            "error"
+          ]
+        },
+        "message": {
+          "type": "object",
+          "description": "Partial message (for message_start)"
+        },
+        "index": {
+          "type": "integer",
+          "description": "Content block index"
+        },
+        "content_block": {
+          "type": "object",
+          "description": "Content block data"
+        },
+        "delta": {
+          "type": "object",
+          "description": "Delta update"
+        },
+        "usage": {
+          "type": "object",
+          "description": "Usage information"
+        },
+        "error": {
+          "type": "object",
+          "description": "Error details"
+        }
+      }
+    },
+    "AsyncSampleResponse": {
+      "fields": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "Sample ID to poll"
+        },
+        "status": {
+          "type": "string",
+          "required": true,
+          "choices": ["pending", "processing", "completed", "failed"]
+        },
+        "poll_url": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    "ApiError": {
+      "fields": {
+        "type": {
+          "type": "string",
+          "required": true
+        },
+        "message": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  },
+
+  "policies": {
+    "default": {
+      "max_attempts": 3,
+      "base_delay_ms": 1000,
+      "max_delay_ms": 30000,
+      "backoff": "exponential"
+    }
+  }
+}
