@@ -1,0 +1,10 @@
+Mox.defmock(Pristine.TransportMock, for: Pristine.Ports.Transport)
+Mox.defmock(Pristine.SerializerMock, for: Pristine.Ports.Serializer)
+Mox.defmock(Pristine.RetryMock, for: Pristine.Ports.Retry)
+Mox.defmock(Pristine.TelemetryMock, for: Pristine.Ports.Telemetry)
+Mox.defmock(Pristine.AuthMock, for: Pristine.Ports.Auth)
+Mox.defmock(Pristine.MultipartMock, for: Pristine.Ports.Multipart)
+Mox.defmock(Pristine.CircuitBreakerMock, for: Pristine.Ports.CircuitBreaker)
+Mox.defmock(Pristine.RateLimitMock, for: Pristine.Ports.RateLimit)
+
+ExUnit.start()

@@ -1,0 +1,12 @@
+{
+  "name": "TestAPI",
+  "version": "1.0.0",
+  "endpoints": [
+    {
+      "id": "test",
+      "method": "GET",
+      "path": "/test"
+    }
+  ],
+  "types": {}
+}
