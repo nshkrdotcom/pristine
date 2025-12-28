@@ -35,8 +35,9 @@ defmodule Pristine.MixProject do
       {:tiktoken_ex, path: "../../North-Shore-AI/tiktoken_ex"},
       {:uuid, "~> 1.1"},
       {:mox, "~> 1.1", only: :test},
-      {:plug, "~> 1.15", only: :dev},
-      {:plug_cowboy, "~> 2.7", only: :dev},
+      {:plug, "~> 1.15"},
+      {:plug_cowboy, "~> 2.7", only: [:dev, :test]},
+      {:bandit, "~> 1.0", only: :test},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
@@ -55,7 +56,8 @@ defmodule Pristine.MixProject do
     [
       plt_add_apps: [:mix, :ex_unit],
       plt_core_path: "priv/plts",
-      plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
+      plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+      ignore_warnings: ".dialyzer_ignore.exs"
     ]
   end
 end
