@@ -16,15 +16,15 @@ This roadmap outlines the specific enhancements required to make Pristine capabl
 
 **Goal**: Integrate Sinter's existing type capabilities into Pristine's code generation
 
-> **Note**: Sinter already provides discriminated unions at `sinter/lib/sinter/types.ex:320-368`
+> **Note**: Sinter already provides discriminated unions at `sinter/lib/sinter/types.ex:61-62`
 > and literal types. This phase focuses on code generation integration, not type system work.
 
 ### 1.1 Discriminated Union Code Generation
 
 **Files to Modify**:
-- `lib/pristine/manifest/type.ex` - Add discriminator field to struct
+- `lib/pristine/manifest.ex` - Normalize discriminator/variant metadata in type definitions
+- `lib/pristine/manifest/schema.ex` - Accept discriminator/variants in manifest schema
 - `lib/pristine/codegen/type.ex` - Generate `{:discriminated_union, opts}` schemas
-- `lib/pristine/manifest.ex` - Parse union definitions from JSON
 
 **Manifest Schema Addition**:
 ```json
@@ -66,8 +66,9 @@ end
 ### 1.2 Literal Type Code Generation
 
 **Files to Modify**:
-- `lib/pristine/manifest/field.ex` - Add literal field
-- `lib/pristine/codegen/type.ex` - Generate `{:literal, value}` schemas
+- `lib/pristine/manifest.ex` - Normalize literal/value fields on type definitions
+- `lib/pristine/manifest/schema.ex` - Accept literal/value in manifest schema
+- `lib/pristine/codegen/type.ex` - Generate `{:literal, value}` or `choices` constraints
 
 **Manifest Schema Addition**:
 ```json
@@ -83,7 +84,7 @@ end
 
 **Deliverables**:
 - [ ] Add `literal` type to field definitions
-- [ ] Generate `{:literal, value}` or `{:choices, [...]}` as appropriate
+- [ ] Generate `{:literal, value}` or `choices` constraints on base types
 - [ ] Support literal defaults in generated structs
 
 ### 1.3 Nested Type References
@@ -213,7 +214,7 @@ def create(resource, payload, opts \\ [])
 
 **Target**:
 ```elixir
-@spec create(t(), String.t(), integer(), String.t(), keyword()) :: {:ok, Future.t()} | {:error, Error.t()}
+@spec create(t(), String.t(), integer(), String.t(), keyword()) :: {:ok, Task.t()} | {:error, Error.t()}
 def create(resource, session_id, model_seq_id, base_model, opts \\ [])
 ```
 
@@ -240,7 +241,7 @@ def create_sample(resource, payload, opts \\ [])
 # Stream version
 def create_sample_stream(resource, payload, opts \\ [])
 
-# Async version (returns future)
+# Async version (returns task)
 def create_sample_async(resource, payload, opts \\ [])
 ```
 
@@ -271,13 +272,13 @@ Creates a new model with optional LoRA fine-tuning configuration.
 
 ## Returns
 
-  * `{:ok, %Future{}}` on success
+  * `{:ok, Task.t()}` on success
   * `{:error, %Error{}}` on failure
 
 ## Example
 
-    {:ok, future} = Models.create(client.models, "session-123", 1, "Qwen/Qwen3-8B")
-    {:ok, result} = Future.await(future)
+    {:ok, task} = Models.create(client.models, "session-123", 1, "Qwen/Qwen3-8B")
+    {:ok, result} = Task.await(task)
 
 """
 ```
@@ -294,9 +295,10 @@ Creates a new model with optional LoRA fine-tuning configuration.
 
 **Goal**: Full-featured request/response handling
 
-### 4.1 Error Type Hierarchy (ALREADY IMPLEMENTED)
+### 4.1 Error Type Hierarchy (PARTIALLY IMPLEMENTED)
 
-> **Status**: Core functionality already exists at `lib/pristine/error.ex`
+> **Status**: Status mapping exists in `lib/pristine/error.ex`, but the pipeline does not
+> wrap non-2xx responses with `Pristine.Error` yet.
 > - Status code to type mapping: lines 196-204
 > - Retriable detection: lines 173-186
 > - x-should-retry header support: lines 178-181
@@ -312,6 +314,7 @@ end
 **Remaining Deliverables**:
 - [x] Status code -> error type mapping (EXISTS)
 - [x] Retriable detection (EXISTS)
+- [ ] Wire `Pristine.Error.from_response/1` into the pipeline response path
 - [ ] Extract Retry-After header from response
 - [ ] Optional: Typed exception modules
 
@@ -345,12 +348,12 @@ end
 ### 4.3 Enhanced Streaming
 
 **Files to Modify**:
-- `lib/pristine/runtime/stream_response.ex` - Event dispatch
-- `lib/pristine/adapters/transport/sse_decoder.ex` - Last-Event-ID
+- `lib/pristine/core/stream_response.ex` - Event dispatch
+- `lib/pristine/streaming/sse_decoder.ex` - Last-Event-ID
 
 **Implementation**:
 ```elixir
-defmodule Pristine.Runtime.StreamResponse do
+defmodule Pristine.Core.StreamResponse do
   def dispatch_event(event, handler) do
     case event.type do
       "message_start" -> handler.on_message_start(event.data)
@@ -371,22 +374,20 @@ end
 ### 4.4 Enhanced Futures
 
 **Files to Modify**:
-- `lib/pristine/runtime/future.ex` - Full lifecycle management
+- `lib/pristine/ports/future.ex` - Extend future interface for combined futures
+- `lib/pristine/adapters/future/polling.ex` - Add caching/combination helpers
 
 **Implementation**:
 ```elixir
-defmodule Pristine.Runtime.Future do
-  defstruct [:request_id, :poll_fn, :cached_result, :status]
+defmodule Pristine.Adapters.Future.Polling do
+  def combine(tasks, transform_fn, opts \\ []) do
+    timeout = Keyword.get(opts, :timeout, :infinity)
 
-  def await(future, timeout \\ :infinity) do
-    case future.cached_result do
-      nil -> poll_until_complete(future, timeout)
-      result -> {:ok, result}
-    end
-  end
+    results =
+      tasks
+      |> Task.async_stream(&await(&1, timeout))
+      |> Enum.to_list()
 
-  def combine(futures, transform_fn) do
-    results = Task.async_stream(futures, &await/1) |> Enum.to_list()
     transform_fn.(results)
   end
 end
@@ -394,7 +395,7 @@ end
 
 **Deliverables**:
 - [ ] Implement result caching
-- [ ] Add timeout handling
+- [ ] Ensure combined futures respect existing timeout options
 - [ ] Implement combined futures
 - [ ] Add queue state observation callbacks
 - [ ] Integrate telemetry
@@ -445,7 +446,7 @@ defp maybe_add_idempotency_header(headers, _endpoint, _context, _opts), do: head
 **Deliverables**:
 - [x] Auto-generate idempotency keys when endpoint.idempotency: true (EXISTS)
 - [x] Allow user override via opts[:idempotency_key] (EXISTS)
-- [ ] Reuse key across retries (enhancement needed)
+- [x] Reuse key across retries (build_request runs once; retry adapter reuses headers)
 
 ### 5.3 Platform Telemetry Headers
 
@@ -522,7 +523,7 @@ Phase 5 (Utilities) ───────────────► independent
 - [ ] Documentation includes all parameters
 
 ### After Phase 4
-- [x] Errors return typed structs (EXISTS: Pristine.Error with :type field)
+- [ ] Errors return Pristine.Error for non-2xx responses (status mapping exists, wiring missing)
 - [ ] Streaming events dispatched by type
 - [ ] Futures poll with caching
 
@@ -535,7 +536,7 @@ Phase 5 (Utilities) ───────────────► independent
 
 ## Success Criteria
 
-1. **Tinkex v2 Manifest**: Complete manifest representing all 25 Tinker endpoints
+1. **Tinkex v2 Manifest**: Complete manifest representing all 20 Tinker endpoints
 2. **Generated Client**: Full Tinkex client generated from manifest
 3. **Test Coverage**: Integration tests pass against mock server
 4. **Custom Code**: < 200 lines of hand-written code in Tinkex

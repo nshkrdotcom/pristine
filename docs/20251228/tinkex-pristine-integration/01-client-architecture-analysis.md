@@ -137,7 +137,7 @@ class AsyncAPIResource:
 
 ### Request Building (_build_request)
 Steps:
-1. Merge JSON data with extra_json if multipart form data
+1. Merge JSON data with extra_json (regardless of content type)
 2. Build headers using `_build_headers()`
 3. Merge default query params with request params
 4. Handle multipart/form-data content-type header removal (let httpx generate it)
@@ -337,9 +337,9 @@ Automatically injected:
 
 ### Raw Response Control
 Uses internal headers to control response behavior:
-- `x-raw-response: raw` -> Return AsyncAPIResponse wrapper
-- `x-raw-response: stream` -> Stream response body
-- `x-override-cast-to: CustomClass` -> Override response type
+- `X-Stainless-Raw-Response: raw` -> Return AsyncAPIResponse wrapper
+- `X-Stainless-Raw-Response: stream` -> Stream response body
+- `____stainless_override_cast_to: CustomClass` -> Override response type
 
 ### Request Options Hook
 `async _prepare_options(options: FinalRequestOptions) -> FinalRequestOptions`

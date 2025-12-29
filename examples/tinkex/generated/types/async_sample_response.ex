@@ -15,13 +15,41 @@ defmodule Tinkex.Types.AsyncSampleResponse do
   @spec schema() :: Sinter.Schema.t()
   def schema do
     Sinter.Schema.define([
-      {:id, :string, [required: true]},
+      {:id, :string, [description: "Sample ID to poll", required: true]},
       {:poll_url, :string, [required: true]},
-      {:status, :string, [required: true]}
+      {:status, :string,
+       [choices: ["pending", "processing", "completed", "failed"], required: true]}
     ])
   end
 
-  @doc "Create a new AsyncSampleResponse from a map."
+  @doc "Decode a map into a Tinkex.Types.AsyncSampleResponse struct."
+  @spec decode(map()) :: {:ok, t()} | {:error, term()}
+  def decode(data) when is_map(data) do
+    with {:ok, validated} <- Sinter.Validator.validate(schema(), data) do
+      {:ok,
+       %__MODULE__{
+         id: validated["id"],
+         poll_url: validated["poll_url"],
+         status: validated["status"]
+       }}
+    end
+  end
+
+  def decode(_), do: {:error, :invalid_input}
+
+  @doc "Encode a Tinkex.Types.AsyncSampleResponse struct into a map."
+  @spec encode(t()) :: map()
+  def encode(%__MODULE__{} = struct) do
+    %{
+      "id" => struct.id,
+      "poll_url" => struct.poll_url,
+      "status" => struct.status
+    }
+    |> Enum.reject(fn {_, v} -> is_nil(v) end)
+    |> Map.new()
+  end
+
+  @doc "Create a new Tinkex.Types.AsyncSampleResponse from a map."
   @spec from_map(map()) :: t()
   def from_map(data) when is_map(data) do
     struct(__MODULE__, atomize_keys(data))
@@ -36,7 +64,7 @@ defmodule Tinkex.Types.AsyncSampleResponse do
     |> Map.new()
   end
 
-  @doc "Create a new AsyncSampleResponse."
+  @doc "Create a new Tinkex.Types.AsyncSampleResponse."
   @spec new(keyword() | map()) :: t()
   def new(attrs \\ [])
   def new(attrs) when is_list(attrs), do: struct(__MODULE__, attrs)

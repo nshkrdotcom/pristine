@@ -20,7 +20,7 @@ ModelInputChunk: TypeAlias = Annotated[
 ]
 ```
 
-**Sinter Has** (already implemented at `sinter/lib/sinter/types.ex:320-368`):
+**Sinter Has** (already implemented at `sinter/lib/sinter/types.ex:61-62`):
 ```elixir
 {:discriminated_union, [
   discriminator: :type,
@@ -51,17 +51,18 @@ Severity: TypeAlias = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 **Sinter Has** (already supported):
 ```elixir
 {:literal, "encoded_text"}          # Single literal value
-{:choices, ["DEBUG", "INFO", ...]}  # Enum of allowed values
+# Enum values are expressed via constraints:
+{:string, [choices: ["DEBUG", "INFO", ...]]}
 ```
 
-**Gap**: Pristine's code generation uses `choices` but not `{:literal, value}`.
+**Gap**: Pristine's code generation does not emit literal types or `choices` constraints.
 
 **Gap Severity**: MEDIUM - Code generation enhancement
 
 **Required Enhancement**:
 - Add `literal` type to manifest schema
 - Generate `{:literal, value}` for single-value literals
-- Continue using `{:choices, [...]}` for enum literals
+- Continue using `choices` constraints on base types for enum literals
 
 ### 1.3 Nested Type References
 
@@ -298,18 +299,17 @@ defp status_to_type(status) when status >= 500, do: :internal_server
 ### 4.2 Response Unwrapping
 
 **Tinker Has**:
-- Automatic extraction of nested response data
+- Parsed JSON into response models
 - Response caching by type
 
 **Pristine Has**:
 - Returns raw decoded JSON
 
-**Gap Severity**: MEDIUM
+**Gap Severity**: LOW - Optional enhancement
 
-**Required Enhancement**:
-- Add `response_unwrap` path to manifest
-- Implement nested data extraction
-- Cache parsed responses
+**Optional Enhancement**:
+- Add `response_unwrap` path to manifest for convenience (not required for parity)
+- Implement nested data extraction where needed
 
 ### 4.3 Retry Logic
 
@@ -330,7 +330,7 @@ defp status_to_type(status) when status >= 500, do: :internal_server
 
 **Remaining Enhancement**:
 - Add Retry-After header parsing
-- Per-endpoint timeout configuration (manifest field exists, needs wiring)
+- Per-endpoint timeout configuration (manifest field missing; needs schema + wiring)
 
 ### 4.4 Streaming
 
@@ -365,17 +365,16 @@ defp status_to_type(status) when status >= 500, do: :internal_server
 - Telemetry integration
 
 **Pristine Has**:
-- Basic polling loop in `execute_future/5`
-- No queue state handling
+- Polling adapter with backoff and timeout (`poll_interval_ms`, `max_poll_time_ms`, `await/2`)
+- No queue state parsing/handling
 - No combined futures
 
 **Gap Severity**: HIGH
 
 **Required Enhancement**:
-- Add queue state callbacks
+- Add queue state parsing/callbacks (408 handling)
 - Implement combined futures
-- Add proper timeout handling
-- Integrate telemetry
+- Align retry semantics (410/5xx) and telemetry headers with Tinker
 
 ---
 
@@ -471,11 +470,11 @@ defp status_to_type(status) when status >= 500, do: :internal_server
 6. Endpoint tags
 7. Platform telemetry headers
 
-### Already Implemented ✓
-1. ~~Error type hierarchy~~ - Status mapping exists (lib/pristine/error.ex)
+### Already Implemented / Partial ✓
+1. ~~Error type hierarchy~~ - Status mapping exists, but pipeline does not convert responses yet
 2. ~~Idempotency key generation~~ - Automatic (lib/pristine/core/pipeline.ex)
 3. ~~Per-endpoint retry~~ - Via manifest retry field
-4. ~~Retriable detection~~ - x-should-retry + status codes
+4. ~~Retriable detection~~ - Implemented in Pristine.Error but not wired into pipeline
 
 ---
 

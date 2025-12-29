@@ -19,7 +19,7 @@ This document summarizes findings from 4 verification agents that cross-checked 
 
 | Feature | Status | Evidence |
 |---------|--------|----------|
-| Discriminated Unions | SINTER HAS IT | `sinter/lib/sinter/types.ex:320-368` |
+| Discriminated Unions | SINTER HAS IT | `sinter/lib/sinter/types.ex:61-62` |
 | Literal Types | SINTER HAS IT | `{:literal, value}` type supported |
 | Nested Type References | CODEGEN GAP | No `type_ref` field in codegen |
 | Custom Validators | GAP | No validator/serializer hooks |
@@ -46,7 +46,7 @@ This document summarizes findings from 4 verification agents that cross-checked 
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| SSE Parsing | ✓ Complete | WHATWG EventSource spec compliant, stateful decoder |
+| SSE Parsing | ⚠ Partial | WHATWG parser; no Last-Event-ID persistence/reconnect |
 | Event Structure | ✓ Complete | All required fields present |
 | StreamResponse | ✓ Complete | Proper wrapper with metadata |
 | Finch Transport | ✓ Complete | Full streaming integration |
@@ -189,7 +189,7 @@ The documentation set has been **revised to correct inaccuracies** identified in
 3. Status code to error type mapping already implemented
 4. SSE follows WHATWG spec, not RFC 6202
 
-**Revised effort estimate**: 3-4 weeks for remaining Pristine enhancements
+**Revised effort estimate**: 4-6 weeks for remaining Pristine enhancements
 **Expected result**: 95% generated code coverage for Tinkex v2
 
 The remaining work focuses on:

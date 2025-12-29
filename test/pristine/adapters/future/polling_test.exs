@@ -1,9 +1,10 @@
 defmodule Pristine.Adapters.Future.PollingTest do
   use ExUnit.Case, async: true
+  import ExUnit.CaptureLog
   import Mox
 
   alias Pristine.Adapters.Future.Polling
-  alias Pristine.Core.{Context, Response}
+  alias Pristine.Core.{Context, Request, Response}
 
   setup :set_mox_from_context
   setup :verify_on_exit!
@@ -131,7 +132,7 @@ defmodule Pristine.Adapters.Future.PollingTest do
         end
       end)
 
-      expect(Pristine.SerializerMock, :decode, fn body, _schema, _opts ->
+      expect(Pristine.SerializerMock, :decode, 2, fn body, _schema, _opts ->
         Jason.decode(body)
       end)
 
@@ -184,6 +185,115 @@ defmodule Pristine.Adapters.Future.PollingTest do
 
       assert_received {:state_change, %{"type" => "try_again"}}
     end
+
+    test "caches results for subsequent polls" do
+      request_id = "req_cache"
+
+      expect(Pristine.SerializerMock, :encode, fn _payload, _opts ->
+        {:ok, ~s({"request_id":"#{request_id}"})}
+      end)
+
+      expect(Pristine.TransportMock, :send, fn _request, _context ->
+        response = %{"type" => "completed", "result" => %{"value" => 7}}
+        {:ok, %Response{status: 200, body: Jason.encode!(response)}}
+      end)
+
+      expect(Pristine.SerializerMock, :decode, fn body, _schema, _opts ->
+        Jason.decode(body)
+      end)
+
+      context = build_context()
+      opts = [poll_interval_ms: 10, sleep_fun: fn _ -> :ok end]
+
+      {:ok, task1} = Polling.poll(request_id, context, opts)
+      assert {:ok, %{"type" => "completed"} = result} = Polling.await(task1, 5_000)
+
+      {:ok, task2} = Polling.poll(request_id, context, opts)
+      assert {:ok, ^result} = Polling.await(task2, 5_000)
+    end
+
+    test "handles queue state on 408 responses" do
+      test_pid = self()
+      request_id = "req_queue"
+      call_count = :counters.new(1, [:atomics])
+
+      expect(Pristine.SerializerMock, :encode, 2, fn _payload, _opts ->
+        {:ok, ~s({"request_id":"#{request_id}"})}
+      end)
+
+      expect(Pristine.TransportMock, :send, 2, fn _request, _context ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        if count < 1 do
+          {:ok,
+           %Response{
+             status: 408,
+             body: Jason.encode!(%{"queue_state" => "paused_rate_limit"})
+           }}
+        else
+          response = %{"type" => "completed", "result" => "done"}
+          {:ok, %Response{status: 200, body: Jason.encode!(response)}}
+        end
+      end)
+
+      expect(Pristine.SerializerMock, :decode, 2, fn body, _schema, _opts ->
+        Jason.decode(body)
+      end)
+
+      context = build_context()
+
+      opts = [
+        poll_interval_ms: 10,
+        backoff: :none,
+        sleep_fun: fn _ -> :ok end,
+        on_state_change: fn payload ->
+          send(test_pid, {:queue_state, payload.queue_state})
+          :ok
+        end
+      ]
+
+      {:ok, task} = Polling.poll(request_id, context, opts)
+
+      assert {:ok, %{"type" => "completed"}} = Polling.await(task, 5_000)
+      assert_received {:queue_state, :paused_rate_limit}
+    end
+
+    test "adds telemetry headers on each poll attempt" do
+      request_id = "req_headers"
+      call_count = :counters.new(1, [:atomics])
+
+      expect(Pristine.SerializerMock, :encode, 2, fn _payload, _opts ->
+        {:ok, ~s({"request_id":"#{request_id}"})}
+      end)
+
+      expect(Pristine.TransportMock, :send, 2, fn %Request{headers: headers}, _context ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        assert headers["x-stainless-retry-count"] == to_string(count)
+        assert headers["X-Stainless-OS"]
+
+        response =
+          if count < 1 do
+            %{"type" => "try_again"}
+          else
+            %{"type" => "completed", "result" => "done"}
+          end
+
+        {:ok, %Response{status: 200, body: Jason.encode!(response)}}
+      end)
+
+      expect(Pristine.SerializerMock, :decode, 2, fn body, _schema, _opts ->
+        Jason.decode(body)
+      end)
+
+      context = build_context()
+      opts = [poll_interval_ms: 10, backoff: :none, sleep_fun: fn _ -> :ok end]
+
+      {:ok, task} = Polling.poll(request_id, context, opts)
+      assert {:ok, %{"type" => "completed"}} = Polling.await(task, 5_000)
+    end
   end
 
   describe "await/2" do
@@ -201,8 +311,12 @@ defmodule Pristine.Adapters.Future.PollingTest do
       # Trap exits so we don't get killed when the task exits
       Process.flag(:trap_exit, true)
 
-      task = Task.async(fn -> raise "boom" end)
-      result = Polling.await(task, 1_000)
+      {result, _log} =
+        with_log(fn ->
+          task = Task.async(fn -> raise "boom" end)
+          Polling.await(task, 1_000)
+        end)
+
       assert {:error, {:task_exit, _}} = result
 
       # Clean up the exit message
@@ -211,6 +325,26 @@ defmodule Pristine.Adapters.Future.PollingTest do
       after
         100 -> :ok
       end
+    end
+  end
+
+  describe "combine/3" do
+    test "combines futures and applies transform" do
+      task1 = Task.async(fn -> {:ok, 1} end)
+      task2 = Task.async(fn -> {:ok, 2} end)
+
+      {:ok, combined} = Polling.combine([task1, task2], fn results -> Enum.sum(results) end)
+
+      assert {:ok, 3} = Polling.await(combined, 1_000)
+    end
+
+    test "returns error when a future fails" do
+      task1 = Task.async(fn -> {:ok, 1} end)
+      task2 = Task.async(fn -> {:error, :boom} end)
+
+      {:ok, combined} = Polling.combine([task1, task2], fn results -> Enum.sum(results) end)
+
+      assert {:error, :boom} = Polling.await(combined, 1_000)
     end
   end
 

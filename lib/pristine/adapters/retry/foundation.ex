@@ -16,8 +16,13 @@ defmodule Pristine.Adapters.Retry.Foundation do
   @impl true
   def with_retry(fun, opts) when is_function(fun, 0) do
     policy = normalize_policy(opts)
-    {result, _state} = Retry.run(fun, policy)
-    result
+    sleep_fun = Keyword.get(opts, :sleep_fun, &Process.sleep/1)
+    time_fun = Keyword.get(opts, :time_fun, &System.monotonic_time/1)
+    before_attempt = Keyword.get(opts, :before_attempt, fn _attempt -> :ok end)
+
+    state = Keyword.get(opts, :state, Retry.State.new(time_fun: time_fun))
+
+    do_run(fun, policy, state, sleep_fun, time_fun, before_attempt)
   end
 
   @impl true
@@ -89,4 +94,24 @@ defmodule Pristine.Adapters.Retry.Foundation do
   defp normalize_policy(%Retry.Policy{} = policy), do: policy
   defp normalize_policy(opts) when is_list(opts), do: Retry.Policy.new(opts)
   defp normalize_policy(_), do: Retry.Policy.new()
+
+  defp do_run(fun, policy, state, sleep_fun, time_fun, before_attempt) do
+    case Retry.check_timeouts(state, policy, time_fun: time_fun) do
+      {:error, reason} ->
+        {:error, reason}
+
+      :ok ->
+        before_attempt.(state.attempt)
+        result = fun.()
+
+        case Retry.step(state, policy, result, time_fun: time_fun) do
+          {:retry, delay_ms, next_state} ->
+            sleep_fun.(delay_ms)
+            do_run(fun, policy, next_state, sleep_fun, time_fun, before_attempt)
+
+          {:halt, final_result, _final_state} ->
+            final_result
+        end
+    end
+  end
 end

@@ -6,7 +6,7 @@ defmodule Tinkex.Types.Model do
   defstruct [:capabilities, :context_length, :created_at, :description, :id, :name]
 
   @type t :: %__MODULE__{
-          capabilities: list() | nil,
+          capabilities: [String.t()] | nil,
           context_length: integer(),
           created_at: String.t() | nil,
           description: String.t() | nil,
@@ -18,16 +18,51 @@ defmodule Tinkex.Types.Model do
   @spec schema() :: Sinter.Schema.t()
   def schema do
     Sinter.Schema.define([
-      {:capabilities, {:array, :any}, [optional: true]},
-      {:context_length, :integer, [required: true]},
-      {:created_at, :string, [optional: true]},
-      {:description, :string, [optional: true]},
-      {:id, :string, [required: true]},
-      {:name, :string, [required: true]}
+      {:capabilities, {:array, :string},
+       [description: "List of model capabilities", optional: true]},
+      {:context_length, :integer,
+       [description: "Maximum context length in tokens", required: true]},
+      {:created_at, :string, [description: "When the model was created", optional: true]},
+      {:description, :string, [description: "Model description", optional: true]},
+      {:id, :string, [description: "Unique model identifier", required: true]},
+      {:name, :string, [description: "Human-readable model name", required: true]}
     ])
   end
 
-  @doc "Create a new Model from a map."
+  @doc "Decode a map into a Tinkex.Types.Model struct."
+  @spec decode(map()) :: {:ok, t()} | {:error, term()}
+  def decode(data) when is_map(data) do
+    with {:ok, validated} <- Sinter.Validator.validate(schema(), data) do
+      {:ok,
+       %__MODULE__{
+         capabilities: validated["capabilities"],
+         context_length: validated["context_length"],
+         created_at: validated["created_at"],
+         description: validated["description"],
+         id: validated["id"],
+         name: validated["name"]
+       }}
+    end
+  end
+
+  def decode(_), do: {:error, :invalid_input}
+
+  @doc "Encode a Tinkex.Types.Model struct into a map."
+  @spec encode(t()) :: map()
+  def encode(%__MODULE__{} = struct) do
+    %{
+      "capabilities" => struct.capabilities,
+      "context_length" => struct.context_length,
+      "created_at" => struct.created_at,
+      "description" => struct.description,
+      "id" => struct.id,
+      "name" => struct.name
+    }
+    |> Enum.reject(fn {_, v} -> is_nil(v) end)
+    |> Map.new()
+  end
+
+  @doc "Create a new Tinkex.Types.Model from a map."
   @spec from_map(map()) :: t()
   def from_map(data) when is_map(data) do
     struct(__MODULE__, atomize_keys(data))
@@ -42,7 +77,7 @@ defmodule Tinkex.Types.Model do
     |> Map.new()
   end
 
-  @doc "Create a new Model."
+  @doc "Create a new Tinkex.Types.Model."
   @spec new(keyword() | map()) :: t()
   def new(attrs \\ [])
   def new(attrs) when is_list(attrs), do: struct(__MODULE__, attrs)

@@ -32,10 +32,11 @@ defmodule Pristine.Streaming.SSEDecoder do
   alias Pristine.Streaming.Event
 
   @type t :: %__MODULE__{
-          buffer: binary()
+          buffer: binary(),
+          last_event_id: String.t() | nil
         }
 
-  defstruct buffer: ""
+  defstruct buffer: "", last_event_id: nil
 
   @doc """
   Create a new decoder with an empty buffer.
@@ -44,8 +45,16 @@ defmodule Pristine.Streaming.SSEDecoder do
 
       decoder = SSEDecoder.new()
   """
-  @spec new() :: t()
-  def new, do: %__MODULE__{}
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
+    %__MODULE__{last_event_id: Keyword.get(opts, :last_event_id)}
+  end
+
+  @doc """
+  Return the last event ID seen by this decoder.
+  """
+  @spec last_event_id(t()) :: String.t() | nil
+  def last_event_id(%__MODULE__{last_event_id: last_event_id}), do: last_event_id
 
   @doc """
   Feed a chunk of data to the decoder.
@@ -67,10 +76,11 @@ defmodule Pristine.Streaming.SSEDecoder do
       {0, 1}
   """
   @spec feed(t(), binary()) :: {[Event.t()], t()}
-  def feed(%__MODULE__{buffer: buffer} = _decoder, chunk) when is_binary(chunk) do
+  def feed(%__MODULE__{buffer: buffer, last_event_id: last_event_id} = decoder, chunk)
+      when is_binary(chunk) do
     data = buffer <> chunk
-    {events, rest} = parse_events(data, [])
-    {Enum.reverse(events), %__MODULE__{buffer: rest}}
+    {events, rest, last_event_id} = parse_events(data, [], last_event_id)
+    {Enum.reverse(events), %__MODULE__{decoder | buffer: rest, last_event_id: last_event_id}}
   end
 
   @doc """
@@ -93,23 +103,24 @@ defmodule Pristine.Streaming.SSEDecoder do
       |> Stream.map(&Event.json!/1)
       |> Enum.to_list()
   """
-  @spec decode_stream(Enumerable.t()) :: Enumerable.t()
-  def decode_stream(chunks) do
-    Stream.transform(chunks, new(), fn chunk, decoder ->
+  @spec decode_stream(Enumerable.t(), keyword()) :: Enumerable.t()
+  def decode_stream(chunks, opts \\ []) do
+    Stream.transform(chunks, new(opts), fn chunk, decoder ->
       {events, new_decoder} = feed(decoder, chunk)
       {events, new_decoder}
     end)
   end
 
   # Parse complete events from the buffer
-  defp parse_events(data, acc) do
+  defp parse_events(data, acc, last_event_id) do
     case split_event_block(data) do
       :incomplete ->
-        {acc, data}
+        {acc, data, last_event_id}
 
       {event_block, rest} ->
         event = decode_event(event_block)
-        parse_events(rest, [event | acc])
+        last_event_id = update_last_event_id(last_event_id, event)
+        parse_events(rest, [event | acc], last_event_id)
     end
   end
 
@@ -174,4 +185,16 @@ defmodule Pristine.Streaming.SSEDecoder do
       :error -> nil
     end
   end
+
+  defp update_last_event_id(last_event_id, %Event{id: nil}), do: last_event_id
+
+  defp update_last_event_id(last_event_id, %Event{id: id}) when is_binary(id) do
+    if String.contains?(id, <<0>>) do
+      last_event_id
+    else
+      id
+    end
+  end
+
+  defp update_last_event_id(last_event_id, _event), do: last_event_id
 end

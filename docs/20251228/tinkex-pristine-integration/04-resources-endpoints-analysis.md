@@ -45,6 +45,7 @@ The Tinker SDK defines 7 resource modules with a total of 20 endpoints. All endp
 - **Request Type**: `SessionHeartbeatRequest`
 - **Request Fields**:
   - `session_id: str`
+  - `type: Literal["session_heartbeat"]`
 - **Response**: `SessionHeartbeatResponse`
 - **Idempotency**: No
 - **Description**: Send a heartbeat for an active session to keep it alive
@@ -147,6 +148,7 @@ The Tinker SDK defines 7 resource modules with a total of 20 endpoints. All endp
 - **Request Fields**:
   - `model_id: ModelID` (required)
   - `path: Optional[str]`
+  - `sampling_session_seq_id: Optional[int]`
   - `seq_id: Optional[int]`
   - `type: Literal["save_weights_for_sampler"]`
 - **Response Type**: `UntypedAPIFuture`
@@ -333,7 +335,7 @@ The Tinker SDK defines 7 resource modules with a total of 20 endpoints. All endp
 - Poll futures.retrieve(request_id) -> get result or TryAgainResponse
 
 ### Request Envelope Pattern
-**All POST request bodies include a `type` field:**
+**Most POST request bodies include a `type` field (exceptions: `ForwardRequest`, `ForwardBackwardRequest`):**
 - `CreateModelRequest`: type="create_model"
 - `GetInfoRequest`: type="get_info"
 - `LoadWeightsRequest`: type="load_weights"
@@ -360,7 +362,7 @@ The Tinker SDK defines 7 resource modules with a total of 20 endpoints. All endp
 | **HTTP GET** | 4 |
 | **HTTP POST** | 15 |
 | **HTTP DELETE** | 1 |
-| **Idempotent Endpoints** | 12 |
+| **Idempotent Endpoints** | 13 |
 | **Async/Future Endpoints** | 9 |
 | **Streaming** | 0 |
 

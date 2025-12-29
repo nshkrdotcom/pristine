@@ -75,4 +75,76 @@ defmodule Pristine.Core.StreamResponseTest do
       assert :counters.get(counter, 1) == 3
     end
   end
+
+  describe "dispatch helpers" do
+    defmodule Handler do
+      def on_message_start(payload), do: {:message_start, payload}
+      def on_content_block_start(payload), do: {:content_block_start, payload}
+      def on_content_block_delta(payload), do: {:content_block_delta, payload}
+      def on_content_block_stop(payload), do: {:content_block_stop, payload}
+      def on_message_stop(payload), do: {:message_stop, payload}
+      def on_error(payload), do: {:error, payload}
+      def on_unknown(event, data), do: {:unknown, event, data}
+    end
+
+    test "dispatch_event routes by event type" do
+      event = %Pristine.Streaming.Event{event: "message_start", data: ~s({"ok":true})}
+      assert StreamResponse.dispatch_event(event, Handler) == {:message_start, %{"ok" => true}}
+    end
+
+    test "dispatch_event falls back to on_unknown" do
+      event = %Pristine.Streaming.Event{event: "custom", data: ~s({"raw":true})}
+
+      assert StreamResponse.dispatch_event(event, Handler) ==
+               {:unknown, "custom", ~s({"raw":true})}
+    end
+
+    test "dispatch_stream maps events through handler" do
+      events = [
+        %Pristine.Streaming.Event{event: "message_stop", data: ~s({"n":1})},
+        %Pristine.Streaming.Event{event: "error", data: ~s({"n":2})}
+      ]
+
+      response = %StreamResponse{
+        stream: events,
+        status: 200,
+        headers: %{}
+      }
+
+      assert StreamResponse.dispatch_stream(response, Handler) |> Enum.to_list() == [
+               {:message_stop, %{"n" => 1}},
+               {:error, %{"n" => 2}}
+             ]
+    end
+
+    test "cancel calls metadata cancel function when present" do
+      called = self()
+
+      response = %StreamResponse{
+        stream: [],
+        status: 200,
+        headers: %{},
+        metadata: %{
+          cancel: fn -> send(called, :cancelled) end
+        }
+      }
+
+      assert :ok == StreamResponse.cancel(response)
+      assert_received :cancelled
+    end
+
+    test "last_event_id reads from agent when present" do
+      {:ok, ref} = Agent.start_link(fn -> "evt_123" end)
+
+      response = %StreamResponse{
+        stream: [],
+        status: 200,
+        headers: %{},
+        metadata: %{last_event_id_ref: ref}
+      }
+
+      assert StreamResponse.last_event_id(response) == "evt_123"
+      Agent.stop(ref)
+    end
+  end
 end

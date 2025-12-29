@@ -38,7 +38,8 @@ defmodule Pristine.Ports.Future do
           max_poll_time_ms: non_neg_integer() | :infinity,
           backoff: :none | :linear | :exponential,
           on_state_change: (map() -> :ok) | nil,
-          retrieve_endpoint: atom() | String.t()
+          retrieve_endpoint: atom() | String.t(),
+          cache: boolean()
         ]
 
   @doc """
@@ -75,4 +76,12 @@ defmodule Pristine.Ports.Future do
   """
   @callback await(Task.t(), timeout()) ::
               {:ok, term()} | {:error, term()}
+
+  @doc """
+  Combine multiple futures and apply a transform to their results.
+  """
+  @callback combine([Task.t()], (list() -> term()), keyword()) ::
+              {:ok, term()} | {:error, term()}
+
+  @optional_callbacks [combine: 3]
 end

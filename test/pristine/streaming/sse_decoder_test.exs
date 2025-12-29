@@ -127,6 +127,18 @@ defmodule Pristine.Streaming.SSEDecoderTest do
       assert event2.id == nil
     end
 
+    test "persists last_event_id across events" do
+      decoder = SSEDecoder.new()
+
+      {[event1], decoder1} = SSEDecoder.feed(decoder, "id: 1\ndata: first\n\n")
+      assert event1.id == "1"
+      assert SSEDecoder.last_event_id(decoder1) == "1"
+
+      {[event2], decoder2} = SSEDecoder.feed(decoder1, "data: second\n\n")
+      assert event2.id == nil
+      assert SSEDecoder.last_event_id(decoder2) == "1"
+    end
+
     test "ignores invalid retry values" do
       decoder = SSEDecoder.new()
       chunk = "retry: not_a_number\ndata: test\n\n"

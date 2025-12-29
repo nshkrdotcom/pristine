@@ -1,0 +1,130 @@
+{
+  "name": "Tinkex",
+  "version": "2.0.0",
+  "base_url": "https://api.tinker.ai/v1",
+  "auth": {
+    "type": "api_key",
+    "header": "X-API-Key",
+    "env_var": "TINKER_API_KEY",
+    "prefix": null
+  },
+  "defaults": {
+    "timeout": 60000,
+    "max_retries": 10,
+    "retry_delay": 500,
+    "max_retry_delay": 10000
+  },
+  "error_types": {
+    "400": {
+      "name": "BadRequestError",
+      "retryable": false
+    },
+    "429": {
+      "name": "RateLimitError",
+      "retryable": true
+    },
+    "5xx": {
+      "name": "ServerError",
+      "retryable": true
+    }
+  },
+  "retry_policies": {
+    "default": {
+      "max_attempts": 3
+    }
+  },
+  "rate_limits": {
+    "standard": {
+      "limit": 10
+    }
+  },
+  "resources": {
+    "models": {
+      "description": "Model operations"
+    }
+  },
+  "servers": {
+    "prod": {
+      "url": "https://api.tinker.ai/v1"
+    }
+  },
+  "middleware": {
+    "request": ["auth", "logging"]
+  },
+  "endpoints": [
+    {
+      "id": "create_model",
+      "method": "POST",
+      "path": "/api/v1/create_model",
+      "resource": "models",
+      "request": "CreateModelRequest",
+      "response": "UntypedAPIFuture",
+      "async": true,
+      "poll_endpoint": "retrieve_future",
+      "timeout": 300000,
+      "streaming": false,
+      "stream_format": null,
+      "event_types": null,
+      "idempotency": true,
+      "idempotency_header": "X-Idempotency-Key",
+      "deprecated": false,
+      "tags": ["models", "training"],
+      "error_types": ["BadRequestError"],
+      "response_unwrap": "data.result"
+    },
+    {
+      "id": "sample_stream",
+      "method": "POST",
+      "path": "/api/v1/sample_stream",
+      "resource": "sampling",
+      "request": "SampleRequest",
+      "response": "SampleStreamEvent",
+      "streaming": true,
+      "stream_format": "sse",
+      "event_types": ["message_start", "message_stop"]
+    }
+  ],
+  "types": {
+    "CreateModelRequest": {
+      "fields": {
+        "session_id": { "type": "string", "required": true },
+        "type": { "type": "literal", "value": "create_model" },
+        "tags": { "type": "array", "items": "string" }
+      }
+    },
+    "SampleRequest": {
+      "fields": {
+        "prompt": { "type_ref": "ModelInput", "required": true },
+        "sampling_params": { "type": "map", "required": true }
+      }
+    },
+    "ModelInput": {
+      "fields": {
+        "chunks": { "type": "array", "items": { "type_ref": "ModelInputChunk" } }
+      }
+    },
+    "ModelInputChunk": {
+      "kind": "union",
+      "discriminator": {
+        "field": "type",
+        "mapping": {
+          "text": "TextChunk",
+          "image": "ImageChunk"
+        }
+      }
+    },
+    "TextChunk": {
+      "fields": {
+        "type": { "type": "literal", "value": "text" },
+        "content": { "type": "string", "required": true }
+      }
+    },
+    "ImageChunk": {
+      "fields": {
+        "type": { "type": "literal", "value": "image" },
+        "url": { "type": "string", "required": true },
+        "format": { "type": "string", "choices": ["png", "jpeg"] }
+      }
+    }
+  }
+}

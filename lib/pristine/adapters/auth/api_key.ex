@@ -5,6 +5,14 @@ defmodule Pristine.Adapters.Auth.ApiKey do
 
   @behaviour Pristine.Ports.Auth
 
+  @doc """
+  Build an API key auth tuple for Context auth configuration.
+  """
+  @spec new(String.t(), keyword()) :: {module(), keyword()}
+  def new(value, opts \\ []) when is_list(opts) do
+    {__MODULE__, Keyword.put(opts, :value, value)}
+  end
+
   @impl true
   def headers(opts) do
     header = Keyword.get(opts, :header, "X-API-Key")

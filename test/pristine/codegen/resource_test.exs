@@ -49,7 +49,15 @@ defmodule Pristine.Codegen.ResourceTest do
         }
       ]
 
-      code = Resource.render_resource_module("MyAPI.Models", "models", endpoints)
+      types = %{
+        "CreateModelRequest" => %{
+          fields: %{
+            name: %{type: "string", required: true}
+          }
+        }
+      }
+
+      code = Resource.render_resource_module("MyAPI.Models", "models", endpoints, types)
 
       # Module definition
       assert code =~ "defmodule MyAPI.Models do"
@@ -72,7 +80,7 @@ defmodule Pristine.Codegen.ResourceTest do
         %Endpoint{id: "test", resource: "test", method: "GET", path: "/test"}
       ]
 
-      code = Resource.render_resource_module("MyAPI.Test", "test", endpoints)
+      code = Resource.render_resource_module("MyAPI.Test", "test", endpoints, %{})
 
       assert code =~ "def with_client(%{context: context})"
       assert code =~ "%__MODULE__{context: context}"
@@ -83,7 +91,7 @@ defmodule Pristine.Codegen.ResourceTest do
         %Endpoint{id: "test", resource: "test", method: "GET", path: "/test"}
       ]
 
-      code = Resource.render_resource_module("MyAPI.Test", "test", endpoints)
+      code = Resource.render_resource_module("MyAPI.Test", "test", endpoints, %{})
 
       assert code =~ "defstruct [:context]"
       assert code =~ "@type t :: %__MODULE__{context:"
@@ -94,10 +102,10 @@ defmodule Pristine.Codegen.ResourceTest do
         %Endpoint{id: "create", resource: "test", method: "POST", path: "/test"}
       ]
 
-      code = Resource.render_resource_module("MyAPI.Test", "test", endpoints)
+      code = Resource.render_resource_module("MyAPI.Test", "test", endpoints, %{})
 
-      assert code =~ "@spec create(t(), map(), keyword())"
-      assert code =~ "{:ok, term()} | {:error, term()}"
+      assert code =~ "@spec create(t(), keyword())"
+      assert code =~ "{:ok, term()} | {:error, Pristine.Error.t()}"
     end
 
     test "handles endpoints without description" do
@@ -105,12 +113,67 @@ defmodule Pristine.Codegen.ResourceTest do
         %Endpoint{id: "test", resource: "test", method: "GET", path: "/test", description: nil}
       ]
 
-      code = Resource.render_resource_module("MyAPI.Test", "test", endpoints)
+      code = Resource.render_resource_module("MyAPI.Test", "test", endpoints, %{})
 
       # Should still generate valid code
       assert code =~ "def test("
       # Should not have a @doc with nil
       refute code =~ "@doc nil"
+    end
+
+    test "renders path params and typed arguments" do
+      endpoints = [
+        %Endpoint{
+          id: "get",
+          method: "GET",
+          path: "/api/v1/models/:id",
+          resource: "models",
+          request: "GetModelRequest"
+        }
+      ]
+
+      types = %{
+        "GetModelRequest" => %{
+          fields: %{
+            id: %{type: "string", required: true},
+            include: %{type: "string", required: false}
+          }
+        }
+      }
+
+      code = Resource.render_resource_module("MyAPI.Models", "models", endpoints, types)
+
+      assert code =~ "def get(%__MODULE__{context: context}, id, opts \\\\ [])"
+      assert code =~ "path_params = %{"
+      assert code =~ "\"id\" => id"
+      refute code =~ "\"id\" => encode_ref"
+    end
+
+    test "generates async variants for async endpoints" do
+      endpoints = [
+        %Endpoint{
+          id: "create",
+          method: "POST",
+          path: "/api/v1/models",
+          resource: "models",
+          async: true,
+          request: "CreateModelRequest",
+          response: "Model"
+        }
+      ]
+
+      types = %{
+        "CreateModelRequest" => %{
+          fields: %{
+            name: %{type: "string", required: true}
+          }
+        }
+      }
+
+      code = Resource.render_resource_module("MyAPI.Models", "models", endpoints, types)
+
+      assert code =~ "def create_async("
+      assert code =~ "Pipeline.execute_future"
     end
   end
 

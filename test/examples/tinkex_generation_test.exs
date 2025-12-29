@@ -8,8 +8,8 @@ defmodule Examples.TinkexGenerationTest do
 
   use ExUnit.Case
 
-  alias Pristine.Manifest
   alias Pristine.Codegen
+  alias Pristine.Manifest
 
   @manifest_path "examples/tinkex/manifest.json"
   @output_path "examples/tinkex/generated"
