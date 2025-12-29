@@ -45,7 +45,7 @@ defmodule Pristine.Adapters.Future.Polling do
 
   @behaviour Pristine.Ports.Future
 
-  alias Foundation.Backoff
+  alias Foundation.{Backoff, Poller}
   alias Pristine.Core.{Context, Headers, Request, Response, TelemetryHeaders}
 
   @default_poll_interval_ms 1_000
@@ -107,7 +107,7 @@ defmodule Pristine.Adapters.Future.Polling do
 
         emit_telemetry(:poll_start, %{request_id: request_id}, %{})
 
-        task = Task.async(fn -> poll_loop(state, 0) end)
+        task = Task.async(fn -> poll_loop(state) end)
         {:ok, task}
     end
   end
@@ -177,29 +177,44 @@ defmodule Pristine.Adapters.Future.Polling do
   defp normalize_backoff_strategy(:exponential), do: :exponential
   defp normalize_backoff_strategy(other), do: other
 
-  defp poll_loop(%State{} = state, attempt) do
-    if timed_out?(state) do
-      emit_telemetry(:poll_error, %{request_id: state.request_id, reason: :poll_timeout}, %{
-        elapsed_ms: elapsed_time(state),
-        attempts: attempt
-      })
+  defp poll_loop(%State{} = state) do
+    attempt_key = {:poll_attempt, make_ref()}
+    Process.put(attempt_key, 0)
 
-      {:error, :poll_timeout}
-    else
-      do_poll(state, attempt)
+    step_fun = fn attempt ->
+      Process.put(attempt_key, attempt)
+      emit_telemetry(:poll_attempt, %{request_id: state.request_id, attempt: attempt}, %{})
+
+      retrieve_future(state, attempt)
+      |> handle_poll_result(state, attempt)
+    end
+
+    case Poller.run(step_fun,
+           backoff: state.backoff_policy,
+           sleep_fun: state.sleep_fun,
+           timeout_ms: state.max_poll_time_ms
+         ) do
+      {:ok, response} ->
+        {:ok, response}
+
+      {:error, :timeout} ->
+        attempts = Process.get(attempt_key, 0)
+
+        emit_telemetry(:poll_error, %{request_id: state.request_id, reason: :poll_timeout}, %{
+          elapsed_ms: elapsed_time(state),
+          attempts: attempts
+        })
+
+        {:error, :poll_timeout}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp do_poll(state, attempt) do
-    emit_telemetry(:poll_attempt, %{request_id: state.request_id, attempt: attempt}, %{})
-
-    retrieve_future(state, attempt)
-    |> handle_poll_result(state, attempt)
-  end
-
-  defp handle_poll_result({:ok, %{"type" => "try_again"} = response}, state, attempt) do
+  defp handle_poll_result({:ok, %{"type" => "try_again"} = response}, state, _attempt) do
     notify_state_change(state, response)
-    retry_poll(state, attempt)
+    {:retry, :try_again}
   end
 
   defp handle_poll_result({:ok, %{"type" => type} = response}, state, attempt)
@@ -216,36 +231,36 @@ defmodule Pristine.Adapters.Future.Polling do
     poll_complete(state, response, attempt)
   end
 
-  defp handle_poll_result({:ok, %{"status" => "pending"}}, state, attempt) do
-    retry_poll(state, attempt)
+  defp handle_poll_result({:ok, %{"status" => "pending"}}, _state, _attempt) do
+    {:retry, :pending}
   end
 
   defp handle_poll_result({:ok, response}, state, attempt) do
     if Map.has_key?(response, "result") do
       poll_complete(state, response, attempt)
     else
-      retry_poll(state, attempt)
+      {:retry, :pending}
     end
   end
 
-  defp handle_poll_result({:error, {:http_error, 408, body, _headers}}, state, attempt) do
+  defp handle_poll_result({:error, {:http_error, 408, body, _headers}}, state, _attempt) do
     queue_state = extract_queue_state(body)
     notify_queue_state(state, queue_state, body)
-    retry_poll(state, attempt)
+    {:retry, :queue_state}
   end
 
   defp handle_poll_result({:error, {:http_error, 410, body, _headers}}, state, attempt) do
     poll_failure(state, :future_expired, attempt, {:future_expired, body})
   end
 
-  defp handle_poll_result({:error, {:http_error, status, _body, _headers}}, state, attempt)
+  defp handle_poll_result({:error, {:http_error, status, _body, _headers}}, _state, _attempt)
        when status >= 500 and status < 600 do
-    retry_poll(state, attempt)
+    {:retry, status}
   end
 
-  defp handle_poll_result({:error, {:http_error, status, _body, _headers}}, state, attempt)
+  defp handle_poll_result({:error, {:http_error, status, _body, _headers}}, _state, _attempt)
        when status in [429] do
-    retry_poll(state, attempt)
+    {:retry, status}
   end
 
   defp handle_poll_result({:error, {:http_error, status, body, _headers}}, state, attempt) do
@@ -275,17 +290,9 @@ defmodule Pristine.Adapters.Future.Polling do
     {:error, result}
   end
 
-  defp retry_poll(state, attempt) do
-    delay = calculate_delay(state.backoff_policy, attempt)
-    state.sleep_fun.(delay)
-    poll_loop(state, attempt + 1)
-  end
-
   defp handle_error(reason, state, attempt) do
     if retriable?(reason) do
-      delay = calculate_delay(state.backoff_policy, attempt)
-      state.sleep_fun.(delay)
-      poll_loop(state, attempt + 1)
+      {:retry, reason}
     else
       emit_telemetry(:poll_error, %{request_id: state.request_id, reason: reason}, %{
         elapsed_ms: elapsed_time(state),
@@ -408,18 +415,8 @@ defmodule Pristine.Adapters.Future.Polling do
     end
   end
 
-  defp timed_out?(%State{max_poll_time_ms: :infinity}), do: false
-
-  defp timed_out?(%State{start_time: start, max_poll_time_ms: max}) do
-    System.monotonic_time(:millisecond) - start > max
-  end
-
   defp elapsed_time(%State{start_time: start}) do
     System.monotonic_time(:millisecond) - start
-  end
-
-  defp calculate_delay(policy, attempt) do
-    Backoff.delay(policy, attempt)
   end
 
   defp notify_state_change(%State{on_state_change: nil}, _response), do: :ok

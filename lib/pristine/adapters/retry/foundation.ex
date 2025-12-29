@@ -10,8 +10,8 @@ defmodule Pristine.Adapters.Retry.Foundation do
 
   @behaviour Pristine.Ports.Retry
 
-  alias Foundation.Retry
-  alias Foundation.Retry.HTTP
+  alias Foundation.{Backoff, Retry}
+  alias Foundation.Retry.{Handler, HTTP, Runner}
 
   @impl true
   def with_retry(fun, opts) when is_function(fun, 0) do
@@ -20,9 +20,24 @@ defmodule Pristine.Adapters.Retry.Foundation do
     time_fun = Keyword.get(opts, :time_fun, &System.monotonic_time/1)
     before_attempt = Keyword.get(opts, :before_attempt, fn _attempt -> :ok end)
 
-    state = Keyword.get(opts, :state, Retry.State.new(time_fun: time_fun))
+    handler = Handler.new(handler_opts(policy))
+    wrapped_fun = wrap_fun(fun, policy)
+    delay_fun = delay_fun(policy)
 
-    do_run(fun, policy, state, sleep_fun, time_fun, before_attempt)
+    case Runner.run(wrapped_fun,
+           handler: handler,
+           sleep_fun: sleep_fun,
+           before_attempt: before_attempt,
+           delay_fun: delay_fun,
+           max_elapsed_ms: policy.max_elapsed_ms,
+           time_fun: time_fun,
+           rescue_exceptions: false
+         ) do
+      {:ok, {:result, result}} -> result
+      {:error, {:retry, result}} -> result
+      {:error, reason} -> {:error, reason}
+      {:ok, other} -> other
+    end
   end
 
   @impl true
@@ -33,10 +48,13 @@ defmodule Pristine.Adapters.Retry.Foundation do
 
   ## Examples
 
-      iex> Foundation.should_retry?(%{status: 429})
+      iex> Pristine.Adapters.Retry.Foundation.should_retry?(%{status: 429})
       true
 
-      iex> Foundation.should_retry?(%{status: 400, headers: %{"x-should-retry" => "true"}})
+      iex> Pristine.Adapters.Retry.Foundation.should_retry?(%{
+      ...>   status: 400,
+      ...>   headers: %{"x-should-retry" => "true"}
+      ...> })
       true
   """
   def should_retry?(response), do: HTTP.should_retry?(response)
@@ -49,7 +67,7 @@ defmodule Pristine.Adapters.Retry.Foundation do
 
   ## Examples
 
-      iex> Foundation.parse_retry_after(%{"retry-after" => "5"})
+      iex> Pristine.Adapters.Retry.Foundation.parse_retry_after(%{"retry-after" => "5"})
       5000
   """
   def parse_retry_after(headers), do: HTTP.parse_retry_after(headers)
@@ -95,23 +113,45 @@ defmodule Pristine.Adapters.Retry.Foundation do
   defp normalize_policy(opts) when is_list(opts), do: Retry.Policy.new(opts)
   defp normalize_policy(_), do: Retry.Policy.new()
 
-  defp do_run(fun, policy, state, sleep_fun, time_fun, before_attempt) do
-    case Retry.check_timeouts(state, policy, time_fun: time_fun) do
-      {:error, reason} ->
-        {:error, reason}
+  defp wrap_fun(fun, %Retry.Policy{} = policy) do
+    fn ->
+      result = fun.()
 
-      :ok ->
-        before_attempt.(state.attempt)
-        result = fun.()
+      if policy.retry_on.(result) do
+        {:error, {:retry, result}}
+      else
+        {:ok, {:result, result}}
+      end
+    end
+  end
 
-        case Retry.step(state, policy, result, time_fun: time_fun) do
-          {:retry, delay_ms, next_state} ->
-            sleep_fun.(delay_ms)
-            do_run(fun, policy, next_state, sleep_fun, time_fun, before_attempt)
+  defp delay_fun(%Retry.Policy{} = policy) do
+    fn result, handler ->
+      original = unwrap_retry_result(result)
 
-          {:halt, final_result, _final_state} ->
-            final_result
+      delay =
+        case policy.retry_after_ms_fun do
+          fun when is_function(fun, 1) -> fun.(original)
+          _ -> nil
         end
+
+      case delay do
+        ms when is_integer(ms) and ms >= 0 -> ms
+        _ -> Backoff.delay(policy.backoff, handler.attempt)
+      end
+    end
+  end
+
+  defp unwrap_retry_result({:error, {:retry, original}}), do: original
+  defp unwrap_retry_result(original), do: original
+
+  defp handler_opts(%Retry.Policy{} = policy) do
+    opts = [max_retries: policy.max_attempts]
+
+    if is_nil(policy.progress_timeout_ms) do
+      Keyword.put(opts, :progress_timeout_ms, :infinity)
+    else
+      Keyword.put(opts, :progress_timeout_ms, policy.progress_timeout_ms)
     end
   end
 end

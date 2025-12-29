@@ -1,6 +1,6 @@
 <svg width="220" height="220" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">Pristine</title>
-  <desc id="desc">Hexagonal emblem with layered cores and intricate fractal details.</desc>
+  <desc id="desc">Hexagonal emblem with layered cores and precise circuit lines.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="220" y2="220" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#0b1117"/>
@@ -32,14 +32,6 @@
       <stop offset="0" stop-color="#e8fbff" stop-opacity="0.9"/>
       <stop offset="1" stop-color="#4aa3e0" stop-opacity="0.2"/>
     </linearGradient>
-    <linearGradient id="fractalGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0" stop-color="#a8e0ff" stop-opacity="0.8"/>
-      <stop offset="1" stop-color="#4a90c8" stop-opacity="0.3"/>
-    </linearGradient>
-    <linearGradient id="fractalGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0" stop-color="#cfeeff" stop-opacity="0.7"/>
-      <stop offset="1" stop-color="#2d6ea5" stop-opacity="0.4"/>
-    </linearGradient>
     <pattern id="grid" width="16" height="14" patternUnits="userSpaceOnUse">
       <path d="M8 0 L16 4.5 L16 13.5 L8 18 L0 13.5 L0 4.5 Z" fill="none" stroke="#9bd3ff" stroke-opacity="0.12" stroke-width="0.7"/>
     </pattern>
@@ -53,15 +45,6 @@
         0 1 0 0 0.5
         0 0 1 0 0.9
         0 0 0 0.65 0" result="colored"/>
-      <feBlend in="SourceGraphic" in2="colored" mode="screen"/>
-    </filter>
-    <filter id="fractalGlow" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
-      <feGaussianBlur stdDeviation="1.5" result="blur"/>
-      <feColorMatrix in="blur" type="matrix" values="
-        1 0 0 0 0.3
-        0 1 0 0 0.6
-        0 0 1 0 0.95
-        0 0 0 0.75 0" result="colored"/>
       <feBlend in="SourceGraphic" in2="colored" mode="screen"/>
     </filter>
     <clipPath id="hexClip">
@@ -83,120 +66,24 @@
   </g>
 
   <g filter="url(#softGlow)">
+    <circle cx="110" cy="104" r="52" fill="none" stroke="url(#ring)" stroke-width="3" stroke-dasharray="2 6"/>
     <circle cx="88" cy="92" r="30" fill="url(#core)"/>
     <circle cx="132" cy="120" r="30" fill="url(#core)"/>
     <circle cx="124" cy="80" r="18" fill="#e2f5ff" fill-opacity="0.6"/>
     <path d="M72 136 C86 108, 108 102, 136 114 C160 124, 158 148, 136 162 C112 178, 82 172, 72 154" fill="#b6e5ff" fill-opacity="0.25"/>
   </g>
 
-  <!-- Intricate Fractal Mandala Ring replacing dashed circle -->
-  <g filter="url(#fractalGlow)" opacity="0.85">
-    <!-- Sierpinski-like triangular formations around the ring -->
-    <g transform="translate(110 104)" stroke="url(#fractalGrad1)" fill="none" stroke-width="0.8">
-      <!-- Inner fractal triangles - layer 1 -->
-      <path d="M0 -48 L6 -40 L-6 -40 Z M0 -44 L3 -40 L-3 -40 Z"/>
-      <path d="M41.6 24 L47.6 32 L35.6 32 Z M43.6 28 L46.6 32 L40.6 32 Z" />
-      <path d="M-41.6 24 L-35.6 32 L-47.6 32 Z M-43.6 28 L-40.6 32 L-46.6 32 Z"/>
-      
-      <!-- Rotated fractal triangles at 60° intervals -->
-      <path d="M24 -41.6 L32 -35.6 L32 -47.6 Z M28 -43.6 L32 -40.6 L32 -46.6 Z"/>
-      <path d="M-24 -41.6 L-32 -35.6 L-32 -47.6 Z M-28 -43.6 L-32 -40.6 L-32 -46.6 Z"/>
-      <path d="M-24 41.6 L-32 35.6 L-32 47.6 Z M-28 43.6 L-32 40.6 L-32 46.6 Z"/>
-      <path d="M24 41.6 L32 35.6 L32 47.6 Z M28 43.6 L32 40.6 L32 46.6 Z"/>
-      <path d="M48 0 L40 6 L40 -6 Z M44 0 L40 3 L40 -3 Z"/>
-      <path d="M-48 0 L-40 6 L-40 -6 Z M-44 0 L-40 3 L-40 -3 Z"/>
-    </g>
-    
-    <!-- Koch snowflake inspired curves -->
-    <g transform="translate(110 104)" stroke="url(#ring)" fill="none" stroke-width="0.6">
-      <path d="M0 -54 Q8 -50, 12 -52 Q16 -48, 20 -50 Q24 -44, 28 -46"/>
-      <path d="M0 -54 Q-8 -50, -12 -52 Q-16 -48, -20 -50 Q-24 -44, -28 -46"/>
-      <path d="M46.8 27 Q50 35, 46 38 Q50 42, 46 46 Q42 50, 38 48"/>
-      <path d="M-46.8 27 Q-50 35, -46 38 Q-50 42, -46 46 Q-42 50, -38 48"/>
-      <path d="M46.8 -27 Q50 -35, 46 -38 Q50 -42, 46 -46 Q42 -50, 38 -48"/>
-      <path d="M-46.8 -27 Q-50 -35, -46 -38 Q-50 -42, -46 -46 Q-42 -50, -38 -48"/>
-    </g>
+  <g stroke="#8fd4ff" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round">
+    <path d="M64 82 L82 82"/>
+    <path d="M138 144 L156 144"/>
+    <path d="M144 90 L156 78"/>
+    <path d="M76 132 L60 146"/>
   </g>
 
-  <!-- Intricate fractal corner elements replacing simple lines -->
-  <g filter="url(#fractalGlow)">
-    <!-- Top-left: Dragon curve inspired micro-fractal -->
-    <g transform="translate(58 78)" fill="url(#fractalGrad2)" opacity="0.75">
-      <path d="M0 0 L4 -4 L8 0 L12 -4 L8 -8 L12 -12 L8 -8 L4 -12 L0 -8 L-4 -12 L0 -8 L4 -4 Z" stroke="#8fd4ff" stroke-width="0.5" fill="none"/>
-      <path d="M2 -2 L6 -6 L10 -2 L6 2 Z" fill="#cfeeff" fill-opacity="0.4"/>
-      <polygon points="0,-6 3,-3 0,0 -3,-3" fill="#a8e0ff" fill-opacity="0.5"/>
-    </g>
-    
-    <!-- Bottom-right: Pentagonal fractal cluster -->
-    <g transform="translate(152 142)" fill="url(#fractalGrad1)" opacity="0.75">
-      <path d="M0 0 L6 2 L10 -2 L14 2 L18 -2 L22 2 L18 6 L22 10 L18 8 L14 12 L10 8 L6 12 L2 8 L-2 10 Z" stroke="#8fd4ff" stroke-width="0.5" fill="none"/>
-      <polygon points="8,0 14,2 12,8 4,8 2,2" fill="#bfe5ff" fill-opacity="0.35"/>
-      <circle cx="8" cy="4" r="2" fill="#e2f5ff" fill-opacity="0.6"/>
-    </g>
-    
-    <!-- Top-right: Recursive hexagonal micro-structure -->
-    <g transform="translate(150 72)" opacity="0.8">
-      <polygon points="0,-8 7,-4 7,4 0,8 -7,4 -7,-4" fill="none" stroke="#8fd4ff" stroke-width="0.6"/>
-      <polygon points="0,-5 4.3,-2.5 4.3,2.5 0,5 -4.3,2.5 -4.3,-2.5" fill="none" stroke="#a8e0ff" stroke-width="0.5"/>
-      <polygon points="0,-2.5 2.2,-1.25 2.2,1.25 0,2.5 -2.2,1.25 -2.2,-1.25" fill="#cfeeff" fill-opacity="0.7"/>
-      <!-- Extending fractal branches -->
-      <path d="M7 -4 L12 -8 L14 -4 L12 0 M7 4 L12 8 L14 4 L12 0 M-7 -4 L-12 -8 L-14 -4 L-12 0 M-7 4 L-12 8 L-14 4 L-12 0" stroke="#6cc3ff" stroke-width="0.4" fill="none"/>
-    </g>
-    
-    <!-- Bottom-left: Mandelbrot-inspired spiral cluster -->
-    <g transform="translate(60 142)" opacity="0.8">
-      <path d="M0 0 C-4 -8, 4 -12, 8 -8 C12 -4, 8 4, 4 8 C0 12, -8 8, -12 4 C-16 0, -12 -8, -8 -12 C-4 -16, 4 -12, 8 -8" stroke="#8fd4ff" stroke-width="0.6" fill="none"/>
-      <path d="M2 -2 C4 -6, 8 -4, 6 0 C4 4, 0 2, 2 -2" fill="#b6e5ff" fill-opacity="0.5"/>
-      <circle cx="0" cy="0" r="1.5" fill="#e8fbff" fill-opacity="0.8"/>
-      <!-- Smaller recursive spirals -->
-      <g transform="translate(-8 -8) scale(0.4)">
-        <path d="M0 0 C-4 -8, 4 -12, 8 -8 C12 -4, 8 4, 4 8" stroke="#a8e0ff" stroke-width="0.8" fill="none"/>
-      </g>
-      <g transform="translate(6 8) scale(0.35)">
-        <path d="M0 0 C-4 -8, 4 -12, 8 -8 C12 -4, 8 4, 4 8" stroke="#a8e0ff" stroke-width="0.8" fill="none"/>
-      </g>
-    </g>
-  </g>
-
-  <!-- Ornate fractal accent nodes replacing simple dots -->
-  <g opacity="0.9">
-    <!-- Left node: Triangular Sierpinski micro-pattern -->
-    <g transform="translate(54 106)">
-      <polygon points="0,-6 5.2,3 -5.2,3" fill="none" stroke="#cfeeff" stroke-width="0.6"/>
-      <polygon points="0,-3 2.6,1.5 -2.6,1.5" fill="#8fd4ff" fill-opacity="0.6"/>
-      <polygon points="0,-1.5 1.3,0.75 -1.3,0.75" fill="#e8fbff" fill-opacity="0.8"/>
-      <circle cx="0" cy="0" r="0.6" fill="#ffffff" fill-opacity="0.9"/>
-    </g>
-    
-    <!-- Right node: Pentagonal star fractal -->
-    <g transform="translate(164 98)">
-      <polygon points="0,-7 1.8,-2.2 6.7,-2.2 2.9,0.8 4.1,5.7 0,2.8 -4.1,5.7 -2.9,0.8 -6.7,-2.2 -1.8,-2.2" fill="none" stroke="#cfeeff" stroke-width="0.5"/>
-      <polygon points="0,-4 1,-1.2 3.8,-1.2 1.6,0.5 2.3,3.2 0,1.6 -2.3,3.2 -1.6,0.5 -3.8,-1.2 -1,-1.2" fill="#a8e0ff" fill-opacity="0.5"/>
-      <circle cx="0" cy="0" r="1.2" fill="#e8fbff" fill-opacity="0.85"/>
-    </g>
-    
-    <!-- Bottom node: Recursive square diamond -->
-    <g transform="translate(92 152)">
-      <rect x="-5" y="-5" width="10" height="10" transform="rotate(45)" fill="none" stroke="#cfeeff" stroke-width="0.5"/>
-      <rect x="-3" y="-3" width="6" height="6" transform="rotate(45)" fill="#8fd4ff" fill-opacity="0.4"/>
-      <rect x="-1.5" y="-1.5" width="3" height="3" transform="rotate(45)" fill="#bfe5ff" fill-opacity="0.6"/>
-      <circle cx="0" cy="0" r="1" fill="#ffffff" fill-opacity="0.9"/>
-      <!-- Corner extensions -->
-      <path d="M-5 0 L-8 0 M5 0 L8 0 M0 -5 L0 -8 M0 5 L0 8" stroke="#a8e0ff" stroke-width="0.4"/>
-    </g>
-    
-    <!-- Top node: Fractal starburst -->
-    <g transform="translate(134 64)">
-      <path d="M0 -5 L1 -1.5 L5 0 L1 1.5 L0 5 L-1 1.5 L-5 0 L-1 -1.5 Z" fill="none" stroke="#cfeeff" stroke-width="0.5"/>
-      <path d="M0 -3 L0.6 -0.9 L3 0 L0.6 0.9 L0 3 L-0.6 0.9 L-3 0 L-0.6 -0.9 Z" fill="#8fd4ff" fill-opacity="0.5"/>
-      <circle cx="0" cy="0" r="1" fill="#e8fbff" fill-opacity="0.9"/>
-      <!-- Radial micro-lines -->
-      <g stroke="#a8e0ff" stroke-width="0.3">
-        <path d="M3.5 -3.5 L5 -5"/>
-        <path d="M-3.5 -3.5 L-5 -5"/>
-        <path d="M3.5 3.5 L5 5"/>
-        <path d="M-3.5 3.5 L-5 5"/>
-      </g>
-    </g>
+  <g fill="#cfeeff" opacity="0.85">
+    <circle cx="58" cy="106" r="2"/>
+    <circle cx="162" cy="98" r="2.5"/>
+    <circle cx="92" cy="150" r="1.8"/>
+    <circle cx="132" cy="66" r="1.5"/>
   </g>
 </svg>
