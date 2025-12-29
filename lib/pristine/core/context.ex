@@ -23,7 +23,9 @@ defmodule Pristine.Core.Context do
             future_opts: [],
             retry_policies: %{},
             type_schemas: %{},
-            idempotency_header: "X-Idempotency-Key"
+            idempotency_header: "X-Idempotency-Key",
+            query_opts: [],
+            package_version: nil
 
   @type t :: %__MODULE__{
           base_url: String.t() | nil,
@@ -46,7 +48,9 @@ defmodule Pristine.Core.Context do
           future_opts: keyword(),
           retry_policies: map(),
           type_schemas: map(),
-          idempotency_header: String.t()
+          idempotency_header: String.t(),
+          query_opts: keyword(),
+          package_version: String.t() | nil
         }
 
   @spec new(keyword()) :: t()
@@ -59,7 +63,7 @@ defmodule Pristine.Core.Context do
       transport_opts: Keyword.get(opts, :transport_opts, []),
       stream_transport: Keyword.get(opts, :stream_transport),
       serializer: Keyword.get(opts, :serializer),
-      multipart: Keyword.get(opts, :multipart),
+      multipart: Keyword.get(opts, :multipart, Pristine.Adapters.Multipart.Ex),
       multipart_opts: Keyword.get(opts, :multipart_opts, []),
       retry: Keyword.get(opts, :retry),
       retry_opts: Keyword.get(opts, :retry_opts, []),
@@ -72,7 +76,9 @@ defmodule Pristine.Core.Context do
       future_opts: Keyword.get(opts, :future_opts, []),
       retry_policies: Keyword.get(opts, :retry_policies, %{}),
       type_schemas: Keyword.get(opts, :type_schemas, %{}),
-      idempotency_header: Keyword.get(opts, :idempotency_header, "X-Idempotency-Key")
+      idempotency_header: Keyword.get(opts, :idempotency_header, "X-Idempotency-Key"),
+      query_opts: Keyword.get(opts, :query_opts, []),
+      package_version: Keyword.get(opts, :package_version)
     }
   end
 end

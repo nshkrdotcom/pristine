@@ -10,6 +10,9 @@ defmodule Pristine.Manifest.Endpoint do
             resource: nil,
             request: nil,
             response: nil,
+            async: false,
+            poll_endpoint: nil,
+            timeout: nil,
             retry: nil,
             telemetry: nil,
             streaming: false,
@@ -20,7 +23,14 @@ defmodule Pristine.Manifest.Endpoint do
             auth: nil,
             circuit_breaker: nil,
             rate_limit: nil,
-            idempotency: false
+            idempotency: false,
+            idempotency_header: nil,
+            stream_format: nil,
+            event_types: nil,
+            deprecated: false,
+            tags: nil,
+            error_types: nil,
+            response_unwrap: nil
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -30,6 +40,9 @@ defmodule Pristine.Manifest.Endpoint do
           resource: String.t() | nil,
           request: String.t() | nil,
           response: String.t() | nil,
+          async: boolean(),
+          poll_endpoint: String.t() | nil,
+          timeout: non_neg_integer() | nil,
           retry: String.t() | nil,
           telemetry: String.t() | nil,
           streaming: boolean(),
@@ -40,6 +53,13 @@ defmodule Pristine.Manifest.Endpoint do
           auth: String.t() | nil,
           circuit_breaker: String.t() | nil,
           rate_limit: String.t() | nil,
-          idempotency: boolean()
+          idempotency: boolean(),
+          idempotency_header: String.t() | nil,
+          stream_format: String.t() | nil,
+          event_types: [String.t()] | nil,
+          deprecated: boolean(),
+          tags: [String.t()] | nil,
+          error_types: list() | nil,
+          response_unwrap: String.t() | nil
         }
 end

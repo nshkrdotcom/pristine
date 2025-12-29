@@ -34,7 +34,7 @@ The Tinker SDK implements Server-Sent Event streaming with two main classes:
 ```
 
 **SSEDecoder** class provides stateful parsing:
-- Maintains internal state: `_event`, `_data[]`, `_event_id`, `_retry`
+- Maintains internal state: `_event`, `_data[]`, `_last_event_id`, `_retry`
 - Implements [WHATWG EventSource spec](https://html.spec.whatwg.org/multipage/server-sent-events.html) compliance
 - Accumulates multi-line data fields with newline joining
 - Chunk detection: responds to `\r\r`, `\n\n`, `\r\n\r\n` separators
@@ -86,7 +86,7 @@ async def close(self):  # AsyncStream version
 
 **At SSE Level**:
 - `ServerSentEvent.json()` calls `json.loads(self.data)` - can raise `JSONDecodeError`
-- UTF-8 decoding: handled by httpx transport layer before reaching decoder
+- UTF-8 decoding: performed inside the decoder (`raw_line.decode("utf-8")`)
 - Lines starting with `:` (comments) are silently ignored per WHATWG spec
 
 **At Stream Level**:
@@ -119,8 +119,8 @@ async def close(self):  # AsyncStream version
    - Routes response to Stream vs normal response handling
 
 **Stream Detection Pattern**:
-- Client checks response headers
-- If streaming, returns `Stream[T]` or `AsyncStream[T]` instead of unwrapped response
+- Client sets `X-Stainless-Raw-Response: stream` on the request
+- `_should_stream_response_body()` inspects the request header to decide stream mode
 
 ---
 

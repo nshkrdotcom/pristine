@@ -44,7 +44,7 @@ nested_format: Literal["dots", "brackets"]
 ```
 
 **Key Methods**:
-- `stringify(params, *, encoder=...)`: Encode params to query string
+- `stringify(params, *, array_format=..., nested_format=...)`: Encode params to query string
 - `parse(query_string)`: Parse query string back to dict (inverse of stringify)
 
 ### Array Format Handling

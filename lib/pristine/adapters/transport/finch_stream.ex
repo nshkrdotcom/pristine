@@ -42,7 +42,7 @@ defmodule Pristine.Adapters.Transport.FinchStream do
 
     # Use a stream that consumes the Finch response and yields SSE events
     case start_streaming(finch_request, finch_name, timeout) do
-      {:ok, status, headers, event_stream} ->
+      {:ok, status, headers, event_stream, last_event_id_ref, cancel_fun} ->
         {:ok,
          %StreamResponse{
            stream: event_stream,
@@ -50,7 +50,9 @@ defmodule Pristine.Adapters.Transport.FinchStream do
            headers: headers,
            metadata: %{
              url: request.url,
-             method: request.method
+             method: request.method,
+             last_event_id_ref: last_event_id_ref,
+             cancel: cancel_fun
            }
          }}
 
@@ -102,30 +104,34 @@ defmodule Pristine.Adapters.Transport.FinchStream do
 
     parent = self()
     ref = make_ref()
+    {:ok, last_event_id_ref} = Agent.start_link(fn -> nil end)
 
     task =
       Task.async(fn ->
-        run_stream(finch_request, finch_name, timeout, parent, ref)
+        run_stream(finch_request, finch_name, timeout, parent, ref, last_event_id_ref)
       end)
 
     # Wait for initial metadata (status + headers)
     receive do
       {^ref, :metadata, status, headers} ->
         # Create the event stream that consumes from the task
-        event_stream = create_event_stream(ref, task)
-        {:ok, status, headers, event_stream}
+        event_stream = create_event_stream(ref, task, last_event_id_ref)
+        cancel_fun = fn -> cancel_stream(task, ref, parent, last_event_id_ref) end
+        {:ok, status, headers, event_stream, last_event_id_ref, cancel_fun}
 
       {^ref, :error, reason} ->
         Task.shutdown(task, :brutal_kill)
+        stop_last_event_id(last_event_id_ref)
         {:error, reason}
     after
       timeout ->
         Task.shutdown(task, :brutal_kill)
+        stop_last_event_id(last_event_id_ref)
         {:error, :timeout}
     end
   end
 
-  defp run_stream(finch_request, finch_name, timeout, parent, ref) do
+  defp run_stream(finch_request, finch_name, timeout, parent, ref, last_event_id_ref) do
     Finch.stream(
       finch_request,
       finch_name,
@@ -140,13 +146,16 @@ defmodule Pristine.Adapters.Transport.FinchStream do
           {status, header_map, decoder, events}
 
         {:data, chunk}, {status, headers, decoder, events} ->
-          {new_events, new_decoder} = SSEDecoder.feed(decoder, chunk)
-          # Send events to parent as they arrive
-          Enum.each(new_events, fn event ->
-            send(parent, {ref, :event, event})
-          end)
-
-          {status, headers, new_decoder, events ++ new_events}
+          handle_data_chunk(
+            chunk,
+            status,
+            headers,
+            decoder,
+            events,
+            parent,
+            ref,
+            last_event_id_ref
+          )
       end,
       receive_timeout: timeout
     )
@@ -161,7 +170,7 @@ defmodule Pristine.Adapters.Transport.FinchStream do
     end
   end
 
-  defp create_event_stream(ref, task) do
+  defp create_event_stream(ref, task, last_event_id_ref) do
     Stream.resource(
       fn -> {ref, task, :running} end,
       fn
@@ -190,9 +199,47 @@ defmodule Pristine.Adapters.Transport.FinchStream do
           nil -> Task.shutdown(task, :brutal_kill)
           _ -> :ok
         end
+
+        stop_last_event_id(last_event_id_ref)
       end
     )
     |> Stream.reject(&is_nil/1)
+  end
+
+  defp handle_data_chunk(chunk, status, headers, decoder, events, parent, ref, last_event_id_ref) do
+    {new_events, new_decoder} = SSEDecoder.feed(decoder, chunk)
+    update_last_event_id(last_event_id_ref, decoder, new_decoder)
+    send_events(parent, ref, new_events)
+    {status, headers, new_decoder, events ++ new_events}
+  end
+
+  defp update_last_event_id(last_event_id_ref, decoder, new_decoder) do
+    last_event_id = SSEDecoder.last_event_id(new_decoder)
+
+    if last_event_id != nil and last_event_id != decoder.last_event_id do
+      Agent.update(last_event_id_ref, fn _ -> last_event_id end)
+    end
+  end
+
+  defp send_events(parent, ref, events) do
+    Enum.each(events, fn event ->
+      send(parent, {ref, :event, event})
+    end)
+  end
+
+  defp cancel_stream(task, ref, parent, last_event_id_ref) do
+    Task.shutdown(task, :brutal_kill)
+    send(parent, {ref, :done})
+    stop_last_event_id(last_event_id_ref)
+    :ok
+  end
+
+  defp stop_last_event_id(pid) when is_pid(pid) do
+    if Process.alive?(pid) do
+      Agent.stop(pid)
+    else
+      :ok
+    end
   end
 
   @doc """

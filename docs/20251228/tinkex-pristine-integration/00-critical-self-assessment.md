@@ -71,10 +71,10 @@ defp map_type_to_sinter("integer"), do: ":integer"
 | Optional with default | `max_tokens: int = 1024` | ✓ Sinter `[default: value]` |
 | Union types | `str \| None` | ⚠️ Via `{:nullable, type}` |
 | Recursive types | Self-referencing types | ❌ None |
-| Enum types | Fixed set of values | ✓ Via `{:choices, [values]}` |
+| Enum types | Fixed set of values | ✓ Via `choices` constraints on base types |
 | Generic maps | `Dict[str, Any]` | ✓ Via `:map` type |
 
-> **Note**: Sinter supports discriminated unions at `sinter/lib/sinter/types.ex:320-368`.
+> **Note**: Sinter supports discriminated unions at `sinter/lib/sinter/types.ex:61-62`.
 > The gap is in Pristine's code generation integrating these Sinter types.
 
 ### 1.3 Manifest-Level Gaps
@@ -133,7 +133,7 @@ end
 
 **Problems**:
 
-1. **No discriminated union support** - Critical for Tinker's event types
+1. **No discriminated union codegen** - Critical for Tinker's event types
 2. **No nested type validation** - Types reference other types by name, not schema
 3. **No custom validators** - Can't add format validators (email, URI, etc.)
 4. **No coercion** - No string-to-integer coercion for query params
@@ -177,8 +177,8 @@ Current `Pipeline.build_request/5` handles:
 Current response flow:
 1. Transport sends request
 2. Response decoded by serializer
-3. Error responses converted via `Pristine.Error.from_response/1`
-4. Data returned
+3. Non-2xx responses are not automatically wrapped; decoded bodies are returned and transport/serializer errors propagate
+4. Data returned (or error tuple from transport/serializer)
 
 **Existing capabilities**:
 - Status code to error type mapping (lib/pristine/error.ex:196-204)

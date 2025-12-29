@@ -10,10 +10,11 @@ defmodule Integration.TinkexMockTest do
 
   import Mox
 
-  alias Pristine.Manifest
   alias Pristine.Core.Context
   alias Pristine.Core.Pipeline
   alias Pristine.Core.Response
+  alias Pristine.Error
+  alias Pristine.Manifest
 
   @manifest_path "examples/tinkex/manifest.json"
 
@@ -122,15 +123,15 @@ defmodule Integration.TinkexMockTest do
          }}
       end)
 
-      # Pipeline returns decoded body even for error status codes
-      # Application-level error handling would check the type field
-      {:ok, result} =
-        Pipeline.execute(manifest, "get_model", %{}, context,
-          path_params: %{"model_id" => "unknown"}
-        )
+      assert {:error, %Error{} = error} =
+               Pipeline.execute(manifest, "get_model", %{}, context,
+                 path_params: %{"model_id" => "unknown"}
+               )
 
-      assert result["type"] == "not_found_error"
-      assert result["message"] == "Model not found"
+      assert error.type == :not_found
+      assert error.status == 404
+      assert error.body["type"] == "not_found_error"
+      assert error.body["message"] == "Model not found"
     end
   end
 
@@ -259,10 +260,13 @@ defmodule Integration.TinkexMockTest do
 
       request = %{model: "m1", prompt: "test"}
 
-      # Pipeline returns decoded body, application handles error type
-      {:ok, result} = Pipeline.execute(manifest, "create_sample", request, context)
-      assert result["type"] == "rate_limit_error"
-      assert result["message"] == "Rate limit exceeded"
+      assert {:error, %Error{} = error} =
+               Pipeline.execute(manifest, "create_sample", request, context)
+
+      assert error.type == :rate_limit
+      assert error.status == 429
+      assert error.body["type"] == "rate_limit_error"
+      assert error.body["message"] == "Rate limit exceeded"
     end
 
     test "authentication error response includes error type", %{
@@ -284,8 +288,10 @@ defmodule Integration.TinkexMockTest do
          }}
       end)
 
-      {:ok, result} = Pipeline.execute(manifest, "list_models", %{}, context)
-      assert result["type"] == "authentication_error"
+      assert {:error, %Error{} = error} = Pipeline.execute(manifest, "list_models", %{}, context)
+      assert error.type == :authentication
+      assert error.status == 401
+      assert error.body["type"] == "authentication_error"
     end
 
     test "server error response includes error details", %{manifest: manifest, context: context} do
@@ -304,9 +310,11 @@ defmodule Integration.TinkexMockTest do
          }}
       end)
 
-      {:ok, result} = Pipeline.execute(manifest, "list_models", %{}, context)
-      assert result["type"] == "api_error"
-      assert result["message"] == "Internal server error"
+      assert {:error, %Error{} = error} = Pipeline.execute(manifest, "list_models", %{}, context)
+      assert error.type == :internal_server
+      assert error.status == 500
+      assert error.body["type"] == "api_error"
+      assert error.body["message"] == "Internal server error"
     end
 
     test "transport errors propagate correctly", %{manifest: manifest, context: context} do

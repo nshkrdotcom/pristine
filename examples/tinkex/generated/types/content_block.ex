@@ -17,15 +17,46 @@ defmodule Tinkex.Types.ContentBlock do
   @spec schema() :: Sinter.Schema.t()
   def schema do
     Sinter.Schema.define([
-      {:id, :string, [optional: true]},
-      {:input, :any, [optional: true]},
-      {:name, :string, [optional: true]},
-      {:text, :string, [optional: true]},
-      {:type, :string, [required: true]}
+      {:id, :string, [description: "Tool use ID (for tool_use blocks)", optional: true]},
+      {:input, :any, [description: "Tool input (for tool_use blocks)", optional: true]},
+      {:name, :string, [description: "Tool name (for tool_use blocks)", optional: true]},
+      {:text, :string, [description: "Text content (for text blocks)", optional: true]},
+      {:type, :string, [choices: ["text", "tool_use"], required: true]}
     ])
   end
 
-  @doc "Create a new ContentBlock from a map."
+  @doc "Decode a map into a Tinkex.Types.ContentBlock struct."
+  @spec decode(map()) :: {:ok, t()} | {:error, term()}
+  def decode(data) when is_map(data) do
+    with {:ok, validated} <- Sinter.Validator.validate(schema(), data) do
+      {:ok,
+       %__MODULE__{
+         id: validated["id"],
+         input: validated["input"],
+         name: validated["name"],
+         text: validated["text"],
+         type: validated["type"]
+       }}
+    end
+  end
+
+  def decode(_), do: {:error, :invalid_input}
+
+  @doc "Encode a Tinkex.Types.ContentBlock struct into a map."
+  @spec encode(t()) :: map()
+  def encode(%__MODULE__{} = struct) do
+    %{
+      "id" => struct.id,
+      "input" => struct.input,
+      "name" => struct.name,
+      "text" => struct.text,
+      "type" => struct.type
+    }
+    |> Enum.reject(fn {_, v} -> is_nil(v) end)
+    |> Map.new()
+  end
+
+  @doc "Create a new Tinkex.Types.ContentBlock from a map."
   @spec from_map(map()) :: t()
   def from_map(data) when is_map(data) do
     struct(__MODULE__, atomize_keys(data))
@@ -40,7 +71,7 @@ defmodule Tinkex.Types.ContentBlock do
     |> Map.new()
   end
 
-  @doc "Create a new ContentBlock."
+  @doc "Create a new Tinkex.Types.ContentBlock."
   @spec new(keyword() | map()) :: t()
   def new(attrs \\ [])
   def new(attrs) when is_list(attrs), do: struct(__MODULE__, attrs)

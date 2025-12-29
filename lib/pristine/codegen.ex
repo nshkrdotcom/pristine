@@ -78,7 +78,7 @@ defmodule Pristine.Codegen do
     endpoints = endpoints_list(manifest)
 
     namespace
-    |> Resource.render_all_resource_modules(endpoints)
+    |> Resource.render_all_resource_modules(endpoints, manifest.types)
     |> Enum.map(fn {module_name, source} ->
       # Extract resource name from module name
       resource_name = String.replace_prefix(module_name, "#{namespace}.", "")

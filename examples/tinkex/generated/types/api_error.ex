@@ -19,7 +19,32 @@ defmodule Tinkex.Types.ApiError do
     ])
   end
 
-  @doc "Create a new ApiError from a map."
+  @doc "Decode a map into a Tinkex.Types.ApiError struct."
+  @spec decode(map()) :: {:ok, t()} | {:error, term()}
+  def decode(data) when is_map(data) do
+    with {:ok, validated} <- Sinter.Validator.validate(schema(), data) do
+      {:ok,
+       %__MODULE__{
+         message: validated["message"],
+         type: validated["type"]
+       }}
+    end
+  end
+
+  def decode(_), do: {:error, :invalid_input}
+
+  @doc "Encode a Tinkex.Types.ApiError struct into a map."
+  @spec encode(t()) :: map()
+  def encode(%__MODULE__{} = struct) do
+    %{
+      "message" => struct.message,
+      "type" => struct.type
+    }
+    |> Enum.reject(fn {_, v} -> is_nil(v) end)
+    |> Map.new()
+  end
+
+  @doc "Create a new Tinkex.Types.ApiError from a map."
   @spec from_map(map()) :: t()
   def from_map(data) when is_map(data) do
     struct(__MODULE__, atomize_keys(data))
@@ -34,7 +59,7 @@ defmodule Tinkex.Types.ApiError do
     |> Map.new()
   end
 
-  @doc "Create a new ApiError."
+  @doc "Create a new Tinkex.Types.ApiError."
   @spec new(keyword() | map()) :: t()
   def new(attrs \\ [])
   def new(attrs) when is_list(attrs), do: struct(__MODULE__, attrs)

@@ -311,8 +311,7 @@ class Cursor(BaseModel):
     total_count: int
 
 class ListSessionsResponse(BaseModel):
-    items: List[SessionInfo]
-    cursor: Cursor
+    sessions: List[str]
 ```
 
 ---

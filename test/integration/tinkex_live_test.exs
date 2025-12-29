@@ -2,12 +2,12 @@ defmodule Integration.TinkexLiveTest do
   @moduledoc """
   Live API integration tests for Tinkex.
 
-  These tests run against the actual Tinker API when TINKER_API_KEY
-  environment variable is set. They are skipped by default.
+  These tests run against the actual Tinker API when `TINKER_LIVE=true`
+  and `TINKER_API_KEY` are set. They are skipped by default.
 
   ## Running Live Tests
 
-      TINKER_API_KEY=your-key mix test test/integration/tinkex_live_test.exs
+      TINKER_LIVE=true TINKER_API_KEY=your-key mix test test/integration/tinkex_live_test.exs
 
   ## Notes
 
@@ -18,33 +18,51 @@ defmodule Integration.TinkexLiveTest do
 
   use ExUnit.Case, async: false
 
-  alias Pristine.Manifest
+  alias Pristine.Adapters.Auth.Bearer
+  alias Pristine.Adapters.CircuitBreaker.Noop, as: CircuitBreakerNoop
+  alias Pristine.Adapters.Serializer.JSON, as: JSONSerializer
+  alias Pristine.Adapters.Transport.Finch, as: FinchTransport
   alias Pristine.Core.Context
   alias Pristine.Core.Pipeline
+  alias Pristine.Manifest
 
   @moduletag :live_api
   @moduletag timeout: 60_000
 
+  if System.get_env("TINKER_LIVE") != "true" do
+    @moduletag skip: "set TINKER_LIVE=true to run live API tests"
+  end
+
+  if is_nil(System.get_env("TINKER_API_KEY")) do
+    @moduletag skip: "TINKER_API_KEY not set"
+  end
+
   @manifest_path "examples/tinkex/manifest.json"
+
+  setup_all do
+    case Finch.start_link(name: Pristine.Finch) do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+    end
+  end
 
   setup do
     api_key = System.get_env("TINKER_API_KEY")
+    base_url = System.get_env("TINKER_BASE_URL") || "https://api.tinker.ai/v1"
 
-    if is_nil(api_key) do
-      :skip
-    else
-      {:ok, manifest} = Manifest.load_file(@manifest_path)
+    {:ok, manifest} = Manifest.load_file(@manifest_path)
 
-      context =
-        Context.new(
-          base_url: "https://api.tinker.ai/v1",
-          transport: Pristine.Adapters.Transport.Finch,
-          serializer: Pristine.Adapters.Serializer.JSON,
-          auth: [Pristine.Adapters.Auth.Bearer.new(api_key)]
-        )
+    context =
+      Context.new(
+        base_url: base_url,
+        transport: FinchTransport,
+        transport_opts: [finch: Pristine.Finch],
+        serializer: JSONSerializer,
+        auth: [Bearer.new(api_key)],
+        circuit_breaker: CircuitBreakerNoop
+      )
 
-      {:ok, manifest: manifest, context: context}
-    end
+    {:ok, manifest: manifest, context: context}
   end
 
   describe "live API - models" do
@@ -54,7 +72,7 @@ defmodule Integration.TinkexLiveTest do
 
       assert is_map(result)
       assert is_list(result["data"])
-      assert length(result["data"]) > 0
+      assert result["data"] != []
 
       model = Enum.at(result["data"], 0)
       assert is_binary(model["id"])
@@ -93,7 +111,7 @@ defmodule Integration.TinkexLiveTest do
       {:ok, result} = Pipeline.execute(manifest, "create_sample", request, context)
 
       assert is_binary(result["id"])
-      assert length(result["content"]) > 0
+      assert result["content"] != []
 
       text_block = Enum.find(result["content"], &(&1["type"] == "text"))
       assert is_binary(text_block["text"])

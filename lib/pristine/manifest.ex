@@ -8,6 +8,15 @@ defmodule Pristine.Manifest do
 
   defstruct name: nil,
             version: nil,
+            base_url: nil,
+            auth: nil,
+            defaults: %{},
+            error_types: %{},
+            resources: %{},
+            servers: %{},
+            retry_policies: %{},
+            rate_limits: %{},
+            middleware: %{},
             endpoints: %{},
             types: %{},
             policies: %{}
@@ -15,6 +24,15 @@ defmodule Pristine.Manifest do
   @type t :: %__MODULE__{
           name: String.t(),
           version: String.t(),
+          base_url: String.t() | nil,
+          auth: map() | nil,
+          defaults: map(),
+          error_types: map(),
+          resources: map(),
+          servers: map(),
+          retry_policies: map(),
+          rate_limits: map(),
+          middleware: map(),
           endpoints: %{String.t() => Endpoint.t()},
           types: map(),
           policies: map()
@@ -38,36 +56,76 @@ defmodule Pristine.Manifest do
   end
 
   defp build_manifest(validated) do
-    name = normalize_value(validated, :name)
-    version = normalize_value(validated, :version)
-    endpoints = normalize_value(validated, :endpoints)
-    types = normalize_value(validated, :types)
-    policies = normalize_value(validated, :policies) || %{}
+    fields = normalize_manifest_fields(validated)
+    errors = required_field_errors(fields)
 
-    errors =
-      []
-      |> maybe_require(name, "name is required")
-      |> maybe_require(version, "version is required")
-      |> maybe_require(endpoints, "endpoints are required")
-      |> maybe_require(types, "types are required")
-
-    {endpoint_map, endpoint_errors} = normalize_endpoints(endpoints)
-    {type_map, type_errors} = normalize_types(types)
+    {endpoint_map, endpoint_errors} = normalize_endpoints(fields.endpoints)
+    {type_map, type_errors} = normalize_types(fields.types)
 
     errors = errors ++ endpoint_errors ++ type_errors
 
     if errors == [] do
       {:ok,
        %__MODULE__{
-         name: name,
-         version: version,
+         name: fields.name,
+         version: fields.version,
+         base_url: fields.base_url,
+         auth: fields.auth,
+         defaults: fields.defaults,
+         error_types: fields.error_types,
+         resources: fields.resources,
+         servers: fields.servers,
+         retry_policies: fields.retry_policies,
+         rate_limits: fields.rate_limits,
+         middleware: fields.middleware,
          endpoints: endpoint_map,
          types: type_map,
-         policies: policies || %{}
+         policies: fields.policies
        }}
     else
       {:error, errors}
     end
+  end
+
+  defp normalize_manifest_fields(validated) do
+    %{
+      name: normalize_value(validated, :name),
+      version: normalize_value(validated, :version),
+      base_url: normalize_value(validated, :base_url),
+      auth: normalize_deep_map(validated, :auth),
+      defaults: normalize_optional_map(validated, :defaults),
+      error_types: normalize_optional_map(validated, :error_types),
+      resources: normalize_optional_map(validated, :resources),
+      servers: normalize_optional_map(validated, :servers),
+      retry_policies: normalize_retry_policies(validated),
+      rate_limits: normalize_optional_map(validated, :rate_limits),
+      middleware: normalize_optional_map(validated, :middleware),
+      endpoints: normalize_value(validated, :endpoints),
+      types: normalize_value(validated, :types),
+      policies: normalize_policies(validated)
+    }
+  end
+
+  defp normalize_optional_map(validated, key) do
+    normalize_deep_map(validated, key) || %{}
+  end
+
+  defp normalize_retry_policies(validated) do
+    normalize_deep_map(validated, :retry_policies) ||
+      normalize_deep_map(validated, :policies) ||
+      %{}
+  end
+
+  defp normalize_policies(validated) do
+    normalize_value(validated, :policies) || %{}
+  end
+
+  defp required_field_errors(fields) do
+    []
+    |> maybe_require(fields.name, "name is required")
+    |> maybe_require(fields.version, "version is required")
+    |> maybe_require(fields.endpoints, "endpoints are required")
+    |> maybe_require(fields.types, "types are required")
   end
 
   @spec load_file(Path.t()) :: {:ok, t()} | {:error, [String.t()]}
@@ -129,9 +187,14 @@ defmodule Pristine.Manifest do
            resource: normalize_optional(endpoint, :resource),
            request: normalize_optional(endpoint, :request),
            response: normalize_optional(endpoint, :response),
+           async: normalize_boolean(endpoint, :async, false),
+           poll_endpoint: normalize_optional(endpoint, :poll_endpoint),
+           timeout: normalize_value(endpoint, :timeout),
            retry: normalize_optional(endpoint, :retry),
            telemetry: normalize_optional(endpoint, :telemetry),
            streaming: normalize_boolean(endpoint, :streaming, false),
+           stream_format: normalize_value(endpoint, :stream_format),
+           event_types: normalize_string_list(endpoint, :event_types),
            headers: normalize_map(endpoint, :headers),
            query: normalize_map(endpoint, :query),
            body_type: normalize_optional(endpoint, :body_type),
@@ -139,7 +202,12 @@ defmodule Pristine.Manifest do
            auth: normalize_optional(endpoint, :auth),
            circuit_breaker: normalize_optional(endpoint, :circuit_breaker),
            rate_limit: normalize_optional(endpoint, :rate_limit),
-           idempotency: normalize_boolean(endpoint, :idempotency, false)
+           idempotency: normalize_boolean(endpoint, :idempotency, false),
+           idempotency_header: normalize_value(endpoint, :idempotency_header),
+           deprecated: normalize_boolean(endpoint, :deprecated, false),
+           tags: normalize_string_list(endpoint, :tags),
+           error_types: normalize_list(endpoint, :error_types),
+           response_unwrap: normalize_value(endpoint, :response_unwrap)
          }}
     end
   end
@@ -161,12 +229,33 @@ defmodule Pristine.Manifest do
 
   defp normalize_type(name, definition) when is_map(definition) do
     type_name = normalize_key(name)
+    kind = normalize_type_kind(definition)
+    description = normalize_value(definition, :description)
     fields = normalize_value(definition, :fields)
 
-    if is_map(fields) do
-      {:ok, {type_name, %{fields: normalize_field_defs(fields)}}}
-    else
-      {:error, "type #{type_name} must include fields"}
+    cond do
+      kind == :union ->
+        {:ok, {type_name, normalize_union_type(definition, description)}}
+
+      is_map(fields) ->
+        {:ok,
+         {type_name,
+          %{kind: :object, description: description, fields: normalize_field_defs(fields)}}}
+
+      has_alias_type?(definition) ->
+        {:ok,
+         {type_name,
+          %{
+            kind: :alias,
+            description: description,
+            type: normalize_value(definition, :type),
+            type_ref: normalize_type_ref(definition),
+            value: normalize_value(definition, :value),
+            choices: normalize_value(definition, :choices)
+          }}}
+
+      true ->
+        {:error, "type #{type_name} must include fields"}
     end
   end
 
@@ -183,6 +272,9 @@ defmodule Pristine.Manifest do
   defp normalize_field(definition) when is_map(definition) do
     %{
       type: normalize_optional(definition, :type),
+      type_ref: normalize_type_ref(definition),
+      items: normalize_items(definition),
+      value: normalize_value(definition, :value),
       required: normalize_boolean(definition, :required, false),
       optional: normalize_boolean(definition, :optional, false),
       default: normalize_value(definition, :default),
@@ -243,6 +335,155 @@ defmodule Pristine.Manifest do
       _ ->
         %{}
     end
+  end
+
+  defp normalize_deep_map(map, key) when is_map(map) do
+    case normalize_value(map, key) do
+      nil -> nil
+      value when is_map(value) -> deep_normalize_map(value)
+      _ -> nil
+    end
+  end
+
+  defp deep_normalize_map(value) when is_map(value) do
+    Enum.reduce(value, %{}, fn {k, v}, acc ->
+      Map.put(acc, normalize_key(k), deep_normalize_map(v))
+    end)
+  end
+
+  defp deep_normalize_map(value) when is_list(value) do
+    Enum.map(value, &deep_normalize_map/1)
+  end
+
+  defp deep_normalize_map(value), do: value
+
+  defp normalize_string_list(map, key) when is_map(map) do
+    case normalize_value(map, key) do
+      nil -> nil
+      list when is_list(list) -> Enum.map(list, &to_string/1)
+      value -> [to_string(value)]
+    end
+  end
+
+  defp normalize_list(map, key) when is_map(map) do
+    case normalize_value(map, key) do
+      nil -> nil
+      list when is_list(list) -> list
+      value -> [value]
+    end
+  end
+
+  defp normalize_items(definition) when is_map(definition) do
+    case normalize_value(definition, :items) do
+      nil -> nil
+      items -> normalize_type_descriptor(items)
+    end
+  end
+
+  defp normalize_type_descriptor(items) when is_map(items) do
+    %{
+      type: normalize_optional(items, :type),
+      type_ref: normalize_type_ref(items),
+      items: normalize_items(items),
+      value: normalize_value(items, :value),
+      choices: normalize_value(items, :choices)
+    }
+  end
+
+  defp normalize_type_descriptor(items), do: %{type: normalize_key(items)}
+
+  defp normalize_type_ref(definition) when is_map(definition) do
+    normalize_optional(definition, :type_ref) ||
+      normalize_optional(definition, :"$ref") ||
+      normalize_optional(definition, :ref)
+  end
+
+  defp normalize_type_kind(definition) when is_map(definition) do
+    case normalize_value(definition, :kind) || normalize_value(definition, :type) do
+      "union" -> :union
+      "object" -> :object
+      "enum" -> :enum
+      _ -> nil
+    end
+  end
+
+  defp normalize_union_type(definition, description) do
+    discriminator = normalize_union_discriminator(definition)
+
+    %{
+      kind: :union,
+      description: description,
+      discriminator: discriminator
+    }
+  end
+
+  defp normalize_union_discriminator(definition) do
+    disc = normalize_value(definition, :discriminator)
+    variants = normalize_variants(definition) || %{}
+
+    cond do
+      is_map(disc) ->
+        build_discriminator(disc, variants)
+
+      is_binary(disc) or is_atom(disc) ->
+        build_discriminator(normalize_key(disc), variants)
+
+      true ->
+        build_discriminator("type", variants)
+    end
+  end
+
+  defp build_discriminator(disc, variants) when is_map(disc) do
+    field = normalize_value(disc, :field) || "type"
+    mapping = Map.get(disc, "mapping") || Map.get(disc, :mapping) || variants
+    build_discriminator(normalize_key(field), mapping)
+  end
+
+  defp build_discriminator(field, mapping) do
+    %{field: field, mapping: normalize_variant_mapping(mapping)}
+  end
+
+  defp normalize_variants(definition) do
+    case normalize_value(definition, :variants) do
+      nil -> nil
+      variants when is_map(variants) -> variants
+      variants when is_list(variants) -> normalize_variant_list(variants)
+      _ -> nil
+    end
+  end
+
+  defp normalize_variant_list(variants) do
+    Enum.reduce(variants, %{}, fn variant, acc ->
+      variant_value =
+        normalize_value(variant, :discriminator_value) ||
+          normalize_value(variant, :value) ||
+          normalize_value(variant, :tag)
+
+      type_ref = normalize_type_ref(variant) || normalize_optional(variant, :type)
+
+      if variant_value && type_ref do
+        Map.put(acc, to_string(variant_value), normalize_key(type_ref))
+      else
+        acc
+      end
+    end)
+  end
+
+  defp normalize_variant_mapping(mapping) when is_map(mapping) do
+    Enum.reduce(mapping, %{}, fn {k, v}, acc ->
+      Map.put(acc, normalize_key(k), normalize_key(v))
+    end)
+  end
+
+  defp normalize_variant_mapping(_), do: %{}
+
+  defp has_alias_type?(definition) when is_map(definition) do
+    type = normalize_value(definition, :type)
+    type_ref = normalize_type_ref(definition)
+    value = normalize_value(definition, :value)
+    choices = normalize_value(definition, :choices)
+
+    not is_nil(type) or not is_nil(type_ref) or not is_nil(value) or not is_nil(choices)
   end
 
   defp normalize_key(key) when is_atom(key), do: Atom.to_string(key)

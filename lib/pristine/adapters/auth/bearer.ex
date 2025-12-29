@@ -5,6 +5,14 @@ defmodule Pristine.Adapters.Auth.Bearer do
 
   @behaviour Pristine.Ports.Auth
 
+  @doc """
+  Build a bearer auth tuple for Context auth configuration.
+  """
+  @spec new(String.t(), keyword()) :: {module(), keyword()}
+  def new(token, opts \\ []) when is_list(opts) do
+    {__MODULE__, Keyword.put(opts, :token, token)}
+  end
+
   @impl true
   def headers(opts) do
     case Keyword.fetch(opts, :token) do

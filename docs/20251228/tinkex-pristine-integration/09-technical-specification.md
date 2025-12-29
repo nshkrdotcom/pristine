@@ -15,7 +15,7 @@ This specification covers:
 - Runtime pipeline enhancements
 
 > **Note**: Sinter already provides discriminated union support via
-> `{:discriminated_union, opts}` type (see `sinter/lib/sinter/types.ex:320-368`).
+> `{:discriminated_union, opts}` type (see `sinter/lib/sinter/types.ex:61-62`).
 > The enhancements in this spec focus on integrating these existing capabilities
 > into Pristine's code generation pipeline.
 
@@ -206,8 +206,8 @@ defmodule Tinkex.Types.SampleResponse do
   end
 
   def decode(data) do
-    # Note: Sinter.Validator.validate/2 is the correct API
-    # Output keys match input keys (string -> string, atom -> atom)
+    # Note: Sinter.Validator.validate/2 (or validate/3 with opts) is the API
+    # Output keys are normalized to strings; convert if you need atoms
     with {:ok, validated} <- Sinter.Validator.validate(schema(), data) do
       {:ok, struct(__MODULE__, atomize_keys(validated))}
     end
@@ -419,7 +419,6 @@ defmodule Tinkex.Resources.Models do
   @moduledoc "Model management operations"
 
   alias Tinkex.Types.{CreateModelRequest, LoraConfig}
-  alias Pristine.Runtime.Future
 
   defstruct [:context]
 
@@ -441,23 +440,23 @@ defmodule Tinkex.Resources.Models do
 
   ## Returns
 
-    * `{:ok, %Future{}}` - Future that resolves to CreateModelResponse
+    * `{:ok, Task.t()}` - Task that resolves to CreateModelResponse
     * `{:error, %Error{}}` - Error with details
 
   ## Example
 
-      {:ok, future} = Tinkex.Resources.Models.create(
+      {:ok, task} = Tinkex.Resources.Models.create(
         client.models,
         "session-123",
         1,
         "Qwen/Qwen3-8B",
         lora_config: %LoraConfig{rank: 8}
       )
-      {:ok, result} = Future.await(future)
+      {:ok, result} = Task.await(task)
 
   """
   @spec create(t(), String.t(), integer(), String.t(), keyword()) ::
-          {:ok, Future.t()} | {:error, Pristine.Error.t()}
+          {:ok, Task.t()} | {:error, Pristine.Error.t()}
   def create(%__MODULE__{context: context}, session_id, model_seq_id, base_model, opts \\ []) do
     payload = %{
       "session_id" => session_id,
@@ -468,7 +467,7 @@ defmodule Tinkex.Resources.Models do
     |> maybe_put("user_metadata", Keyword.get(opts, :user_metadata))
     |> maybe_put("lora_config", encode_lora_config(Keyword.get(opts, :lora_config)))
 
-    Pristine.Runtime.execute_future(context, "create_model", payload, opts)
+    Pristine.Core.Pipeline.execute_future(Tinkex.Client.manifest(), "create_model", payload, context, opts)
   end
 end
 ```
@@ -483,11 +482,12 @@ For endpoints with different modes, generate separate functions:
 def create_sample(resource, payload, opts \\ [])
 
 # Streaming variant
-@spec create_sample_stream(t(), map(), keyword()) :: {:ok, StreamResponse.t()} | {:error, Error.t()}
+@spec create_sample_stream(t(), map(), keyword()) ::
+        {:ok, Pristine.Core.StreamResponse.t()} | {:error, Error.t()}
 def create_sample_stream(resource, payload, opts \\ [])
 
-# Async variant (returns future)
-@spec create_sample_async(t(), map(), keyword()) :: {:ok, Future.t()} | {:error, Error.t()}
+# Async variant (returns task)
+@spec create_sample_async(t(), map(), keyword()) :: {:ok, Task.t()} | {:error, Error.t()}
 def create_sample_async(resource, payload, opts \\ [])
 ```
 
@@ -516,7 +516,7 @@ defmodule Tinkex.Types.SampledSequence do
   @spec schema() :: Sinter.Schema.t()
   def schema do
     Sinter.Schema.define([
-      {:stop_reason, {:choices, ["length", "stop"]}, [required: true]},
+      {:stop_reason, :string, [required: true, choices: ["length", "stop"]]},
       {:tokens, {:array, :integer}, [required: true]},
       {:logprobs, {:array, :float}, []}
     ])
@@ -526,10 +526,10 @@ defmodule Tinkex.Types.SampledSequence do
   def decode(data) when is_map(data) do
     # Sinter.Validator.validate/2 - note schema comes first
     with {:ok, validated} <- Sinter.Validator.validate(schema(), data) do
-      # Handle both string and atom keys from validation output
-      stop_reason = validated["stop_reason"] || validated[:stop_reason]
-      tokens = validated["tokens"] || validated[:tokens]
-      logprobs = validated["logprobs"] || validated[:logprobs]
+      # Validation output uses string keys
+      stop_reason = validated["stop_reason"]
+      tokens = validated["tokens"]
+      logprobs = validated["logprobs"]
 
       {:ok, %__MODULE__{
         stop_reason: String.to_existing_atom(stop_reason),
@@ -735,188 +735,56 @@ defmodule Pristine.Errors do
 end
 ```
 
-### 5.2 Future Implementation
+### 5.2 Future Adapter (Polling)
 
 ```elixir
-defmodule Pristine.Runtime.Future do
-  @moduledoc """
-  Represents an async operation that can be polled for results.
+defmodule Pristine.Adapters.Future.Polling do
+  @behaviour Pristine.Ports.Future
 
-  ## Usage
-
-      {:ok, future} = SomeResource.async_operation(client.resource, params)
-
-      # Await with default timeout
-      {:ok, result} = Future.await(future)
-
-      # Await with custom timeout
-      {:ok, result} = Future.await(future, timeout: 60_000)
-
-      # Check without blocking
-      case Future.poll(future) do
-        {:ok, result} -> # Completed
-        {:pending, status} -> # Still processing
-        {:error, reason} -> # Failed
-      end
-
-  """
-
-  defstruct [
-    :request_id,
-    :context,
-    :poll_endpoint,
-    :response_type,
-    :cached_result,
-    :start_time
-  ]
-
-  @type t :: %__MODULE__{
-    request_id: String.t(),
-    context: Pristine.Core.Context.t(),
-    poll_endpoint: String.t(),
-    response_type: module(),
-    cached_result: term() | nil,
-    start_time: integer()
-  }
-
-  @spec await(t(), keyword()) :: {:ok, term()} | {:error, term()}
-  def await(%__MODULE__{cached_result: result} = _future, _opts) when not is_nil(result) do
-    {:ok, result}
+  @impl true
+  def poll(request_id, context, opts \\ []) do
+    task = Task.async(fn -> poll_loop(request_id, context, opts) end)
+    {:ok, task}
   end
 
-  def await(%__MODULE__{} = future, opts) do
-    timeout = Keyword.get(opts, :timeout, :infinity)
-    poll_interval = Keyword.get(opts, :poll_interval, 1000)
-    max_poll_interval = Keyword.get(opts, :max_poll_interval, 30_000)
-
-    deadline = if timeout == :infinity, do: :infinity, else: System.monotonic_time(:millisecond) + timeout
-
-    do_poll(future, poll_interval, max_poll_interval, deadline, 0)
-  end
-
-  defp do_poll(future, interval, max_interval, deadline, iteration) do
-    if deadline != :infinity and System.monotonic_time(:millisecond) > deadline do
-      {:error, :timeout}
-    else
-      case poll(future) do
-        {:ok, result} ->
-          {:ok, result}
-
-        {:pending, _status} ->
-          :timer.sleep(interval)
-          next_interval = min(interval * 2, max_interval)
-          do_poll(future, next_interval, max_interval, deadline, iteration + 1)
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+  @impl true
+  def await(%Task{} = task, timeout) do
+    case Task.yield(task, timeout) do
+      {:ok, result} -> result
+      nil ->
+        Task.shutdown(task, :brutal_kill)
+        {:error, :await_timeout}
+      {:exit, reason} -> {:error, {:task_exit, reason}}
     end
-  end
-
-  @spec poll(t()) :: {:ok, term()} | {:pending, map()} | {:error, term()}
-  def poll(%__MODULE__{} = future) do
-    payload = %{"request_id" => future.request_id}
-
-    case Pristine.Core.Pipeline.execute(future.context, future.poll_endpoint, payload) do
-      {:ok, %{"type" => "try_again"} = response} ->
-        {:pending, response}
-
-      {:ok, %{"type" => "request_failed"} = response} ->
-        {:error, {:request_failed, response}}
-
-      {:ok, result} ->
-        {:ok, result}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  @spec combine([t()], (list() -> term())) :: t()
-  def combine(futures, transform_fn) when is_list(futures) do
-    %__MODULE__{
-      request_id: "combined-#{:erlang.unique_integer([:positive])}",
-      context: hd(futures).context,
-      poll_endpoint: nil,
-      response_type: nil,
-      cached_result: nil,
-      start_time: System.monotonic_time(:millisecond),
-      # Store futures and transform for combined polling
-      __combined__: {futures, transform_fn}
-    }
   end
 end
 ```
 
+`Pristine.Core.Pipeline.execute_future/5` returns `{:ok, Task.t()}` and delegates polling
+to the configured `future` adapter (defaulting to `Pristine.Adapters.Future.Polling`).
+
 ### 5.3 Enhanced Streaming
 
 ```elixir
-defmodule Pristine.Runtime.StreamResponse do
-  @moduledoc """
-  Handles SSE streaming with event type dispatch.
-  """
+defmodule Pristine.Core.StreamResponse do
+  @spec dispatch_event(Pristine.Streaming.Event.t(), module()) :: {:ok, term()} | {:error, term()}
+  def dispatch_event(%Pristine.Streaming.Event{} = event, handler_module) do
+    payload = Pristine.Streaming.Event.json!(event)
 
-  defstruct [
-    :response,
-    :decoder,
-    :event_handler,
-    :last_event_id
-  ]
-
-  @type event_handler :: (ServerSentEvent.t() -> :ok | {:error, term()})
-
-  @spec new(Finch.Response.t(), keyword()) :: t()
-  def new(response, opts \\ []) do
-    %__MODULE__{
-      response: response,
-      decoder: Pristine.Adapters.SSEDecoder.new(),
-      event_handler: Keyword.get(opts, :event_handler),
-      last_event_id: nil
-    }
-  end
-
-  @spec stream(t()) :: Enumerable.t()
-  def stream(%__MODULE__{} = stream) do
-    Stream.resource(
-      fn -> stream end,
-      &next_event/1,
-      &cleanup/1
-    )
-  end
-
-  defp next_event(%__MODULE__{decoder: decoder, response: response} = stream) do
-    case Pristine.Adapters.SSEDecoder.next(decoder, response) do
-      {:event, event, new_decoder} ->
-        new_stream = %{stream |
-          decoder: new_decoder,
-          last_event_id: event.id || stream.last_event_id
-        }
-        {[event], new_stream}
-
-      :done ->
-        {:halt, stream}
-
-      {:error, reason} ->
-        throw({:stream_error, reason})
+    case event.event do
+      "message_start" -> handler_module.on_message_start(payload)
+      "content_block_start" -> handler_module.on_content_block_start(payload)
+      "content_block_delta" -> handler_module.on_content_block_delta(payload)
+      "content_block_stop" -> handler_module.on_content_block_stop(payload)
+      "message_stop" -> handler_module.on_message_stop(payload)
+      "error" -> handler_module.on_error(payload)
+      _ -> handler_module.on_unknown(event.event, event.data)
     end
   end
 
-  defp cleanup(%__MODULE__{response: response}) do
-    # Ensure connection is closed
-    :ok
-  end
-
-  @spec dispatch_event(ServerSentEvent.t(), module()) :: {:ok, term()} | {:error, term()}
-  def dispatch_event(%{event: event_type, data: data}, handler_module) do
-    case event_type do
-      "message_start" -> handler_module.on_message_start(Jason.decode!(data))
-      "content_block_start" -> handler_module.on_content_block_start(Jason.decode!(data))
-      "content_block_delta" -> handler_module.on_content_block_delta(Jason.decode!(data))
-      "content_block_stop" -> handler_module.on_content_block_stop(Jason.decode!(data))
-      "message_stop" -> handler_module.on_message_stop(Jason.decode!(data))
-      "error" -> handler_module.on_error(Jason.decode!(data))
-      _ -> handler_module.on_unknown(event_type, data)
-    end
+  @spec dispatch_stream(t(), module()) :: Enumerable.t()
+  def dispatch_stream(%__MODULE__{stream: stream}, handler_module) do
+    Stream.map(stream, &dispatch_event(&1, handler_module))
   end
 end
 ```
@@ -951,7 +819,7 @@ end
 - [x] Idempotency key generation (EXISTS: lib/pristine/core/pipeline.ex:326-332)
 - [ ] Implement typed error hierarchy (OPTIONAL: for exception-based matching)
 - [ ] Add Retry-After header parsing
-- [ ] Implement Future with polling
+- [x] Future polling adapter (EXISTS: lib/pristine/adapters/future/polling.ex)
 - [ ] Enhance StreamResponse with dispatch
 
 ### 6.5 Utilities

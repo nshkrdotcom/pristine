@@ -96,7 +96,7 @@ Pristine <- All: Consume unified libraries for SDK generation
 - **Sink Pattern**: Transport-agnostic delivery
 - **Load Shedding**: Drops new messages on overflow
 - **Poison Pill Safety**: Isolates malformed events
-- **Graceful Shutdown**: Drains buffers on exit
+- **Graceful Shutdown**: Explicit drain via `flush(sync?: true)` / `wait_until_drained`; `stop/2` delegates to Pachka
 
 ### TikToken Integration
 

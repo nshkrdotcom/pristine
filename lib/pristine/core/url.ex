@@ -3,17 +3,22 @@ defmodule Pristine.Core.Url do
   URL builder with path params and query encoding.
   """
 
-  @spec build(String.t() | nil, String.t(), map(), map()) :: String.t()
-  def build(base_url, path, path_params, query_params) do
+  alias Pristine.Core.Querystring
+
+  @spec build(String.t() | nil, String.t(), map(), map(), keyword()) :: String.t()
+  def build(base_url, path, path_params, query_params, opts \\ []) do
     base = normalize_base(base_url)
     path = normalize_path(path)
     path = apply_path_params(path, path_params)
 
     url = base <> path
 
-    case normalize_query(query_params) do
-      [] -> url
-      query -> url <> "?" <> URI.encode_query(query)
+    query_string = Querystring.stringify(query_params, opts)
+
+    if query_string == "" do
+      url
+    else
+      url <> "?" <> query_string
     end
   end
 
@@ -39,26 +44,6 @@ defmodule Pristine.Core.Url do
       |> String.replace(":" <> normalize_key(key), value)
     end)
   end
-
-  defp normalize_query(params) when is_map(params) do
-    params
-    |> Enum.flat_map(fn {key, value} ->
-      value =
-        case value do
-          nil -> nil
-          _ -> to_string(value)
-        end
-
-      if is_nil(value) do
-        []
-      else
-        [{normalize_key(key), value}]
-      end
-    end)
-    |> Enum.sort_by(&elem(&1, 0))
-  end
-
-  defp normalize_query(_), do: []
 
   defp normalize_key(key) when is_atom(key), do: Atom.to_string(key)
   defp normalize_key(key) when is_binary(key), do: key

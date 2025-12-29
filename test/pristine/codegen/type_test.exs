@@ -141,6 +141,91 @@ defmodule Pristine.Codegen.TypeTest do
       assert code =~ "metadata: map() | nil"
       assert code =~ "{:metadata, :map, [optional: true]}"
     end
+
+    test "renders literal fields with literal schema" do
+      type_def = %{
+        "fields" => [
+          %{"name" => "type", "type" => "literal", "value" => "text", "required" => true}
+        ]
+      }
+
+      code = Type.render_type_module("MyAPI.Types.TextChunk", "TextChunk", type_def)
+
+      assert code =~ "{:type, {:literal, \"text\"}"
+    end
+
+    test "renders choices constraints in schema options" do
+      type_def = %{
+        "fields" => [
+          %{"name" => "format", "type" => "string", "choices" => ["png", "jpeg"]}
+        ]
+      }
+
+      code = Type.render_type_module("MyAPI.Types.ImageChunk", "ImageChunk", type_def)
+
+      assert code =~ "choices: [\"png\", \"jpeg\"]"
+    end
+
+    test "renders type refs in schema and typespecs" do
+      types = %{
+        "Child" => %{"fields" => [%{"name" => "name", "type" => "string"}]},
+        "Parent" => %{"fields" => [%{"name" => "child", "type_ref" => "Child"}]}
+      }
+
+      code =
+        Type.render_type_module("MyAPI.Types.Parent", "Parent", types["Parent"], types)
+
+      assert code =~ "child: MyAPI.Types.Child.t()"
+      assert code =~ "{:child, {:object, MyAPI.Types.Child.schema()}"
+    end
+
+    test "renders discriminated union modules" do
+      type_def = %{
+        "kind" => "union",
+        "discriminator" => %{
+          "field" => "type",
+          "mapping" => %{"text" => "TextChunk", "image" => "ImageChunk"}
+        }
+      }
+
+      code = Type.render_type_module("MyAPI.Types.ModelInputChunk", "ModelInputChunk", type_def)
+
+      assert code =~ "{:discriminated_union"
+      assert code =~ "\"text\" -> MyAPI.Types.TextChunk.decode"
+      assert code =~ "\"image\" -> MyAPI.Types.ImageChunk.decode"
+    end
+
+    test "generated decode returns nested structs for type refs" do
+      unique = System.unique_integer([:positive])
+      child_name = "Child#{unique}"
+      parent_name = "Parent#{unique}"
+
+      types = %{
+        child_name => %{"fields" => [%{"name" => "name", "type" => "string", "required" => true}]},
+        parent_name => %{
+          "fields" => [%{"name" => "child", "type_ref" => child_name, "required" => true}]
+        }
+      }
+
+      child_module = "MyAPI.Types.#{child_name}"
+      parent_module = "MyAPI.Types.#{parent_name}"
+
+      Code.compile_string(
+        Type.render_type_module(child_module, child_name, types[child_name], types)
+      )
+
+      Code.compile_string(
+        Type.render_type_module(parent_module, parent_name, types[parent_name], types)
+      )
+
+      child_mod = Module.concat([MyAPI, Types, String.to_atom(child_name)])
+      parent_mod = Module.concat([MyAPI, Types, String.to_atom(parent_name)])
+
+      assert {:ok, parent} = parent_mod.decode(%{"child" => %{"name" => "Ada"}})
+      assert %^parent_mod{} = parent
+      assert %^child_mod{} = parent.child
+      assert parent.child.name == "Ada"
+    end
   end
 
   describe "render_all_type_modules/2" do
