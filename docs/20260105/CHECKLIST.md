@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 12 Complete - Checkpoint)
+> Last updated: 2026-01-05 (Iteration 13 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 52% complete (94 modules ported)
-> **Tests**: 833 passing (total including generated + manual)
-> **Next Action**: Implement SamplingClient, TrainingClient scaffolding
+> **Port Progress**: 55% complete (99 modules ported)
+> **Tests**: 858 passing (25 new in iteration 13)
+> **Next Action**: Implement ServiceClient, wire up client creation
 
 ## Legend
 - [ ] Not started
@@ -149,20 +149,19 @@
 
 ## Phase 2: Training (Enables 80% of examples)
 
-### Tinkex.TrainingClient (12 examples)
-- [ ] GenServer-based implementation
-- [ ] State: model_id, session_id, seq_id, config
-- [ ] `forward/4` - Forward pass only
-- [ ] `forward_backward/4` - Forward + backward pass
-- [ ] `forward_backward_custom/4` - With custom loss function
-- [ ] `optim_step/2` - Apply optimizer step
-- [ ] `save_state/2` - Save checkpoint with optimizer state
-- [ ] `load_state/2` - Load checkpoint
-- [ ] `load_state_with_optimizer/2` - Load with optimizer state
-- [ ] `save_weights_for_sampler/2` - Save for sampling
-- [ ] `save_weights_and_get_sampling_client_sync/1` - Save + create sampler
-- [ ] `unload_model/1` - Unload from GPU
-- [ ] Nested: DataProcessor.chunk_data/1
+### Tinkex.TrainingClient (Scaffolding) (12 tests)
+- [x] Struct-based client with model_id, session_id, config
+- [x] `forward/3` - Forward pass only
+- [x] `forward_backward/4` - Forward + backward pass
+- [x] `optim_step/3` - Apply optimizer step
+- [x] `save_state/3` - Save checkpoint with optional optimizer state
+- [x] `load_state/3` - Load checkpoint
+- [x] `save_weights_for_sampler/3` - Save for sampling
+- [x] `next_seq_id/1` - Atomic sequence ID generation
+- [x] `parse_forward_backward_response/1` - Response parsing
+- [ ] `forward_backward_custom/4` - With custom loss function (future)
+- [ ] `unload_model/1` - Unload from GPU (future)
+- [ ] DataProcessor.chunk_data/1 (future)
 
 ### Training Types
 - [x] Tinkex.Types.ForwardBackwardInput (29 tests for training types)
@@ -269,9 +268,13 @@
 - [x] `get_sampler/2`, `get_weights_info_by_tinker_path/2` - Sampler/weights info
 - [x] Async variants for all operations (`*_async`)
 
-### Tinkex.SamplingClient (Extended) (15 examples)
-- [ ] `sample/4` with queue_state_observer option
-- [ ] `compute_logprobs/2` - Compute log probabilities
+### Tinkex.SamplingClient (Scaffolding) (13 tests)
+- [x] Struct-based client with session_id and config
+- [x] `sample/4` with queue_state_observer option
+- [x] `sample_stream/4` - Streaming sample generation
+- [x] `compute_logprobs/3` - Compute log probabilities
+- [x] `next_seq_id/1` - Atomic sequence ID generation
+- [x] `parse_sample_response/1` - Response parsing
 
 ### Session Types
 - [x] Tinkex.Types.CreateSessionRequest (24 tests total for session types)
