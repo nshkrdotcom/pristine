@@ -42,7 +42,13 @@ defmodule Tinkex.Config do
             log_level: nil,
             default_headers: %{},
             default_query: %{},
-            http_client: nil
+            http_client: nil,
+            poll_backoff: nil
+
+  @type poll_backoff_policy ::
+          :none
+          | {:exponential, pos_integer(), pos_integer()}
+          | (non_neg_integer() -> non_neg_integer())
 
   @type t :: %__MODULE__{
           base_url: String.t(),
@@ -55,7 +61,8 @@ defmodule Tinkex.Config do
           log_level: :debug | :info | :warn | :error | nil,
           default_headers: map(),
           default_query: map(),
-          http_client: module() | nil
+          http_client: module() | nil,
+          poll_backoff: poll_backoff_policy() | nil
         }
 
   @default_base_url "https://tinker.thinkingmachines.dev/services/tinker-prod"

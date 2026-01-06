@@ -42,19 +42,36 @@ defmodule Tinkex.Types.FutureRetrieveResponse do
   @moduledoc """
   Union type for future retrieval responses.
 
-  Parses the response based on status field and returns the appropriate type.
+  Parses the response based on status/type field and returns the appropriate type.
   """
 
-  alias Tinkex.Types.{FuturePendingResponse, FutureCompletedResponse, FutureFailedResponse}
+  alias Tinkex.Types.{
+    FuturePendingResponse,
+    FutureCompletedResponse,
+    FutureFailedResponse,
+    TryAgainResponse
+  }
 
-  @type t :: FuturePendingResponse.t() | FutureCompletedResponse.t() | FutureFailedResponse.t()
+  @type t ::
+          FuturePendingResponse.t()
+          | FutureCompletedResponse.t()
+          | FutureFailedResponse.t()
+          | TryAgainResponse.t()
 
   @doc """
   Parse a future retrieve response from JSON.
 
-  Returns the appropriate response type based on the status field.
+  Returns the appropriate response type based on the status/type field.
   """
   @spec from_json(map()) :: t()
+  def from_json(%{"type" => "try_again"} = map) do
+    TryAgainResponse.from_map(map)
+  end
+
+  def from_json(%{type: "try_again"} = map) do
+    TryAgainResponse.from_map(map)
+  end
+
   def from_json(%{"status" => "pending"}) do
     %FuturePendingResponse{}
   end
