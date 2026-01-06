@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-06 (Iteration 26 Complete)
+> Last updated: 2026-01-06 (Iteration 27 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 69% complete (121 modules ported)
-> **Tests**: 1075 passing (10 new in iteration 26)
-> **Next Action**: Phase 5 - Advanced Features
+> **Port Progress**: 71% complete (124 modules ported)
+> **Tests**: 758 tinkex tests passing (37 new in iteration 27)
+> **Next Action**: Phase 5 - Advanced Features (continued)
 
 ## Legend
 - [ ] Not started
@@ -593,15 +593,26 @@
 - [ ] Progress callback support
 - [ ] Retry logic for archive availability
 
-### Queue & Dispatch (2 examples)
-- [ ] Tinkex.QueueStateLogger
-  - [ ] `log_state_change/4`
+### Queue & Dispatch (2 examples) - 37 tests
+- [x] Tinkex.QueueStateObserver behaviour
+  - [x] `on_queue_state_change/1` callback (1-arity)
+  - [x] `on_queue_state_change/2` callback (2-arity with metadata)
+  - [x] @optional_callbacks for backward compatibility
+- [x] Tinkex.QueueStateLogger (20 tests)
+  - [x] `log_state_change/4` - Log with human-readable messages
+  - [x] `should_log?/2` - Debounce check (60s default)
+  - [x] `maybe_log/5` - Combined debounce + log
+  - [x] `reason_for_state/2` - Client-specific reason strings
+  - [x] `resolve_reason/3` - Server reason preference
+- [x] Tinkex.ByteEstimator (17 tests)
+  - [x] `estimate_chunk_bytes/1` - ImageChunk, ImageAssetPointerChunk, EncodedTextChunk
+  - [x] `estimate_model_input_bytes/1` - Sum of chunk estimates
+  - [x] `estimate_loss_fn_inputs_bytes/1` - TensorData, maps with data keys
+  - [x] `estimate_datum_bytes/1` - model_input + loss_fn_inputs
+  - [x] `estimate_data_bytes/1` - List of datums
 - [ ] Tinkex.SamplingDispatch
   - [ ] `set_backoff/2`
   - [ ] `with_rate_limit/3`
-- [ ] Tinkex.ByteEstimator
-  - [ ] `estimate_model_input_bytes/1`
-- [ ] QueueStateObserver behaviour
 
 ### Multipart (1 example)
 - [ ] Tinkex.Files.Transform
