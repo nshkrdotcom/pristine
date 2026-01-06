@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-06 (Iteration 25 Complete)
+> Last updated: 2026-01-06 (Iteration 26 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 68% complete (120 modules ported)
-> **Tests**: 1065 passing (28 new in iteration 25)
-> **Next Action**: Phase 4 - Tinkex.Recovery.Monitor or Phase 5
+> **Port Progress**: 69% complete (121 modules ported)
+> **Tests**: 1075 passing (10 new in iteration 26)
+> **Next Action**: Phase 5 - Advanced Features
 
 ## Legend
 - [ ] Not started
@@ -498,7 +498,7 @@
 - [x] `__wrap_thrown__/2` - Wrap thrown values as ErlangError
 - [x] `__rethrow__/2` - Re-throw values
 
-### Tinkex.Recovery (2 examples) - 28 tests
+### Tinkex.Recovery (2 examples) - 38 tests
 - [x] Tinkex.Recovery.Policy (18 tests)
   - [x] `new/1` - Create policy from struct, keyword list, map, or nil
   - [x] Defaults: disabled, 3 attempts, 5s backoff (capped 60s), 30s poll, :latest strategy
@@ -515,9 +515,13 @@
 - [x] Tinkex.Recovery.Behaviours
   - [x] RestBehaviour - get_training_run/2
   - [x] ServiceClientBehaviour - create_rest_client/1, create_training_client_from_state/3, _with_optimizer/3
-- [ ] Tinkex.Recovery.Monitor
-  - [ ] `start_link/1` - Start with policy, executor
-  - [ ] `monitor_run/4` - Monitor training run
+- [x] Tinkex.Recovery.Monitor (10 tests)
+  - [x] `start_link/1` - Start with policy, executor, rest_module, service_client_module
+  - [x] `monitor_run/4` - Begin monitoring a training run
+  - [x] `stop_monitoring/2` - Stop monitoring a run
+  - [x] Polling for corrupted runs via REST
+  - [x] Dispatch recovery to Executor on corruption detection
+  - [x] Telemetry: detected, poll_error
 
 ### Error Types (23 tests)
 - [x] Tinkex.Types.RequestErrorCategory
