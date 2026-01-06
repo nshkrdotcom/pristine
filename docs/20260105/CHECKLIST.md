@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 10 Complete)
+> Last updated: 2026-01-05 (Iteration 11 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 48% complete (85 modules ported)
-> **Tests**: 428 passing (up from 405)
-> **Next Action**: Implement HuggingFace file resolver, ServiceClient infrastructure
+> **Port Progress**: 49% complete (87 modules ported)
+> **Tests**: 450 passing (up from 428)
+> **Next Action**: Integrate HuggingFace with Tokenizer, implement RestClient wrapper
 
 ## Legend
 - [ ] Not started
@@ -384,8 +384,19 @@
   - [x] `retrieve/2`
 - [x] Tinkex.API.Training
   - [x] `forward_backward_future/2`, `optim_step_future/2`, `forward_future/2`
-- [ ] Tinkex.API.Rest
-  - [ ] `list_training_runs/3`, `get_training_run/2`
+- [x] Tinkex.API.Rest (22 tests)
+  - [x] `list_training_runs/3`, `get_training_run/2`
+  - [x] `list_sessions/3`, `get_session/2`
+  - [x] `list_checkpoints/2`, `list_user_checkpoints/3`
+  - [x] `get_checkpoint_archive_url/2`, `delete_checkpoint/2`
+  - [x] `get_sampler/2`, `get_weights_info_by_tinker_path/2`
+  - [x] `publish_checkpoint/2`, `unpublish_checkpoint/2`
+
+### Tinkex.HuggingFace (8 tests)
+- [x] `resolve_file/4` - Download and cache files from HuggingFace
+- [x] `build_hf_url/3` - Build HuggingFace download URL
+- [x] `sanitize_repo_id/1` - Sanitize repo ID for filesystem
+- [x] `default_cache_dir/0` - Default cache directory
 
 ### Future Polling (19 tests)
 - [x] Tinkex.Future
