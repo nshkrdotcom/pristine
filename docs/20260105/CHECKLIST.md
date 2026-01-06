@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 7 Complete)
+> Last updated: 2026-01-05 (Iteration 8 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 40% complete (71 modules ported)
-> **Tests**: 359 passing (up from 336)
-> **Next Action**: All core types complete! Begin implementing API layer modules
+> **Port Progress**: 45% complete (79 modules ported)
+> **Tests**: 386 passing (up from 359)
+> **Next Action**: Implement Future polling, higher-level training convenience functions
 
 ## Legend
 - [ ] Not started
@@ -364,15 +364,23 @@
   - [x] Struct: model_id, model_name, arch
   - [x] `from_json/1` with backward compat (string support)
 
-### API Layer Modules
-- [ ] Tinkex.API.Session
-  - [ ] `create/2`, `create_typed/2`
-- [ ] Tinkex.API.Service
-  - [ ] `create_model/2`, `get_server_capabilities/2`, `health_check/2`
-- [ ] Tinkex.API.Models
-  - [ ] `get_info/2`, `unload_model/2`
-- [ ] Tinkex.API.Futures
-  - [ ] `retrieve/2`
+### API Layer Modules (27 tests)
+- [x] Tinkex.HTTPClient behaviour
+  - [x] `post/3`, `get/2`, `delete/2` callbacks
+- [x] Tinkex.API (base module)
+  - [x] `client_module/1` - Resolve HTTP client
+  - [x] Default stub implementations
+- [x] Tinkex.API.Session
+  - [x] `create/2`, `create_typed/2`, `heartbeat/2`
+- [x] Tinkex.API.Service
+  - [x] `create_model/2`, `create_sampling_session/2`
+  - [x] `get_server_capabilities/1`, `health_check/1`
+- [x] Tinkex.API.Models
+  - [x] `get_info/2`, `unload_model/2`
+- [x] Tinkex.API.Futures
+  - [x] `retrieve/2`
+- [x] Tinkex.API.Training
+  - [x] `forward_backward_future/2`, `optim_step_future/2`, `forward_future/2`
 - [ ] Tinkex.API.Rest
   - [ ] `list_training_runs/3`, `get_training_run/2`
 
