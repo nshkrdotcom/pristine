@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 4 Complete)
+> Last updated: 2026-01-05 (Iteration 5 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 25% complete (45 modules ported)
-> **Tests**: 244 passing (up from 189)
-> **Next Action**: Implement remaining session types, CustomLossOutput, ModelData
+> **Port Progress**: 31% complete (55 modules ported)
+> **Tests**: 289 passing (up from 244)
+> **Next Action**: Implement sampling types (SamplingParams, SampledSequence, StopReason)
 
 ## Legend
 - [ ] Not started
@@ -183,9 +183,10 @@
 - [x] Tinkex.Types.LossFnType
   - [x] Type: :cross_entropy | :importance_sampling | :ppo | :cispo | :dro
   - [x] `parse/1`, `to_string/1`, `values/0`
-- [ ] Tinkex.Types.CustomLossOutput
-  - [ ] Struct: loss_total, base_loss, regularizers, regularizer_total, total_grad_norm
-  - [ ] `build/4`, `loss/1`
+- [x] Tinkex.Types.CustomLossOutput
+  - [x] Struct: loss_total, base_loss, regularizers, regularizer_total, total_grad_norm
+  - [x] `build/4`, `loss/1`
+  - [x] Jason.Encoder implementation
 
 ### Checkpoint Types (55 tests for weight/checkpoint types)
 - [x] Tinkex.Types.Cursor
@@ -283,10 +284,12 @@
 - [x] Tinkex.Types.SessionHeartbeatResponse
   - [x] Struct: type
   - [x] `new/0`, `from_json/1`
-- [ ] Tinkex.Types.ListSessionsResponse
-  - [ ] Struct: sessions [String]
-- [ ] Tinkex.Types.GetSessionResponse
-  - [ ] Struct: training_run_ids, sampler_ids
+- [x] Tinkex.Types.ListSessionsResponse
+  - [x] Struct: sessions [String]
+  - [x] `from_map/1`
+- [x] Tinkex.Types.GetSessionResponse
+  - [x] Struct: training_run_ids, sampler_ids
+  - [x] `from_map/1`
 
 ### Model Types
 - [x] Tinkex.Types.CreateModelRequest
@@ -303,27 +306,32 @@
 - [x] Tinkex.Types.GetInfoResponse
   - [x] Struct: model_id, model_data, is_lora, lora_rank, model_name, type
   - [x] `from_json/1` (handles string and atom keys)
-- [ ] Tinkex.Types.ModelData
-  - [ ] Struct: arch, model_name, tokenizer_id
-- [ ] Tinkex.Types.UnloadModelRequest
-  - [ ] Struct: model_id, type
-  - [ ] `new/1`
-- [ ] Tinkex.Types.UnloadModelResponse
-  - [ ] Struct: model_id, type
-- [ ] Tinkex.Types.GetSamplerResponse
-  - [ ] Struct: sampler_id, base_model, model_path
+- [x] Tinkex.Types.ModelData
+  - [x] Struct: arch, model_name, tokenizer_id
+  - [x] `from_json/1`
+- [x] Tinkex.Types.UnloadModelRequest
+  - [x] Struct: model_id, type
+  - [x] `new/1`
+  - [x] Jason.Encoder implementation
+- [x] Tinkex.Types.UnloadModelResponse
+  - [x] Struct: model_id, type
+  - [x] `from_json/1`
+- [x] Tinkex.Types.GetSamplerResponse
+  - [x] Struct: sampler_id, base_model, model_path
+  - [x] `from_json/1`
+  - [x] Jason.Encoder implementation
 
-### Training Run Types
-- [ ] Tinkex.Types.TrainingRun
-  - [ ] Struct: training_run_id, base_model, model_owner, is_lora, lora_rank, corrupted, last_request_time, last_checkpoint, last_sampler_checkpoint, user_metadata
-  - [ ] `from_map/1` with datetime parsing
-- [ ] Tinkex.Types.TrainingRunsResponse
-  - [ ] Struct: training_runs, cursor
-- [ ] Tinkex.Types.WeightsInfoResponse
-  - [ ] Struct: base_model, is_lora, lora_rank
-- [ ] Tinkex.Types.Cursor
-  - [ ] Struct: offset, limit, total_count
-  - [ ] `from_map/1`
+### Training Run Types (45 tests for session/model/training types)
+- [x] Tinkex.Types.TrainingRun
+  - [x] Struct: training_run_id, base_model, model_owner, is_lora, lora_rank, corrupted, last_request_time, last_checkpoint, last_sampler_checkpoint, user_metadata
+  - [x] `from_map/1` with datetime parsing and nested Checkpoint parsing
+- [x] Tinkex.Types.TrainingRunsResponse
+  - [x] Struct: training_runs, cursor
+  - [x] `from_map/1` with TrainingRun and Cursor parsing
+- [x] Tinkex.Types.WeightsInfoResponse
+  - [x] Struct: base_model, is_lora, lora_rank
+  - [x] `from_json/1`
+  - [x] Jason.Encoder implementation
 
 ### Future & Async Types
 - [ ] Tinkex.Types.FutureRetrieveRequest
