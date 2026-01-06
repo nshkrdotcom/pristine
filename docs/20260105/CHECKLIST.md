@@ -1,11 +1,11 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-06 (Iteration 28 Complete)
+> Last updated: 2026-01-06 (Iteration 29 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 72% complete (125 modules ported)
-> **Tests**: 769 tinkex tests passing (11 new in iteration 28)
+> **Port Progress**: 73% complete (126 modules ported)
+> **Tests**: 784 tinkex tests passing (15 new in iteration 29)
 > **Next Action**: Phase 5 - Advanced Features (continued)
 
 ## Legend
@@ -562,8 +562,11 @@
   - [ ] `execute_one/4`, `execute_all/4`
 - [ ] Tinkex.Regularizer.GradientTracker (requires Nx)
   - [ ] `compute_grad_norm/2`
-- [ ] Tinkex.Regularizer.Telemetry
-  - [ ] `attach_logger/1`
+- [x] Tinkex.Regularizer.Telemetry (15 tests)
+  - [x] `events/0` - List all regularizer telemetry events
+  - [x] `attach_logger/1` - Attach logger with options
+  - [x] `detach/1` - Detach handler
+  - [x] `handle_event/4` - Event handlers for all 6 event types
 
 ### Tinkex.Regularizers.* (2 examples)
 - [ ] L1.compute/3
