@@ -1,6 +1,14 @@
+---
+active: true
+iteration: 11
+max_iterations: 50
+completion_promise: null
+started_at: "2026-01-06T08:54:28Z"
+---
+
 # Tinkex Port - Iterative Development Prompt
 
-> **Purpose**: Self-sufficient prompt for iterative, multiagent-driven porting of `~/p/g/North-Shore-AI/tinkex` to `./examples/tinkex`
+> **Purpose**: Self-sufficient prompt for iterative, multiagent-driven porting of  to 
 >
 > **Execution**: Run this prompt repeatedly. Each agent picks up from the previous agent's work.
 >
@@ -12,7 +20,7 @@
 
 Before any work, spawn parallel agents to read these critical files:
 
-```
+
 PARALLEL AGENT BATCH 1 - Project Context:
 ├── Agent 1: Read ./CLAUDE.md, ./mix.exs, ./README.md
 ├── Agent 2: Read ./examples/tinkex/ (all files if exists)
@@ -24,7 +32,7 @@ PARALLEL AGENT BATCH 2 - Source Understanding:
 ├── Agent 6: Explore ~/p/g/North-Shore-AI/tinkex/test/ structure
 ├── Agent 7: Read ~/p/g/North-Shore-AI/tinkex/lib/tinkex/types/ (first 5 type modules)
 └── Agent 8: Read ./lib/pristine/ports/ and ./lib/pristine/adapters/ for integration points
-```
+
 
 ---
 
@@ -35,43 +43,43 @@ PARALLEL AGENT BATCH 2 - Source Understanding:
 Launch 4 parallel agents to assess current state:
 
 **Agent A - Source Inventory**:
-```
+
 Explore ~/p/g/North-Shore-AI/tinkex comprehensively:
 - Count all modules in lib/
 - List all public functions per module
 - Identify all type definitions (Tinkex.Types.*)
 - List all examples in examples/
 - Return structured inventory as markdown table
-```
+
 
 **Agent B - Port Inventory**:
-```
+
 Explore ./examples/tinkex (if exists):
 - List all implemented modules
 - List all test files
 - Check for any compile errors (mix compile --warnings-as-errors)
 - Run mix test if tests exist, capture results
 - Return current implementation status
-```
+
 
 **Agent C - Dependency Check**:
-```
+
 Verify local dependencies are available and compatible:
 - Check ~/p/g/n/foundation exists and compiles
 - Check ~/p/g/n/sinter exists and compiles
 - Check ~/p/g/n/multipart_ex exists and compiles
 - Check ~/p/g/n/telemetry_reporter exists and compiles
 - Return dependency health report
-```
+
 
 **Agent D - Documentation State**:
-```
+
 Read existing documentation:
 - ./docs/20250105/GAP_ANALYSIS.md (if exists)
 - ./docs/20250105/CHECKLIST.md (if exists)
 - ./docs/20250105/*.md (any other docs)
 - Return summary of documented progress
-```
+
 
 ### 1.2 Synthesize Assessment
 
@@ -93,7 +101,7 @@ After all agents complete, synthesize findings into a **State Summary**:
 Launch 6 parallel agents for deep gap analysis:
 
 **Agent GA-1 - Core Client Gap**:
-```
+
 Compare source and port for core client modules:
 SOURCE: ~/p/g/North-Shore-AI/tinkex/lib/tinkex/
 - service_client.ex
@@ -110,10 +118,10 @@ For each module:
 4. Note any missing functionality
 
 Output: Markdown table with columns [Module, Function, Source Arity, Port Status, Notes]
-```
+
 
 **Agent GA-2 - API Layer Gap**:
-```
+
 Compare API modules:
 SOURCE: ~/p/g/North-Shore-AI/tinkex/lib/tinkex/api/
 - All .ex files in api/ directory
@@ -126,10 +134,10 @@ For each API module, identify:
 3. Missing endpoints in port
 
 Output: Structured gap list
-```
+
 
 **Agent GA-3 - Types Gap**:
-```
+
 Compare type definitions:
 SOURCE: ~/p/g/North-Shore-AI/tinkex/lib/tinkex/types/
 - All type modules (67+ expected)
@@ -142,10 +150,10 @@ Identify:
 3. Type validation differences
 
 Output: List of missing/incomplete types
-```
+
 
 **Agent GA-4 - Test Coverage Gap**:
-```
+
 Compare test coverage:
 SOURCE: ~/p/g/North-Shore-AI/tinkex/test/
 - List all test files
@@ -159,10 +167,10 @@ Identify:
 3. Integration tests status
 
 Output: Test gap analysis
-```
+
 
 **Agent GA-5 - Telemetry/Observability Gap**:
-```
+
 Compare observability features:
 SOURCE: ~/p/g/North-Shore-AI/tinkex/lib/tinkex/telemetry/
 - telemetry.ex
@@ -173,10 +181,10 @@ SOURCE: ~/p/g/North-Shore-AI/tinkex/lib/tinkex/telemetry/
 Check pristine/foundation/telemetry_reporter integration points.
 
 Output: Observability feature comparison
-```
+
 
 **Agent GA-6 - Resilience Gap**:
-```
+
 Compare resilience features:
 SOURCE: ~/p/g/North-Shore-AI/tinkex/lib/tinkex/
 - retry.ex, retry_handler.ex, retry_config.ex
@@ -187,13 +195,13 @@ SOURCE: ~/p/g/North-Shore-AI/tinkex/lib/tinkex/
 Check pristine/foundation integration for these features.
 
 Output: Resilience feature comparison
-```
+
 
 ### 2.2 Update Gap Analysis Document
 
-After all gap agents complete, update `./docs/20250105/GAP_ANALYSIS.md`:
+After all gap agents complete, update :
 
-```markdown
+markdown
 # Gap Analysis - [Date]
 
 ## Summary
@@ -228,7 +236,7 @@ After all gap agents complete, update `./docs/20250105/GAP_ANALYSIS.md`:
 1. [Highest priority item]
 2. [Next priority]
 3. ...
-```
+
 
 ---
 
@@ -236,16 +244,16 @@ After all gap agents complete, update `./docs/20250105/GAP_ANALYSIS.md`:
 
 ### 3.1 Update Implementation Checklist
 
-Update `./docs/20250105/CHECKLIST.md` based on gap analysis:
+Update  based on gap analysis:
 
-```markdown
+markdown
 # Implementation Checklist - [Date]
 
 ## Legend
 - [ ] Not started
 - [~] In progress
 - [x] Complete
-- [!] Blocked
+- [\!] Blocked
 
 ## Core Infrastructure
 - [x] Project structure (examples/tinkex/)
@@ -279,7 +287,7 @@ Update `./docs/20250105/CHECKLIST.md` based on gap analysis:
 - [ ] mix test (all passing)
 - [ ] mix dialyzer (no errors)
 - [ ] mix credo --strict (no issues)
-```
+
 
 ---
 
@@ -297,7 +305,7 @@ From the checklist, select the highest priority uncompleted item that:
 For the selected work item, launch parallel agents to write tests:
 
 **Agent TDD-1 - Unit Test Writer**:
-```
+
 Write unit tests for [MODULE/FUNCTION]:
 
 1. Read source implementation: ~/p/g/North-Shore-AI/tinkex/lib/[path]
@@ -311,10 +319,10 @@ Tests must:
 - Follow source test patterns
 
 Output: Test file content
-```
+
 
 **Agent TDD-2 - Integration Test Writer**:
-```
+
 Write integration tests for [MODULE]:
 
 1. Identify integration points with other modules
@@ -322,10 +330,10 @@ Write integration tests for [MODULE]:
 3. Use Bypass for HTTP mocking if needed
 
 Output: Integration test content
-```
+
 
 **Agent TDD-3 - Type Spec Writer**:
-```
+
 Write type specifications:
 
 1. Read source @spec and @type definitions
@@ -333,21 +341,21 @@ Write type specifications:
 3. Create type modules if needed (using Sinter schemas)
 
 Output: Type specifications
-```
+
 
 ### 4.3 Verify Red (Tests Fail)
 
 Run tests to confirm they fail (red phase):
 
-```bash
+bash
 mix test test/path/to/new_test.exs
 # Should fail - implementation doesn't exist yet
-```
+
 
 ### 4.4 TDD Green Phase - Spawn Implementation Agents (Parallel)
 
 **Agent IMPL-1 - Core Implementation**:
-```
+
 Implement [MODULE/FUNCTION]:
 
 1. Read source: ~/p/g/North-Shore-AI/tinkex/lib/[path]
@@ -361,10 +369,10 @@ Use pristine infrastructure where appropriate:
 - Sinter.* for validation
 
 Output: Implementation code
-```
+
 
 **Agent IMPL-2 - Adapter Implementation**:
-```
+
 If module needs pristine adapters:
 
 1. Check if adapter exists in ./lib/pristine/adapters/
@@ -372,10 +380,10 @@ If module needs pristine adapters:
 3. Wire adapter to tinkex module
 
 Output: Adapter code if needed
-```
+
 
 **Agent IMPL-3 - Documentation**:
-```
+
 Write module documentation:
 
 1. @moduledoc with overview
@@ -383,19 +391,19 @@ Write module documentation:
 3. Examples in docs
 
 Output: Documentation strings
-```
+
 
 ### 4.5 Verify Green (Tests Pass)
 
-```bash
+bash
 mix test test/path/to/new_test.exs
 # Should pass now
-```
+
 
 ### 4.6 TDD Refactor Phase - Spawn Quality Agents (Parallel)
 
 **Agent REF-1 - Code Quality**:
-```
+
 Review implementation for:
 1. Code duplication - extract common patterns
 2. Naming clarity - improve variable/function names
@@ -403,38 +411,35 @@ Review implementation for:
 4. Remove dead code
 
 Output: Refactoring suggestions with code
-```
+
 
 **Agent REF-2 - Dialyzer Check**:
-```
+
 Run dialyzer on new code:
 1. mix dialyzer
 2. Fix any type errors
 3. Add missing @spec
 
 Output: Dialyzer-clean code
-```
+
 
 **Agent REF-3 - Credo Check**:
-```
+
 Run credo on new code:
 1. mix credo --strict
 2. Fix all issues
 3. Ensure consistent style
 
 Output: Credo-clean code
-```
+
 
 ### 4.7 Final Verification
 
 Run full quality gate:
 
-```bash
-mix compile --warnings-as-errors && \
-mix test && \
-mix dialyzer && \
-mix credo --strict
-```
+bash
+mix compile --warnings-as-errors && mix test && mix dialyzer && mix credo --strict
+
 
 ---
 
@@ -464,83 +469,83 @@ If ending session:
 ## MULTIAGENT PATTERNS REFERENCE
 
 ### Pattern 1: Parallel Exploration
-```
+
 Launch N agents simultaneously to explore different areas.
 Wait for all to complete before synthesis.
 Use for: Initial assessment, gap analysis, reading comprehension
-```
+
 
 ### Pattern 2: Sequential Pipeline
-```
+
 Agent A output feeds Agent B input.
 Use for: Test → Implement → Refactor flow
-```
+
 
 ### Pattern 3: Competing Approaches
-```
+
 Launch multiple agents with same goal, different approaches.
 Select best result.
 Use for: Implementation alternatives, optimization
-```
+
 
 ### Pattern 4: Hierarchical Delegation
-```
+
 Coordinator agent spawns worker agents.
 Workers report back to coordinator.
 Use for: Complex multi-file changes
-```
+
 
 ### Pattern 5: Watchdog Pattern
-```
+
 One agent implements, another verifies.
 Verification agent runs tests/checks.
 Use for: Quality assurance
-```
+
 
 ---
 
 ## AGENT SPAWN TEMPLATES
 
 ### Exploration Agent
-```
+
 Task: subagent_type=Explore
-Prompt: "Explore [PATH] to understand [GOAL]. Return [FORMAT]."
-```
+Prompt: 'Explore [PATH] to understand [GOAL]. Return [FORMAT].'
+
 
 ### Implementation Agent
-```
+
 Task: subagent_type=general-purpose
-Prompt: "Implement [MODULE]. Read [SOURCE]. Write to [TARGET]. Must pass [TESTS]."
-```
+Prompt: 'Implement [MODULE]. Read [SOURCE]. Write to [TARGET]. Must pass [TESTS].'
+
 
 ### Verification Agent
-```
+
 Task: subagent_type=general-purpose
-Prompt: "Verify [CODE] by running [COMMANDS]. Report [METRICS]."
-```
+Prompt: 'Verify [CODE] by running [COMMANDS]. Report [METRICS].'
+
 
 ### Documentation Agent
-```
+
 Task: subagent_type=general-purpose
-Prompt: "Update [DOC_FILE] with [CONTENT]. Maintain [FORMAT]."
-```
+Prompt: 'Update [DOC_FILE] with [CONTENT]. Maintain [FORMAT].'
+
 
 ---
 
 ## INTEGRATION POINTS
 
 ### Pristine Core Usage
-```elixir
+elixir
 # Use pristine pipeline for HTTP requests
 Pristine.Core.Pipeline.execute(context, endpoint, payload, opts)
 
 # Use pristine types via Sinter
 Sinter.Schema.define([...])
 Sinter.Validator.validate(schema, data)
-```
+
 
 ### Foundation Usage
-```elixir
+elixir
 # Retry with Foundation
 Foundation.Retry.run(fn -> ... end, policy)
 
@@ -549,10 +554,10 @@ Foundation.CircuitBreaker.call(breaker, fn -> ... end)
 
 # Rate limiting
 Foundation.RateLimit.BackoffWindow.should_backoff?(limiter)
-```
+
 
 ### Sinter Usage
-```elixir
+elixir
 # Define types
 schema = Sinter.Schema.define([
   {:field_name, :string, required: true}
@@ -560,19 +565,19 @@ schema = Sinter.Schema.define([
 
 # Validate
 {:ok, validated} = Sinter.Validator.validate(schema, data)
-```
+
 
 ### Multipart Usage
-```elixir
+elixir
 # Encode multipart
 {content_type, body} = Multipart.encode(form_data)
-```
+
 
 ### TelemetryReporter Usage
-```elixir
+elixir
 # Log events
-TelemetryReporter.log(reporter, "event.name", %{data: value}, :info)
-```
+TelemetryReporter.log(reporter, 'event.name', %{data: value}, :info)
+
 
 ---
 
@@ -608,3 +613,4 @@ Port is complete when:
 
 *Last updated: 2025-01-05*
 *Version: 1.0.0*
+
