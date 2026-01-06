@@ -337,25 +337,23 @@ defmodule Tinkex.Tokenizer do
     end
   end
 
-  defp resolve_kimi_file(_repo_id, _revision, "tiktoken.model", opts) do
+  defp resolve_kimi_file(repo_id, revision, "tiktoken.model", opts) do
     case Keyword.get(opts, :tiktoken_model_path) do
       path when is_binary(path) ->
         {:ok, path}
 
       _ ->
-        {:error,
-         "tiktoken_model_path required for Kimi tokenizer (HuggingFace download not implemented)"}
+        Tinkex.HuggingFace.resolve_file(repo_id, revision, "tiktoken.model", opts)
     end
   end
 
-  defp resolve_kimi_file(_repo_id, _revision, "tokenizer_config.json", opts) do
+  defp resolve_kimi_file(repo_id, revision, "tokenizer_config.json", opts) do
     case Keyword.get(opts, :tokenizer_config_path) do
       path when is_binary(path) ->
         {:ok, path}
 
       _ ->
-        {:error,
-         "tokenizer_config_path required for Kimi tokenizer (HuggingFace download not implemented)"}
+        Tinkex.HuggingFace.resolve_file(repo_id, revision, "tokenizer_config.json", opts)
     end
   end
 
