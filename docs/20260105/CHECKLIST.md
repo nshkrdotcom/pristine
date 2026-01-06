@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 2 Complete)
+> Last updated: 2026-01-05 (Iteration 3 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 16% complete (28 modules ported)
-> **Tests**: 160 passing (up from 126)
-> **Next Action**: Implement Training types (ForwardBackward, OptimStep)
+> **Port Progress**: 20% complete (35 modules ported)
+> **Tests**: 189 passing (up from 160)
+> **Next Action**: Implement Weight types (Save/Load), Checkpoint types
 
 ## Legend
 - [ ] Not started
@@ -162,23 +162,27 @@
 - [ ] Nested: DataProcessor.chunk_data/1
 
 ### Training Types
-- [ ] Tinkex.Types.ForwardBackwardInput
-  - [ ] Struct: data [Datum], loss_fn, loss_fn_config
-- [ ] Tinkex.Types.ForwardBackwardRequest
-  - [ ] Struct: forward_backward_input, model_id, seq_id
-- [ ] Tinkex.Types.ForwardBackwardOutput
-  - [ ] Struct: loss_fn_output_type, loss_fn_outputs, metrics
-  - [ ] `from_json/1`, `loss/1` - Get loss from metrics
-- [ ] Tinkex.Types.ForwardRequest
-  - [ ] Struct: forward_input, model_id, seq_id
-- [ ] Tinkex.Types.OptimStepRequest
-  - [ ] Struct: adam_params, model_id, seq_id
-- [ ] Tinkex.Types.OptimStepResponse
-  - [ ] Struct: metrics
-  - [ ] `from_json/1`, `success?/1`
-- [ ] Tinkex.Types.LossFnType
-  - [ ] Type: :cross_entropy | :importance_sampling | :ppo | :cispo | :dro
-  - [ ] `parse/1`, `to_string/1`, `values/0`
+- [x] Tinkex.Types.ForwardBackwardInput (29 tests for training types)
+  - [x] Struct: data [Datum], loss_fn, loss_fn_config
+  - [x] Jason.Encoder (converts atom to string)
+- [x] Tinkex.Types.ForwardBackwardRequest
+  - [x] Struct: forward_backward_input, model_id, seq_id
+  - [x] Jason.Encoder
+- [x] Tinkex.Types.ForwardBackwardOutput
+  - [x] Struct: loss_fn_output_type, loss_fn_outputs, metrics
+  - [x] `from_json/1`, `loss/1`
+- [x] Tinkex.Types.ForwardRequest
+  - [x] Struct: forward_input, model_id, seq_id
+  - [x] Jason.Encoder
+- [x] Tinkex.Types.OptimStepRequest
+  - [x] Struct: adam_params, model_id, seq_id
+  - [x] Jason.Encoder
+- [x] Tinkex.Types.OptimStepResponse
+  - [x] Struct: metrics
+  - [x] `from_json/1`, `success?/1`
+- [x] Tinkex.Types.LossFnType
+  - [x] Type: :cross_entropy | :importance_sampling | :ppo | :cispo | :dro
+  - [x] `parse/1`, `to_string/1`, `values/0`
 - [ ] Tinkex.Types.CustomLossOutput
   - [ ] Struct: loss_total, base_loss, regularizers, regularizer_total, total_grad_norm
   - [ ] `build/4`, `loss/1`
