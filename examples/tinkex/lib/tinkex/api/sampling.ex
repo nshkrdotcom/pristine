@@ -8,6 +8,7 @@ defmodule Tinkex.API.Sampling do
   alias Tinkex.API
   alias Tinkex.Config
   alias Tinkex.Error
+  alias Tinkex.Streaming.SampleStream
 
   @doc """
   Submit a sample request, returns a future request_id.
@@ -71,6 +72,8 @@ defmodule Tinkex.API.Sampling do
   @doc """
   Start a streaming sample request.
 
+  Returns a stream of `SampleStreamChunk` structs.
+
   ## Parameters
 
     * `config` - Tinkex config
@@ -78,8 +81,20 @@ defmodule Tinkex.API.Sampling do
 
   ## Returns
 
-    * `{:ok, stream}` - SSE event stream
+    * `{:ok, Enumerable.t()}` - Stream of `SampleStreamChunk` structs
     * `{:error, Error.t()}` - Error response
+
+  ## Example
+
+      {:ok, stream} = API.Sampling.sample_stream(config, request)
+
+      Enum.each(stream, fn chunk ->
+        case chunk.event_type do
+          :token -> IO.write(chunk.token)
+          :done -> IO.puts("\\nDone: \#{chunk.finish_reason}")
+          :error -> IO.puts("Error: \#{chunk.token}")
+        end
+      end)
   """
   @spec sample_stream(Config.t(), map()) :: {:ok, Enumerable.t()} | {:error, Error.t()}
   def sample_stream(%Config{} = config, request) when is_map(request) do
@@ -88,8 +103,13 @@ defmodule Tinkex.API.Sampling do
 
     if function_exported?(http_client, :post_stream, 3) do
       case http_client.post_stream(config, "/v1/sample_stream", body) do
-        {:ok, stream} -> {:ok, stream}
-        {:error, reason} -> {:error, Error.from_response(reason, "sample_stream")}
+        {:ok, raw_stream} ->
+          # Decode SSE stream into SampleStreamChunk structs
+          chunk_stream = SampleStream.decode(raw_stream)
+          {:ok, chunk_stream}
+
+        {:error, reason} ->
+          {:error, Error.from_response(reason, "sample_stream")}
       end
     else
       {:error, Error.new(:not_supported, "HTTP client does not support streaming")}

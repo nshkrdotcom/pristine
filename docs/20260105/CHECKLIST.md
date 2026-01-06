@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 18 Complete)
+> Last updated: 2026-01-05 (Iteration 19 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
 > **Port Progress**: 62% complete (111 modules ported)
-> **Tests**: 948 passing (22 new in iteration 18)
-> **Next Action**: Wire streaming to SamplingClient, add API.Sampling streaming endpoint
+> **Tests**: 948 passing
+> **Next Action**: Start Phase 4 - Telemetry Reporter GenServer implementation
 
 ## Legend
 - [ ] Not started
@@ -291,6 +291,7 @@
   - [x] Integration with Pristine.Streaming.SSEDecoder
   - [x] Handles split chunks, [DONE] markers, error events
   - [x] Event type mapping (:token, :done, :error)
+- [x] API.Sampling.sample_stream/2 - Wired to use SampleStream.decode/1
 
 ### Session Types
 - [x] Tinkex.Types.CreateSessionRequest (24 tests total for session types)
