@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-06 (Iteration 24 Complete)
+> Last updated: 2026-01-06 (Iteration 25 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 66% complete (117 modules ported)
-> **Tests**: 1037 passing (13 new in iteration 24)
-> **Next Action**: Phase 4 - Tinkex.Recovery modules
+> **Port Progress**: 68% complete (120 modules ported)
+> **Tests**: 1065 passing (28 new in iteration 25)
+> **Next Action**: Phase 4 - Tinkex.Recovery.Monitor or Phase 5
 
 ## Legend
 - [ ] Not started
@@ -498,11 +498,23 @@
 - [x] `__wrap_thrown__/2` - Wrap thrown values as ErlangError
 - [x] `__rethrow__/2` - Re-throw values
 
-### Tinkex.Recovery (2 examples)
-- [ ] Tinkex.Recovery.Policy
-  - [ ] `new/1` - Create policy with enabled, checkpoint_strategy, poll_interval_ms, etc.
-- [ ] Tinkex.Recovery.Executor
-  - [ ] `start_link/1` - Start with max_concurrent
+### Tinkex.Recovery (2 examples) - 28 tests
+- [x] Tinkex.Recovery.Policy (18 tests)
+  - [x] `new/1` - Create policy from struct, keyword list, map, or nil
+  - [x] Defaults: disabled, 3 attempts, 5s backoff (capped 60s), 30s poll, :latest strategy
+  - [x] Checkpoint strategies: :latest, :best, {:specific, path}
+  - [x] Callbacks: on_recovery/3, on_failure/2 with arity validation
+  - [x] String key normalization for maps
+- [x] Tinkex.Recovery.Executor (10 tests)
+  - [x] `start_link/1` - Start with max_concurrent, rest_module, service_client_module
+  - [x] `recover/5` - Enqueue recovery with policy, checkpoint, metadata
+  - [x] Queue management with concurrent limit
+  - [x] Exponential backoff with max_backoff_ms cap
+  - [x] Telemetry events: started, checkpoint_selected, client_created, completed, failed, exhausted
+  - [x] Callbacks: on_recovery, on_failure invocation
+- [x] Tinkex.Recovery.Behaviours
+  - [x] RestBehaviour - get_training_run/2
+  - [x] ServiceClientBehaviour - create_rest_client/1, create_training_client_from_state/3, _with_optimizer/3
 - [ ] Tinkex.Recovery.Monitor
   - [ ] `start_link/1` - Start with policy, executor
   - [ ] `monitor_run/4` - Monitor training run
