@@ -72,6 +72,50 @@ defmodule Tinkex.Types.TensorData do
       shape: Map.get(map, "shape")
     }
   end
+
+  @doc """
+  Convert an Nx tensor to TensorData.
+
+  ## Examples
+
+      iex> tensor = Nx.tensor([1.0, 2.0, 3.0])
+      iex> TensorData.from_nx(tensor)
+      %TensorData{data: [1.0, 2.0, 3.0], dtype: :float32, shape: [3]}
+  """
+  @spec from_nx(Nx.Tensor.t()) :: t()
+  def from_nx(%Nx.Tensor{} = tensor) do
+    data = Nx.to_flat_list(tensor)
+    shape = Nx.shape(tensor) |> Tuple.to_list()
+    nx_type = Nx.type(tensor)
+    dtype = TensorDtype.from_nx_type(nx_type)
+
+    %__MODULE__{
+      data: data,
+      dtype: dtype,
+      shape: shape
+    }
+  end
+
+  @doc """
+  Convert TensorData to an Nx tensor.
+
+  ## Examples
+
+      iex> td = TensorData.new([1.0, 2.0, 3.0], :float32, [3])
+      iex> TensorData.to_nx(td)
+      #Nx.Tensor<f32[3]>
+  """
+  @spec to_nx(t()) :: Nx.Tensor.t()
+  def to_nx(%__MODULE__{data: data, dtype: dtype, shape: shape}) do
+    nx_type = TensorDtype.to_nx_type(dtype)
+    tensor = Nx.tensor(data, type: nx_type)
+
+    case shape do
+      nil -> tensor
+      [] -> tensor
+      shape_list -> Nx.reshape(tensor, List.to_tuple(shape_list))
+    end
+  end
 end
 
 defimpl Jason.Encoder, for: Tinkex.Types.TensorData do

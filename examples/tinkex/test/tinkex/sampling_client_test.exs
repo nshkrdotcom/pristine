@@ -208,4 +208,47 @@ defmodule Tinkex.SamplingClientTest do
       assert parsed.prompt_logprobs == [0.1, 0.2, 0.3]
     end
   end
+
+  describe "create_async/2" do
+    defmodule MockServiceAPI do
+      def create_sampling_session(_config, request) do
+        seq_id = request.sampling_session_seq_id || 1
+        {:ok, %{"sampling_session_id" => "sampling-async-#{seq_id}"}}
+      end
+    end
+
+    test "returns a Task that creates a SamplingClient", %{config: config} do
+      # Create a mock service client
+      service_client = %Tinkex.ServiceClient{
+        session_id: "session-123",
+        config: config,
+        service_api: MockServiceAPI,
+        training_counter: :atomics.new(1, []),
+        sampling_counter: :atomics.new(1, [])
+      }
+
+      task = SamplingClient.create_async(service_client, base_model: "test-model")
+
+      assert %Task{} = task
+      {:ok, sampling_client} = Task.await(task)
+      assert %SamplingClient{} = sampling_client
+      assert String.starts_with?(sampling_client.sampling_session_id, "sampling-async-")
+    end
+
+    test "passes options through to create_sampling_client", %{config: config} do
+      service_client = %Tinkex.ServiceClient{
+        session_id: "session-456",
+        config: config,
+        service_api: MockServiceAPI,
+        training_counter: :atomics.new(1, []),
+        sampling_counter: :atomics.new(1, [])
+      }
+
+      task = SamplingClient.create_async(service_client, model_path: "tinker://test/path")
+
+      {:ok, sampling_client} = Task.await(task)
+      assert %SamplingClient{} = sampling_client
+      assert sampling_client.config == config
+    end
+  end
 end

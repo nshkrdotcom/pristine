@@ -65,6 +65,18 @@ defmodule Tinkex.Tokenizer do
     :ok
   end
 
+  @doc false
+  @spec __supertester_clear_cache__(tokenizer_id()) :: :ok
+  def __supertester_clear_cache__(tokenizer_id) when is_binary(tokenizer_id) do
+    table = cache_table()
+
+    if :ets.info(table) != :undefined do
+      :ets.delete(table, tokenizer_id)
+    end
+
+    :ok
+  end
+
   @doc """
   Return the Kimi tokenizer ID constant.
   """

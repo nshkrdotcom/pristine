@@ -43,6 +43,7 @@ defmodule Tinkex.Config do
             default_headers: %{},
             default_query: %{},
             http_client: nil,
+            http_pool: nil,
             poll_backoff: nil
 
   @type poll_backoff_policy ::
@@ -62,6 +63,7 @@ defmodule Tinkex.Config do
           default_headers: map(),
           default_query: map(),
           http_client: module() | nil,
+          http_pool: atom() | nil,
           poll_backoff: poll_backoff_policy() | nil
         }
 

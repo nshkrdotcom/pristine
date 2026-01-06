@@ -11,7 +11,7 @@ defmodule Pristine.MixProject do
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
-      test_paths: ["test", "examples/tinkex/test"],
+      test_paths: ["test"],
       deps: deps(),
       docs: docs(),
       description: description(),
@@ -23,8 +23,8 @@ defmodule Pristine.MixProject do
     ]
   end
 
-  defp elixirc_paths(:test), do: ["lib", "examples/tinkex/lib", "examples/tinkex/generated"]
-  defp elixirc_paths(_), do: ["lib", "examples/tinkex/lib", "examples/tinkex/generated"]
+  defp elixirc_paths(:test), do: ["lib"]
+  defp elixirc_paths(_), do: ["lib"]
 
   # Run "mix help compile.app" to learn about applications.
   def application do
@@ -45,6 +45,7 @@ defmodule Pristine.MixProject do
       {:multipart_ex, path: "../multipart_ex"},
       {:telemetry_reporter, path: "../telemetry_reporter"},
       {:tiktoken_ex, path: "../../North-Shore-AI/tiktoken_ex"},
+      {:nx, "~> 0.9"},
       {:uuid, "~> 1.1"},
       {:mox, "~> 1.1", only: :test},
       {:plug, "~> 1.15"},

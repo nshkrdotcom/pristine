@@ -116,7 +116,7 @@ defmodule Tinkex.Types.ModelInput do
   NOTE: This function requires `Tinkex.Tokenizer` which is not yet implemented.
   Raises until Tokenizer is available.
   """
-  @spec from_text!(String.t(), keyword()) :: t()
+  @spec from_text!(String.t(), keyword()) :: no_return()
   def from_text!(_text, _opts \\ []) do
     raise ArgumentError, "Tokenizer not yet implemented - use from_ints/1 instead"
   end

@@ -74,12 +74,12 @@ defmodule Tinkex.Types.AdamParams do
   defp validate_learning_rate(lr) when is_number(lr) and lr > 0, do: :ok
   defp validate_learning_rate(_), do: {:error, "learning_rate must be > 0"}
 
-  defp validate_beta(name, value) when is_number(value) and value >= 0 and value < 1, do: :ok
+  defp validate_beta(_name, value) when is_number(value) and value >= 0 and value < 1, do: :ok
   defp validate_beta(name, _), do: {:error, "#{name} must be in range [0, 1)"}
 
   defp validate_epsilon(eps) when is_number(eps) and eps > 0, do: :ok
   defp validate_epsilon(_), do: {:error, "eps must be > 0"}
 
-  defp validate_non_negative(name, value) when is_number(value) and value >= 0, do: :ok
+  defp validate_non_negative(_name, value) when is_number(value) and value >= 0, do: :ok
   defp validate_non_negative(name, _), do: {:error, "#{name} must be >= 0"}
 end

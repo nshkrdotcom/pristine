@@ -20,7 +20,8 @@ defmodule Tinkex.Types.TrainingTypesTest do
       assert :ppo in values
       assert :cispo in values
       assert :dro in values
-      assert length(values) == 5
+      assert :linear_weighted in values
+      assert length(values) == 6
     end
 
     test "parse/1 converts string to atom" do
@@ -29,6 +30,7 @@ defmodule Tinkex.Types.TrainingTypesTest do
       assert LossFnType.parse("ppo") == :ppo
       assert LossFnType.parse("cispo") == :cispo
       assert LossFnType.parse("dro") == :dro
+      assert LossFnType.parse("linear_weighted") == :linear_weighted
     end
 
     test "parse/1 returns nil for nil input" do
@@ -41,6 +43,7 @@ defmodule Tinkex.Types.TrainingTypesTest do
       assert LossFnType.to_string(:ppo) == "ppo"
       assert LossFnType.to_string(:cispo) == "cispo"
       assert LossFnType.to_string(:dro) == "dro"
+      assert LossFnType.to_string(:linear_weighted) == "linear_weighted"
     end
   end
 

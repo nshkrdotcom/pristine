@@ -8,11 +8,12 @@ defmodule Tinkex.Types.LossFnType do
   - `:ppo` - Proximal Policy Optimization loss
   - `:cispo` - Constrained Importance Sampling Policy Optimization loss
   - `:dro` - Distributionally Robust Optimization loss
+  - `:linear_weighted` - Linear weighted loss (used for custom loss gradients)
   """
 
-  @type t :: :cross_entropy | :importance_sampling | :ppo | :cispo | :dro
+  @type t :: :cross_entropy | :importance_sampling | :ppo | :cispo | :dro | :linear_weighted
 
-  @values [:cross_entropy, :importance_sampling, :ppo, :cispo, :dro]
+  @values [:cross_entropy, :importance_sampling, :ppo, :cispo, :dro, :linear_weighted]
 
   @doc """
   Returns all valid loss function types.
@@ -40,6 +41,7 @@ defmodule Tinkex.Types.LossFnType do
   def parse("ppo"), do: :ppo
   def parse("cispo"), do: :cispo
   def parse("dro"), do: :dro
+  def parse("linear_weighted"), do: :linear_weighted
 
   @doc """
   Converts a loss function atom to its wire format string.
@@ -55,4 +57,5 @@ defmodule Tinkex.Types.LossFnType do
   def to_string(:ppo), do: "ppo"
   def to_string(:cispo), do: "cispo"
   def to_string(:dro), do: "dro"
+  def to_string(:linear_weighted), do: "linear_weighted"
 end

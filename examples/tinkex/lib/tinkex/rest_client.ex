@@ -371,6 +371,88 @@ defmodule Tinkex.RestClient do
     Task.async(fn -> get_weights_info_by_tinker_path(client, tinker_path) end)
   end
 
+  # ============================================
+  # Convenience Aliases (Python SDK Parity)
+  # ============================================
+
+  @doc """
+  Delete a checkpoint by tinker path.
+
+  Alias for `delete_checkpoint/2` to mirror Python SDK convenience naming.
+  """
+  @spec delete_checkpoint_by_tinker_path(t(), String.t()) ::
+          {:ok, map()} | {:error, Tinkex.Error.t()}
+  def delete_checkpoint_by_tinker_path(client, checkpoint_path) do
+    delete_checkpoint(client, checkpoint_path)
+  end
+
+  @doc """
+  Publish a checkpoint by tinker path.
+
+  Alias for `publish_checkpoint/2` to mirror Python SDK convenience naming.
+  """
+  @spec publish_checkpoint_from_tinker_path(t(), String.t()) ::
+          {:ok, map()} | {:error, Tinkex.Error.t()}
+  def publish_checkpoint_from_tinker_path(client, checkpoint_path) do
+    publish_checkpoint(client, checkpoint_path)
+  end
+
+  @doc """
+  Unpublish a checkpoint by tinker path.
+
+  Alias for `unpublish_checkpoint/2` to mirror Python SDK convenience naming.
+  """
+  @spec unpublish_checkpoint_from_tinker_path(t(), String.t()) ::
+          {:ok, map()} | {:error, Tinkex.Error.t()}
+  def unpublish_checkpoint_from_tinker_path(client, checkpoint_path) do
+    unpublish_checkpoint(client, checkpoint_path)
+  end
+
+  @doc """
+  Get checkpoint archive URL by tinker path.
+
+  Alias for `get_checkpoint_archive_url/2` to mirror Python SDK convenience naming.
+  """
+  @spec get_checkpoint_archive_url_by_tinker_path(t(), String.t()) ::
+          {:ok, CheckpointArchiveUrlResponse.t()} | {:error, Tinkex.Error.t()}
+  def get_checkpoint_archive_url_by_tinker_path(client, checkpoint_path) do
+    get_checkpoint_archive_url(client, checkpoint_path)
+  end
+
+  # Async variants of aliases
+
+  @doc """
+  Async variant of `delete_checkpoint_by_tinker_path/2`.
+  """
+  @spec delete_checkpoint_by_tinker_path_async(t(), String.t()) :: Task.t()
+  def delete_checkpoint_by_tinker_path_async(client, checkpoint_path) do
+    delete_checkpoint_async(client, checkpoint_path)
+  end
+
+  @doc """
+  Async variant of `publish_checkpoint_from_tinker_path/2`.
+  """
+  @spec publish_checkpoint_from_tinker_path_async(t(), String.t()) :: Task.t()
+  def publish_checkpoint_from_tinker_path_async(client, checkpoint_path) do
+    publish_checkpoint_async(client, checkpoint_path)
+  end
+
+  @doc """
+  Async variant of `unpublish_checkpoint_from_tinker_path/2`.
+  """
+  @spec unpublish_checkpoint_from_tinker_path_async(t(), String.t()) :: Task.t()
+  def unpublish_checkpoint_from_tinker_path_async(client, checkpoint_path) do
+    unpublish_checkpoint_async(client, checkpoint_path)
+  end
+
+  @doc """
+  Async variant of `get_checkpoint_archive_url_by_tinker_path/2`.
+  """
+  @spec get_checkpoint_archive_url_by_tinker_path_async(t(), String.t()) :: Task.t()
+  def get_checkpoint_archive_url_by_tinker_path_async(client, checkpoint_path) do
+    get_checkpoint_archive_url_async(client, checkpoint_path)
+  end
+
   # Private helpers
 
   defp rest_api(%__MODULE__{rest_api: nil}), do: Rest

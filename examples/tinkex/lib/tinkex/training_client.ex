@@ -55,14 +55,15 @@ defmodule Tinkex.TrainingClient do
     Datum,
     ForwardBackwardInput,
     ForwardBackwardOutput,
+    GetInfoRequest,
+    GetInfoResponse,
     LoadWeightsRequest,
     LoadWeightsResponse,
-    OptimStepRequest,
-    OptimStepResponse,
     SaveWeightsForSamplerRequest,
-    SaveWeightsForSamplerResponse,
     SaveWeightsRequest,
-    SaveWeightsResponse
+    SaveWeightsResponse,
+    UnloadModelRequest,
+    UnloadModelResponse
   }
 
   @enforce_keys [:model_id, :session_id, :config]
@@ -73,6 +74,7 @@ defmodule Tinkex.TrainingClient do
     :training_api,
     :weights_api,
     :futures_api,
+    :models_api,
     :seq_counter
   ]
 
@@ -83,6 +85,7 @@ defmodule Tinkex.TrainingClient do
           training_api: module() | nil,
           weights_api: module() | nil,
           futures_api: module() | nil,
+          models_api: module() | nil,
           seq_counter: reference() | nil
         }
 
@@ -94,6 +97,7 @@ defmodule Tinkex.TrainingClient do
     * `:training_api` - Module implementing training API (default: `Tinkex.API.Training`)
     * `:weights_api` - Module implementing weights API (default: `Tinkex.API.Weights`)
     * `:futures_api` - Module implementing futures polling (default: `Tinkex.Future`)
+    * `:models_api` - Module implementing models API (default: `Tinkex.API.Models`)
   """
   @spec new(String.t(), String.t(), Config.t(), keyword()) :: t()
   def new(model_id, session_id, config, opts \\ []) do
@@ -104,6 +108,7 @@ defmodule Tinkex.TrainingClient do
       training_api: Keyword.get(opts, :training_api),
       weights_api: Keyword.get(opts, :weights_api),
       futures_api: Keyword.get(opts, :futures_api),
+      models_api: Keyword.get(opts, :models_api),
       seq_counter: :atomics.new(1, [])
     }
   end
@@ -430,4 +435,284 @@ defmodule Tinkex.TrainingClient do
 
   defp futures_api(%__MODULE__{futures_api: nil}), do: Future
   defp futures_api(%__MODULE__{futures_api: api}), do: api
+
+  defp models_api(%__MODULE__{models_api: nil}), do: Tinkex.API.Models
+  defp models_api(%__MODULE__{models_api: api}), do: api
+
+  # ---------------------------------------------------------------------------
+  # Model Management Functions
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Fetch model metadata for this training client.
+
+  Used by tokenizer resolution to obtain `model_data.tokenizer_id`.
+
+  ## Examples
+
+      {:ok, info} = TrainingClient.get_info(client)
+      info.model_data["tokenizer_id"]
+  """
+  @spec get_info(t()) :: {:ok, GetInfoResponse.t()} | {:error, Error.t()}
+  def get_info(%__MODULE__{} = client) do
+    request = %GetInfoRequest{model_id: client.model_id}
+    api = models_api(client)
+    api.get_info(client.config, request)
+  end
+
+  @doc """
+  Unload the active model and end the session.
+
+  May return directly or poll a future depending on server response.
+
+  ## Examples
+
+      {:ok, response} = TrainingClient.unload_model(client)
+  """
+  @spec unload_model(t()) :: {:ok, UnloadModelResponse.t() | map()} | {:error, Error.t()}
+  def unload_model(%__MODULE__{} = client) do
+    request = %UnloadModelRequest{model_id: client.model_id}
+    api = models_api(client)
+
+    case api.unload_model(client.config, request) do
+      {:ok, %UnloadModelResponse{} = response} ->
+        {:ok, response}
+
+      {:ok, %{"request_id" => request_id}} ->
+        poll_and_await_unload(client, request_id)
+
+      {:ok, %{request_id: request_id}} ->
+        poll_and_await_unload(client, request_id)
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp poll_and_await_unload(client, request_id) do
+    futures = futures_api(client)
+    task = futures.poll(client.config, request_id, [])
+
+    case Task.await(task, :timer.seconds(60)) do
+      {:ok, result} ->
+        {:ok, UnloadModelResponse.from_json(result)}
+
+      {:error, error} ->
+        {:error, error}
+
+      result when is_map(result) ->
+        {:ok, UnloadModelResponse.from_json(result)}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Tokenizer Functions
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Get a tokenizer for this training client's model.
+
+  Fetches model info to determine the tokenizer ID, applies heuristics
+  (e.g., Llama-3 gating workaround), and loads/caches the tokenizer.
+
+  ## Options
+
+    * `:load_fun` - Custom tokenizer loader function (default: Kimi/HuggingFace)
+
+  ## Examples
+
+      {:ok, tokenizer} = TrainingClient.get_tokenizer(client)
+      {:ok, ids} = TrainingClient.encode(client, "Hello world")
+
+  ## Errors
+
+  Returns `{:error, %Tinkex.Error{}}` if:
+    * Model info cannot be fetched
+    * Tokenizer cannot be loaded
+  """
+  @spec get_tokenizer(t(), keyword()) ::
+          {:ok, Tinkex.Tokenizer.handle()} | {:error, Error.t()}
+  def get_tokenizer(%__MODULE__{} = client, opts \\ []) do
+    with {:ok, info} <- get_info(client) do
+      model_name = get_model_name_from_info(info)
+      tokenizer_id = Tinkex.Tokenizer.get_tokenizer_id(model_name, client, opts)
+      Tinkex.Tokenizer.get_or_load_tokenizer(tokenizer_id, opts)
+    end
+  end
+
+  @doc """
+  Encode text using this training client's tokenizer.
+
+  Convenience wrapper around `Tinkex.Tokenizer.encode/3` that automatically
+  resolves the tokenizer from the training client's model info.
+
+  ## Examples
+
+      {:ok, ids} = TrainingClient.encode(client, "Hello world")
+
+  ## Options
+
+    * `:load_fun` - Custom tokenizer loader function
+  """
+  @spec encode(t(), String.t(), keyword()) ::
+          {:ok, [integer()]} | {:error, Error.t()}
+  def encode(%__MODULE__{} = client, text, opts \\ []) when is_binary(text) do
+    with {:ok, info} <- get_info(client) do
+      model_name = get_model_name_from_info(info)
+      Tinkex.Tokenizer.encode(text, model_name, opts)
+    end
+  end
+
+  @doc """
+  Decode token IDs using this training client's tokenizer.
+
+  Convenience wrapper around `Tinkex.Tokenizer.decode/3` that automatically
+  resolves the tokenizer from the training client's model info.
+
+  ## Examples
+
+      {:ok, text} = TrainingClient.decode(client, [1, 2, 3])
+
+  ## Options
+
+    * `:load_fun` - Custom tokenizer loader function
+  """
+  @spec decode(t(), [integer()], keyword()) ::
+          {:ok, String.t()} | {:error, Error.t()}
+  def decode(%__MODULE__{} = client, ids, opts \\ []) when is_list(ids) do
+    with {:ok, info} <- get_info(client) do
+      model_name = get_model_name_from_info(info)
+      Tinkex.Tokenizer.decode(ids, model_name, opts)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Custom Loss Training
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Perform forward-backward with a custom loss function.
+
+  This function:
+  1. Executes a forward pass to get logprobs for each datum
+  2. Computes gradients of the custom loss w.r.t. the logprobs using Nx.Defn.grad
+  3. Builds synthetic data with negative gradients as weights
+  4. Executes a backward pass with linear_weighted loss
+
+  ## Parameters
+
+    * `client` - TrainingClient instance
+    * `data` - List of Datum structs with `loss_fn_inputs["target_tokens"]`
+    * `loss_fn` - Function `(data, [Nx.Tensor.t()]) -> {Nx.Tensor.t(), map()}`
+                  Takes data and list of logprob tensors, returns (loss, metrics)
+    * `opts` - Options (forwarded to forward/backward calls)
+
+  ## Returns
+
+    * `{:ok, Task.t()}` - Task that resolves to ForwardBackwardOutput with merged metrics
+    * `{:error, Error.t()}` - Error if request fails
+
+  ## Example
+
+      # Custom entropy loss
+      loss_fn = fn _data, logprobs ->
+        entropy = logprobs
+        |> Enum.map(fn lp ->
+          probs = Nx.exp(lp)
+          Nx.sum(Nx.multiply(Nx.negate(probs), lp))
+        end)
+        |> Enum.reduce(&Nx.add/2)
+
+        {entropy, %{"entropy" => Nx.to_number(entropy)}}
+      end
+
+      {:ok, task} = TrainingClient.forward_backward_custom(client, data, loss_fn)
+      {:ok, output} = Task.await(task)
+  """
+  @spec forward_backward_custom(t(), [Datum.t()], function(), keyword()) ::
+          {:ok, Task.t()} | {:error, Error.t()}
+  def forward_backward_custom(client, data, loss_fn, opts \\ [])
+
+  def forward_backward_custom(%__MODULE__{} = _client, [], _loss_fn, _opts) do
+    # Empty data case - return empty metrics
+    {:ok, Task.async(fn -> {:ok, %{"loss_fn_output_type" => "custom", "metrics" => %{}}} end)}
+  end
+
+  def forward_backward_custom(%__MODULE__{} = client, data, loss_fn, opts) when is_list(data) do
+    {:ok,
+     Task.async(fn ->
+       execute_custom_loss(client, data, loss_fn, opts)
+     end)}
+  end
+
+  defp execute_custom_loss(client, data, loss_fn, opts) do
+    alias Tinkex.Training.CustomLoss
+
+    # Step 1: Forward pass with cross_entropy to get logprobs
+    with {:ok, forward_task} <- forward(client, data, opts),
+         {:ok, forward_result} <- await_task_result(forward_task),
+         forward_output = ForwardBackwardOutput.from_json(forward_result),
+
+         # Step 2: Extract per-datum logprobs
+         {:ok, logprobs} <- CustomLoss.extract_per_datum_logprobs(forward_output),
+
+         # Step 3: Compute gradients of custom loss
+         {:ok, {gradients, custom_metrics}} <-
+           CustomLoss.compute_gradients(data, logprobs, loss_fn),
+
+         # Step 4: Build synthetic data with negative gradients as weights
+         linear_data = CustomLoss.build_linear_loss_data(data, gradients),
+
+         # Step 5: Backward pass with linear_weighted loss
+         {:ok, backward_task} <-
+           forward_backward(client, linear_data, :linear_weighted, opts),
+         {:ok, backward_result} <- await_task_result(backward_task) do
+      # Step 6: Merge custom metrics into output
+      {:ok, merge_custom_metrics(backward_result, custom_metrics)}
+    else
+      {:error, %Error{} = error} ->
+        {:error, error}
+
+      {:error, reason} ->
+        {:error, Error.new(:request_failed, "Custom loss failed: #{inspect(reason)}")}
+    end
+  rescue
+    e ->
+      {:error,
+       Error.new(:request_failed, "Custom loss failed: #{Exception.message(e)}",
+         exception: e,
+         stacktrace: __STACKTRACE__
+       )}
+  end
+
+  defp await_task_result(task) do
+    case Task.await(task, :timer.minutes(5)) do
+      {:ok, result} -> {:ok, result}
+      {:error, _} = error -> error
+      result when is_map(result) -> {:ok, result}
+    end
+  end
+
+  defp merge_custom_metrics(result, custom_metrics) when is_map(result) do
+    Map.merge(result, custom_metrics)
+  end
+
+  # Extract model name from GetInfoResponse for tokenizer resolution
+  defp get_model_name_from_info(%GetInfoResponse{model_data: %{"base_model" => base}})
+       when is_binary(base),
+       do: base
+
+  defp get_model_name_from_info(%GetInfoResponse{model_data: %{"model_name" => name}})
+       when is_binary(name),
+       do: name
+
+  defp get_model_name_from_info(%GetInfoResponse{model_data: %{base_model: base}})
+       when is_binary(base),
+       do: base
+
+  defp get_model_name_from_info(%GetInfoResponse{model_data: %{model_name: name}})
+       when is_binary(name),
+       do: name
+
+  defp get_model_name_from_info(_), do: "unknown"
 end

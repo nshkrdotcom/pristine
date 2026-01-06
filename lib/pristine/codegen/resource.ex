@@ -51,6 +51,9 @@ defmodule Pristine.Codegen.Resource do
     client_module = "#{base_namespace}.Client"
     types_namespace = "#{base_namespace}.Types"
 
+    # Analyze which helpers are needed
+    helper_usage = analyze_helper_usage(endpoints, types)
+
     """
     defmodule #{module_name} do
       @moduledoc \"\"\"
@@ -70,30 +73,95 @@ defmodule Pristine.Codegen.Resource do
       end
 
     #{render_endpoint_functions(endpoints, types, types_namespace, client_module)}
-      defp maybe_put(payload, _key, nil), do: payload
-      defp maybe_put(payload, _key, Sinter.NotGiven), do: payload
-      defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
-
-      defp merge_path_params(opts, path_params) do
-        existing = Keyword.get(opts, :path_params, %{})
-        Keyword.put(opts, :path_params, Map.merge(existing, path_params))
-      end
-
-      defp encode_ref(nil, _module), do: nil
-      defp encode_ref(value, module) do
-        if function_exported?(module, :encode, 1) do
-          module.encode(value)
-        else
-          value
-        end
-      end
-
-      defp encode_ref_list(nil, _module), do: nil
-      defp encode_ref_list(values, module) when is_list(values) do
-        Enum.map(values, &encode_ref(&1, module))
-      end
-    end
+    #{render_helpers(helper_usage)}end
     """
+  end
+
+  defp analyze_helper_usage(endpoints, types) do
+    Enum.reduce(
+      endpoints,
+      %{maybe_put: false, merge_path_params: false, encode_ref: false},
+      fn endpoint, acc ->
+        path_params = extract_path_params(endpoint.path)
+        fields = request_fields(endpoint, types)
+        {_required, optional, _literal} = split_fields(fields, path_params)
+
+        acc
+        |> Map.put(:maybe_put, acc.maybe_put or length(optional) > 0)
+        |> Map.put(:merge_path_params, acc.merge_path_params or length(path_params) > 0)
+        |> Map.put(:encode_ref, acc.encode_ref or has_ref_fields?(fields, types))
+      end
+    )
+  end
+
+  defp has_ref_fields?(fields, types) do
+    Enum.any?(fields, fn field ->
+      type_ref = get_value(field.defn, :type_ref) || get_value(field.defn, "type_ref")
+      type = normalize_key(get_value(field.defn, :type) || get_value(field.defn, "type") || "")
+      items = get_value(field.defn, :items) || get_value(field.defn, "items")
+
+      not is_nil(type_ref) or
+        (type == "array" and not is_nil(list_item_ref(items, types)))
+    end)
+  end
+
+  defp render_helpers(usage) do
+    helpers = []
+
+    helpers =
+      if usage.maybe_put do
+        [
+          """
+            defp maybe_put(payload, _key, nil), do: payload
+            defp maybe_put(payload, _key, Sinter.NotGiven), do: payload
+            defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
+          """
+          | helpers
+        ]
+      else
+        helpers
+      end
+
+    helpers =
+      if usage.merge_path_params do
+        [
+          """
+            defp merge_path_params(opts, path_params) do
+              existing = Keyword.get(opts, :path_params, %{})
+              Keyword.put(opts, :path_params, Map.merge(existing, path_params))
+            end
+          """
+          | helpers
+        ]
+      else
+        helpers
+      end
+
+    helpers =
+      if usage.encode_ref do
+        [
+          """
+            defp encode_ref(nil, _module), do: nil
+            defp encode_ref(value, module) do
+              if function_exported?(module, :encode, 1) do
+                module.encode(value)
+              else
+                value
+              end
+            end
+
+            defp encode_ref_list(nil, _module), do: nil
+            defp encode_ref_list(values, module) when is_list(values) do
+              Enum.map(values, &encode_ref(&1, module))
+            end
+          """
+          | helpers
+        ]
+      else
+        helpers
+      end
+
+    Enum.join(helpers, "\n")
   end
 
   @doc """
@@ -336,9 +404,9 @@ defmodule Pristine.Codegen.Resource do
 
     pipeline_call =
       case mode do
-        :stream -> "Pristine.Core.Pipeline.execute_stream"
-        :async -> "Pristine.Core.Pipeline.execute_future"
-        :sync -> "Pristine.Core.Pipeline.execute"
+        :stream -> "Pristine.Runtime.execute_stream"
+        :async -> "Pristine.Runtime.execute_future"
+        :sync -> "Pristine.Runtime.execute"
       end
 
     """
