@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 19 Complete)
+> Last updated: 2026-01-05 (Iteration 20 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 62% complete (111 modules ported)
-> **Tests**: 948 passing
-> **Next Action**: Start Phase 4 - Telemetry Reporter GenServer implementation
+> **Port Progress**: 63% complete (112 modules ported)
+> **Tests**: 967 passing (19 new in iteration 20)
+> **Next Action**: Phase 4 - Tinkex.Telemetry facade module
 
 ## Legend
 - [ ] Not started
@@ -446,16 +446,17 @@
 
 ## Phase 4: Telemetry & Resilience (Enables 95% of examples)
 
-### Tinkex.Telemetry.Reporter (4 examples)
-- [ ] GenServer-based implementation
-- [ ] State: session_id, config, queue, flush settings
-- [ ] `start_link/1` - Start with config
-- [ ] `log/3` - Log event with data
-- [ ] `log/4` - Log event with severity
-- [ ] `log_exception/3` - Log exception with severity
-- [ ] `flush/2` - Flush queue (sync?, wait_drained?)
-- [ ] `wait_until_drained/2` - Wait for queue drain
-- [ ] `stop/2` - Graceful shutdown
+### Tinkex.Telemetry.Reporter (4 examples) - 19 tests
+- [x] GenServer-based implementation
+- [x] State: session_id, config, queue, flush settings
+- [x] `start_link/1` - Start with config
+- [x] `log/3` - Log event with data
+- [x] `log/4` - Log event with severity
+- [x] `log_exception/3` - Log exception with severity
+- [x] `log_fatal_exception/3` - Log fatal exception with sync flush
+- [x] `flush/2` - Flush queue (sync?, wait_drained?)
+- [x] `wait_until_drained/2` - Wait for queue drain
+- [x] `stop/2` - Graceful shutdown
 
 ### Tinkex.Telemetry (3 examples)
 - [ ] `attach_logger/1` - Attach telemetry logger
