@@ -39,7 +39,7 @@ defmodule Examples.TinkexManifestTest do
 
       assert "Model" in type_ids
       assert "ModelList" in type_ids
-      assert "SampleRequest" in type_ids
+      assert "ApiSampleRequest" in type_ids
       assert "SampleResult" in type_ids
       assert "ContentBlock" in type_ids
       assert "SampleStreamEvent" in type_ids
@@ -111,10 +111,10 @@ defmodule Examples.TinkexManifestTest do
       assert fields["context_length"].required == true
     end
 
-    test "SampleRequest type has prompt and model fields" do
+    test "ApiSampleRequest type has prompt and model fields" do
       {:ok, manifest} = Manifest.load_file(@manifest_path)
 
-      sample_type = Map.get(manifest.types, "SampleRequest")
+      sample_type = Map.get(manifest.types, "ApiSampleRequest")
       fields = sample_type.fields
 
       assert Map.has_key?(fields, "model")

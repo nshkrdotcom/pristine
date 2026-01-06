@@ -50,7 +50,7 @@ defmodule Examples.TinkexGenerationTest do
       # Check type files exist
       assert File.exists?(Path.join(@output_path, "types/model.ex"))
       assert File.exists?(Path.join(@output_path, "types/model_list.ex"))
-      assert File.exists?(Path.join(@output_path, "types/sample_request.ex"))
+      assert File.exists?(Path.join(@output_path, "types/api_sample_request.ex"))
       assert File.exists?(Path.join(@output_path, "types/sample_result.ex"))
     end
 
@@ -144,9 +144,9 @@ defmodule Examples.TinkexGenerationTest do
 
       Codegen.write_sources(sources)
 
-      content = File.read!(Path.join(@output_path, "types/sample_request.ex"))
+      content = File.read!(Path.join(@output_path, "types/api_sample_request.ex"))
 
-      assert content =~ "defmodule Tinkex.Types.SampleRequest"
+      assert content =~ "defmodule Tinkex.Types.ApiSampleRequest"
       assert content =~ "def schema"
       assert content =~ "Sinter.Schema.define"
     end
