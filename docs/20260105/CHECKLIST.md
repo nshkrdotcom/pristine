@@ -1,11 +1,11 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-06 (Iteration 27 Complete)
+> Last updated: 2026-01-06 (Iteration 28 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 71% complete (124 modules ported)
-> **Tests**: 758 tinkex tests passing (37 new in iteration 27)
+> **Port Progress**: 72% complete (125 modules ported)
+> **Tests**: 769 tinkex tests passing (11 new in iteration 28)
 > **Next Action**: Phase 5 - Advanced Features (continued)
 
 ## Legend
@@ -548,12 +548,19 @@
 
 ## Phase 5: Advanced Features (Enables 100% of examples)
 
-### Tinkex.Regularizer (2 examples)
-- [ ] Tinkex.Regularizer.Pipeline
+### Tinkex.Regularizer (2 examples) - 11 tests
+- [x] Tinkex.Regularizer behaviour (11 tests)
+  - [x] `compute/3` callback - Compute regularizer loss and metrics
+  - [x] `name/0` callback (optional) - Return regularizer name
+  - [x] `execute/4` - Execute function or module regularizer
+  - [x] Supports arity-2 and arity-3 anonymous functions
+  - [x] Supports behaviour-implementing modules
+  - [x] Tensor-library agnostic (works without Nx)
+- [ ] Tinkex.Regularizer.Pipeline (requires Nx)
   - [ ] `compute/4` - Compute with regularizers
-- [ ] Tinkex.Regularizer.Executor
+- [ ] Tinkex.Regularizer.Executor (requires Nx)
   - [ ] `execute_one/4`, `execute_all/4`
-- [ ] Tinkex.Regularizer.GradientTracker
+- [ ] Tinkex.Regularizer.GradientTracker (requires Nx)
   - [ ] `compute_grad_norm/2`
 - [ ] Tinkex.Regularizer.Telemetry
   - [ ] `attach_logger/1`
