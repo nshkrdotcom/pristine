@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 14 Complete)
+> Last updated: 2026-01-05 (Iteration 15 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 56% complete (101 modules ported)
-> **Tests**: 870 passing (12 new in iteration 14)
-> **Next Action**: Wire up Tinkex main module entrypoint, add end-to-end example
+> **Port Progress**: 57% complete (102 modules ported)
+> **Tests**: 879 passing (9 new in iteration 15)
+> **Next Action**: Add missing type modules, improve API coverage
 
 ## Legend
 - [ ] Not started
@@ -26,6 +26,7 @@
 - [x] 9 types: ApiError, AsyncSampleResponse, ContentBlock, Model, ModelList, SampleRequest, SampleResult, SampleStreamEvent, Usage
 
 **Manual Implementation (./examples/tinkex/lib/):**
+- [x] Tinkex (main module) - 9 tests
 - [x] Tinkex.Config - 22 tests
 - [x] Tinkex.Types.ModelInput - 20 tests
 - [x] Tinkex.Types.EncodedTextChunk
