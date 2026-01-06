@@ -10,6 +10,8 @@ defmodule Pristine.MixProject do
       version: @version,
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
+      test_paths: ["test", "examples/tinkex/test"],
       deps: deps(),
       docs: docs(),
       description: description(),
@@ -20,6 +22,9 @@ defmodule Pristine.MixProject do
       homepage_url: @source_url
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "examples/tinkex/lib", "examples/tinkex/generated"]
+  defp elixirc_paths(_), do: ["lib", "examples/tinkex/lib", "examples/tinkex/generated"]
 
   # Run "mix help compile.app" to learn about applications.
   def application do

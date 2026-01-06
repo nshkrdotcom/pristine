@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 9 Complete)
+> Last updated: 2026-01-05 (Iteration 10 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 47% complete (84 modules ported)
-> **Tests**: 405 passing (up from 386)
-> **Next Action**: Implement higher-level training convenience functions, ServiceClient
+> **Port Progress**: 48% complete (85 modules ported)
+> **Tests**: 428 passing (up from 405)
+> **Next Action**: Implement HuggingFace file resolver, ServiceClient infrastructure
 
 ## Legend
 - [ ] Not started
@@ -115,11 +115,14 @@
   - [x] `parse/1`, `to_string/1`, `values/0`, `valid?/1`
   - [~] `from_nx_type/1` - Nx not yet a dependency
 
-### Tinkex.Tokenizer (10 examples)
-- [ ] `encode/2` - text, model_name -> [integer]
-- [ ] `decode/2` - [integer], model_name -> text
-- [ ] Model-specific tokenizer selection
-- [ ] Integration with TiktokenEx
+### Tinkex.Tokenizer (10 examples) - 23 tests
+- [x] `encode/3` - text, model_name, opts -> {:ok, [integer]} | {:error, Error.t()}
+- [x] `decode/3` - [integer], model_name, opts -> {:ok, String.t()} | {:error, Error.t()}
+- [x] `get_tokenizer_id/3` - Model-specific tokenizer resolution (Llama-3 workaround, variant stripping)
+- [x] `get_or_load_tokenizer/2` - ETS-cached tokenizer loading
+- [x] `kimi_tokenizer?/1` - Kimi tokenizer detection
+- [x] Integration with TiktokenEx for Kimi K2 tokenizers
+- [~] HuggingFace file download - Requires custom load_fun for non-Kimi tokenizers
 
 ### Tinkex.ServiceClient (28 examples)
 - [ ] GenServer-based implementation
