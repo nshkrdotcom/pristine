@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 11 Complete)
+> Last updated: 2026-01-05 (Iteration 12 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 49% complete (87 modules ported)
-> **Tests**: 450 passing (up from 428)
-> **Next Action**: Integrate HuggingFace with Tokenizer, implement RestClient wrapper
+> **Port Progress**: 50% complete (90 modules ported)
+> **Tests**: 471 passing (up from 450)
+> **Next Action**: Implement SamplingClient, TrainingClient scaffolding
 
 ## Legend
 - [ ] Not started
@@ -122,7 +122,7 @@
 - [x] `get_or_load_tokenizer/2` - ETS-cached tokenizer loading
 - [x] `kimi_tokenizer?/1` - Kimi tokenizer detection
 - [x] Integration with TiktokenEx for Kimi K2 tokenizers
-- [~] HuggingFace file download - Requires custom load_fun for non-Kimi tokenizers
+- [x] HuggingFace file download for Kimi tokenizers (tiktoken.model, tokenizer_config.json)
 
 ### Tinkex.ServiceClient (28 examples)
 - [ ] GenServer-based implementation
@@ -255,15 +255,19 @@
 
 ## Phase 3: REST & Sessions (Enables 90% of examples)
 
-### Tinkex.RestClient (8 examples)
-- [ ] GenServer or struct-based implementation
-- [ ] State: config, session_id
-- [ ] `list_sessions/2` - List active sessions
-- [ ] `get_session/2` - Get session details
-- [ ] `list_user_checkpoints/2` - List user's checkpoints with pagination
-- [ ] `list_checkpoints/2` - List checkpoints for run_id
-- [ ] `get_checkpoint_archive_url/2` - Get download URL
-- [ ] `delete_checkpoint/2` - Delete checkpoint
+### Tinkex.RestClient (8 examples) - 21 tests
+- [x] Struct-based implementation with session_id and config
+- [x] `list_sessions/2` - List active sessions with pagination
+- [x] `get_session/2` - Get session details
+- [x] `list_user_checkpoints/2` - List user's checkpoints with pagination
+- [x] `list_checkpoints/2` - List checkpoints for run_id
+- [x] `get_checkpoint_archive_url/2` - Get download URL (both tinker path and IDs)
+- [x] `delete_checkpoint/2` - Delete checkpoint (both tinker path and IDs)
+- [x] `publish_checkpoint/2`, `unpublish_checkpoint/2` - Visibility management
+- [x] `get_training_run/2`, `get_training_run_by_tinker_path/2` - Training run info
+- [x] `list_training_runs/2` - List training runs with pagination
+- [x] `get_sampler/2`, `get_weights_info_by_tinker_path/2` - Sampler/weights info
+- [x] Async variants for all operations (`*_async`)
 
 ### Tinkex.SamplingClient (Extended) (15 examples)
 - [ ] `sample/4` with queue_state_observer option
