@@ -1,11 +1,11 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-06 (Iteration 29 Complete)
+> Last updated: 2026-01-06 (Iteration 30 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 73% complete (126 modules ported)
-> **Tests**: 784 tinkex tests passing (15 new in iteration 29)
+> **Port Progress**: 74% complete (128 modules ported)
+> **Tests**: 816 tinkex tests passing (32 new in iteration 30)
 > **Next Action**: Phase 5 - Advanced Features (continued)
 
 ## Legend
@@ -620,6 +620,18 @@
   - [x] `estimate_loss_fn_inputs_bytes/1` - TensorData, maps with data keys
   - [x] `estimate_datum_bytes/1` - model_input + loss_fn_inputs
   - [x] `estimate_data_bytes/1` - List of datums
+- [x] Tinkex.PoolKey (20 tests)
+  - [x] `normalize_base_url/1` - Normalize URL for pool keys
+  - [x] `destination/1` - Alias for normalize_base_url
+  - [x] `build/2` - Build pool key tuple
+  - [x] `pool_name/3` - Derive deterministic pool name
+  - [x] `resolve_pool_name/3` - Resolve running pool with fallback
+- [x] Tinkex.RateLimiter (12 tests)
+  - [x] `for_key/1` - Get/create limiter for base_url+api_key
+  - [x] `should_backoff?/1` - Check if in backoff window
+  - [x] `set_backoff/2` - Set backoff duration
+  - [x] `clear_backoff/1` - Clear backoff
+  - [x] `wait_for_backoff/1` - Block until backoff expires
 - [ ] Tinkex.SamplingDispatch
   - [ ] `set_backoff/2`
   - [ ] `with_rate_limit/3`
