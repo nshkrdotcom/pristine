@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 23 Complete)
+> Last updated: 2026-01-06 (Iteration 24 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 65% complete (116 modules ported)
-> **Tests**: 1024 passing (24 new in iteration 23)
-> **Next Action**: Phase 4 - Tinkex.RetryHandler.from_config or Tinkex.Telemetry.Capture
+> **Port Progress**: 66% complete (117 modules ported)
+> **Tests**: 1037 passing (13 new in iteration 24)
+> **Next Action**: Phase 4 - Tinkex.Recovery modules
 
 ## Legend
 - [ ] Not started
@@ -490,8 +490,13 @@
 - [x] `progress_timeout?/1` - Check progress timeout
 - [x] `elapsed_ms/1` - Get elapsed time since start
 
-### Tinkex.Telemetry.Capture (1 example)
-- [ ] `capture_exceptions/2` - Capture and log exceptions
+### Tinkex.Telemetry.Capture (1 example) - 13 tests
+- [x] `capture_exceptions/2` - Capture and log exceptions (macro)
+- [x] `with_telemetry/2` - Alias for capture_exceptions
+- [x] `async_capture/2` - Wrap Task.async with exception capture
+- [x] `__log_exception__/4` - Internal exception logging helper
+- [x] `__wrap_thrown__/2` - Wrap thrown values as ErlangError
+- [x] `__rethrow__/2` - Re-throw values
 
 ### Tinkex.Recovery (2 examples)
 - [ ] Tinkex.Recovery.Policy
