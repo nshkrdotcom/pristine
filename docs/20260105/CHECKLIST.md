@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 15 Complete)
+> Last updated: 2026-01-05 (Iteration 16 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 57% complete (102 modules ported)
-> **Tests**: 879 passing (9 new in iteration 15)
-> **Next Action**: Add missing type modules, improve API coverage
+> **Port Progress**: 59% complete (105 modules ported)
+> **Tests**: 906 passing (27 new in iteration 16)
+> **Next Action**: Add remaining missing types, improve streaming support
 
 ## Legend
 - [ ] Not started
@@ -225,7 +225,7 @@
   - [x] Struct: path, type
   - [x] `from_json/1`
 
-### Sampling Types (Extended) - 47 tests for sampling/future/server types
+### Sampling Types (Extended) - 74 tests for sampling/future/server types
 - [x] Tinkex.Types.SamplingParams
   - [x] Struct: max_tokens, seed, stop, temperature (1.0), top_k (-1), top_p (1.0)
   - [x] Jason.Encoder implementation
@@ -235,12 +235,18 @@
 - [x] Tinkex.Types.StopReason
   - [x] Type: :length | :stop
   - [x] `parse/1`, `to_string/1`
-- [ ] Tinkex.Types.SampleRequest (extended)
-  - [ ] Add: num_samples, prompt_logprobs (tri-state), topk_prompt_logprobs
-- [ ] Tinkex.Types.SampleResponse (extended)
-  - [ ] Struct: sequences, prompt_logprobs, topk_prompt_logprobs, type
-- [ ] Tinkex.Types.SampleStreamChunk (extended)
-  - [ ] Add: event_type (:token | :done | :error), finish_reason, total_tokens
+- [x] Tinkex.Types.SampleRequest (8 tests)
+  - [x] Struct: sampling_session_id, seq_id, base_model, model_path, prompt, sampling_params
+  - [x] Add: num_samples, prompt_logprobs (tri-state), topk_prompt_logprobs
+  - [x] Jason.Encoder with tri-state prompt_logprobs handling
+- [x] Tinkex.Types.SampleResponse (7 tests)
+  - [x] Struct: sequences, prompt_logprobs, topk_prompt_logprobs, type
+  - [x] `from_json/1` with topk parsing from tuples/lists/maps
+- [x] Tinkex.Types.SampleStreamChunk (12 tests)
+  - [x] Struct: token, token_id, index, finish_reason, total_tokens, logprob
+  - [x] Add: event_type (:token | :done | :error)
+  - [x] `from_map/1`, `done/2`, `error/1`, `done?/1`
+  - [x] Jason.Encoder implementation
 
 ### Examples Enabled by Phase 2
 - [ ] training_loop.exs
