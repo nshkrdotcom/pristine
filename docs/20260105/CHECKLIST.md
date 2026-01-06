@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 8 Complete)
+> Last updated: 2026-01-05 (Iteration 9 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 45% complete (79 modules ported)
-> **Tests**: 386 passing (up from 359)
-> **Next Action**: Implement Future polling, higher-level training convenience functions
+> **Port Progress**: 47% complete (84 modules ported)
+> **Tests**: 405 passing (up from 386)
+> **Next Action**: Implement higher-level training convenience functions, ServiceClient
 
 ## Legend
 - [ ] Not started
@@ -383,6 +383,18 @@
   - [x] `forward_backward_future/2`, `optim_step_future/2`, `forward_future/2`
 - [ ] Tinkex.API.Rest
   - [ ] `list_training_runs/3`, `get_training_run/2`
+
+### Future Polling (19 tests)
+- [x] Tinkex.Future
+  - [x] `poll/2` - Start polling task for server-side future
+  - [x] `await/2` - Wait for polling task result
+  - [x] `await_many/2` - Wait for multiple tasks
+  - [x] State machine: pending, completed, failed, try_again handling
+  - [x] Exponential backoff (configurable)
+  - [x] Queue state telemetry events
+  - [x] QueueStateObserver callbacks
+  - [x] HTTP error retry logic (408, 5xx, connection errors)
+  - [x] Poll timeout handling
 
 ### Examples Enabled by Phase 3
 - [ ] checkpoints_management.exs
