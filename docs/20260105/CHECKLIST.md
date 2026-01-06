@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 13 Complete)
+> Last updated: 2026-01-05 (Iteration 14 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 55% complete (99 modules ported)
-> **Tests**: 858 passing (25 new in iteration 13)
-> **Next Action**: Implement ServiceClient, wire up client creation
+> **Port Progress**: 56% complete (101 modules ported)
+> **Tests**: 870 passing (12 new in iteration 14)
+> **Next Action**: Wire up Tinkex main module entrypoint, add end-to-end example
 
 ## Legend
 - [ ] Not started
@@ -124,20 +124,19 @@
 - [x] Integration with TiktokenEx for Kimi K2 tokenizers
 - [x] HuggingFace file download for Kimi tokenizers (tiktoken.model, tokenizer_config.json)
 
-### Tinkex.ServiceClient (28 examples)
-- [ ] GenServer-based implementation
-- [ ] State: config, session_id, telemetry_reporter
-- [ ] `start_link/1` - Start with config
-- [ ] `create_sampling_client/2` - Create sampling client
-- [ ] `create_sampling_client_async/2` - Async variant
-- [ ] `create_lora_training_client/3` - Create training client
-- [ ] `create_lora_training_client_async/3` - Async variant
-- [ ] `create_rest_client/1` - Create REST client
-- [ ] `create_training_client_from_state/3` - Restore from checkpoint
-- [ ] `create_training_client_from_state_async/3` - Async variant
-- [ ] `create_training_client_from_state_with_optimizer/2` - With optimizer state
-- [ ] `get_server_capabilities/1` - Get server info
-- [ ] `telemetry_reporter/1` - Get telemetry reporter
+### Tinkex.ServiceClient (Scaffolding) (12 tests)
+- [x] Struct-based implementation with session management
+- [x] `new/2` - Create with config, auto-creates session
+- [x] `create_sampling_client/2` - Create sampling client
+- [x] `create_lora_training_client/4` - Create training client
+- [x] `create_rest_client/1` - Create REST client
+- [x] `create_training_client_from_state/4` - Restore from checkpoint
+- [x] `get_server_capabilities/1` - Get server info
+- [x] `session_id/1`, `config/1` - Accessors
+- [x] `next_training_seq_id/1`, `next_sampling_seq_id/1` - Sequence IDs
+- [ ] Async variants (`*_async`) (future)
+- [ ] GenServer-based implementation (future)
+- [ ] Telemetry reporter integration (future)
 
 ### Examples Enabled by Phase 1
 - [ ] sampling_basic.exs
