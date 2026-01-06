@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 5 Complete)
+> Last updated: 2026-01-05 (Iteration 6 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 31% complete (55 modules ported)
-> **Tests**: 289 passing (up from 244)
-> **Next Action**: Implement sampling types (SamplingParams, SampledSequence, StopReason)
+> **Port Progress**: 38% complete (68 modules ported)
+> **Tests**: 336 passing (up from 289)
+> **Next Action**: Implement error types (RequestErrorCategory, RequestFailedResponse, Error)
 
 ## Legend
 - [ ] Not started
@@ -223,15 +223,16 @@
   - [x] Struct: path, type
   - [x] `from_json/1`
 
-### Sampling Types (Extended)
-- [ ] Tinkex.Types.SamplingParams
-  - [ ] Struct: max_tokens, seed, stop, temperature (1.0), top_k (-1), top_p (1.0)
-- [ ] Tinkex.Types.SampledSequence
-  - [ ] Struct: tokens, logprobs, stop_reason
-  - [ ] `from_json/1`
-- [ ] Tinkex.Types.StopReason
-  - [ ] Type: :length | :stop
-  - [ ] `parse/1`, `to_string/1`
+### Sampling Types (Extended) - 47 tests for sampling/future/server types
+- [x] Tinkex.Types.SamplingParams
+  - [x] Struct: max_tokens, seed, stop, temperature (1.0), top_k (-1), top_p (1.0)
+  - [x] Jason.Encoder implementation
+- [x] Tinkex.Types.SampledSequence
+  - [x] Struct: tokens, logprobs, stop_reason
+  - [x] `from_json/1`
+- [x] Tinkex.Types.StopReason
+  - [x] Type: :length | :stop
+  - [x] `parse/1`, `to_string/1`
 - [ ] Tinkex.Types.SampleRequest (extended)
   - [ ] Add: num_samples, prompt_logprobs (tri-state), topk_prompt_logprobs
 - [ ] Tinkex.Types.SampleResponse (extended)
@@ -334,33 +335,34 @@
   - [x] Jason.Encoder implementation
 
 ### Future & Async Types
-- [ ] Tinkex.Types.FutureRetrieveRequest
-  - [ ] Struct: request_id
-  - [ ] `new/1`, `to_json/1`
-- [ ] Tinkex.Types.FuturePendingResponse
-  - [ ] Struct: status "pending"
-- [ ] Tinkex.Types.FutureCompletedResponse
-  - [ ] Struct: status "completed", result
-- [ ] Tinkex.Types.FutureFailedResponse
-  - [ ] Struct: status "failed", error
-- [ ] Tinkex.Types.FutureRetrieveResponse (union type)
-  - [ ] `from_json/1` with type detection
-- [ ] Tinkex.Types.TryAgainResponse
-  - [ ] Struct: type, request_id, queue_state, retry_after_ms, queue_state_reason
-  - [ ] `from_map/1` with validation
-- [ ] Tinkex.Types.QueueState
-  - [ ] Type: :active | :paused_rate_limit | :paused_capacity | :unknown
-  - [ ] `parse/1`
+- [x] Tinkex.Types.FutureRetrieveRequest
+  - [x] Struct: request_id
+  - [x] `new/1`, `to_json/1`, `from_json/1`
+- [x] Tinkex.Types.FuturePendingResponse
+  - [x] Struct: status "pending"
+- [x] Tinkex.Types.FutureCompletedResponse
+  - [x] Struct: status "completed", result
+- [x] Tinkex.Types.FutureFailedResponse
+  - [x] Struct: status "failed", error
+- [x] Tinkex.Types.FutureRetrieveResponse (union type)
+  - [x] `from_json/1` with type detection
+- [x] Tinkex.Types.TryAgainResponse
+  - [x] Struct: type, request_id, queue_state, retry_after_ms, queue_state_reason
+  - [x] `from_map/1` with validation
+- [x] Tinkex.Types.QueueState
+  - [x] Type: :active | :paused_rate_limit | :paused_capacity | :unknown
+  - [x] `parse/1`, `to_string/1`
 
 ### Server Types
-- [ ] Tinkex.Types.HealthResponse
-  - [ ] Struct: status
-- [ ] Tinkex.Types.GetServerCapabilitiesResponse
-  - [ ] Struct: supported_models
-  - [ ] `from_json/1`, `model_names/1`
-- [ ] Tinkex.Types.SupportedModel
-  - [ ] Struct: model_id, model_name, arch
-  - [ ] `from_json/1` with backward compat
+- [x] Tinkex.Types.HealthResponse
+  - [x] Struct: status
+  - [x] `from_json/1`
+- [x] Tinkex.Types.GetServerCapabilitiesResponse
+  - [x] Struct: supported_models
+  - [x] `from_json/1`, `model_names/1`
+- [x] Tinkex.Types.SupportedModel
+  - [x] Struct: model_id, model_name, arch
+  - [x] `from_json/1` with backward compat (string support)
 
 ### API Layer Modules
 - [ ] Tinkex.API.Session
