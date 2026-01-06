@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 22 Complete)
+> Last updated: 2026-01-05 (Iteration 23 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 64% complete (114 modules ported)
-> **Tests**: 1000 passing (18 new in iteration 22)
-> **Next Action**: Phase 4 - Tinkex.Retry integration with Foundation
+> **Port Progress**: 65% complete (116 modules ported)
+> **Tests**: 1024 passing (24 new in iteration 23)
+> **Next Action**: Phase 4 - Tinkex.RetryHandler.from_config or Tinkex.Telemetry.Capture
 
 ## Legend
 - [ ] Not started
@@ -475,12 +475,20 @@
 - [x] `flush/0` - Flush pending casts
 - [x] `handle_event/4` - Telemetry handler for HTTP events
 
-### Tinkex.Retry (2 examples)
-- [ ] Integration with Foundation.Retry
-- [ ] `with_retry/2` - Execute with retry
+### Tinkex.Retry (2 examples) - 11 tests
+- [x] `with_retry/2` - Execute with retry and exponential backoff
+- [x] Telemetry events for retry attempts
+- [x] Handles both errors and exceptions
+- [x] Non-retryable error detection via Error.retryable?
 
-### Tinkex.RetryHandler (2 examples)
-- [ ] `new/1` - Create handler with base_delay_ms, jitter_pct, max_retries
+### Tinkex.RetryHandler (2 examples) - 13 tests
+- [x] `new/1` - Create handler with base_delay_ms, jitter_pct, max_retries
+- [x] `retry?/2` - Check if error is retryable
+- [x] `next_delay/1` - Calculate exponential backoff with jitter
+- [x] `increment_attempt/1` - Increment attempt counter
+- [x] `record_progress/1` - Reset progress timeout
+- [x] `progress_timeout?/1` - Check progress timeout
+- [x] `elapsed_ms/1` - Get elapsed time since start
 
 ### Tinkex.Telemetry.Capture (1 example)
 - [ ] `capture_exceptions/2` - Capture and log exceptions
