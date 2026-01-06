@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 6 Complete)
+> Last updated: 2026-01-05 (Iteration 7 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 38% complete (68 modules ported)
-> **Tests**: 336 passing (up from 289)
-> **Next Action**: Implement error types (RequestErrorCategory, RequestFailedResponse, Error)
+> **Port Progress**: 40% complete (71 modules ported)
+> **Tests**: 359 passing (up from 336)
+> **Next Action**: All core types complete! Begin implementing API layer modules
 
 ## Legend
 - [ ] Not started
@@ -428,16 +428,18 @@
   - [ ] `start_link/1` - Start with policy, executor
   - [ ] `monitor_run/4` - Monitor training run
 
-### Error Types
-- [ ] Tinkex.Types.RequestErrorCategory
-  - [ ] Type: :unknown | :server | :user
-  - [ ] `parse/1`, `to_string/1`, `retryable?/1`
-- [ ] Tinkex.Types.RequestFailedResponse
-  - [ ] Struct: error, category
-  - [ ] `new/2`, `from_json/1`
-- [ ] Tinkex.Error
-  - [ ] Struct: type, message, status_code
-  - [ ] Pattern matching helpers
+### Error Types (23 tests)
+- [x] Tinkex.Types.RequestErrorCategory
+  - [x] Type: :unknown | :server | :user
+  - [x] `parse/1`, `to_string/1`, `retryable?/1`
+- [x] Tinkex.Types.RequestFailedResponse
+  - [x] Struct: error, category
+  - [x] `new/2`, `from_json/1`
+- [x] Tinkex.Error
+  - [x] Struct: type, message, status, category, data, retry_after_ms
+  - [x] `new/2`, `new/3`, `from_response/2`
+  - [x] `user_error?/1`, `retryable?/1`, `format/1`
+  - [x] String.Chars implementation
 
 ### Examples Enabled by Phase 4
 - [ ] telemetry_reporter_demo.exs
