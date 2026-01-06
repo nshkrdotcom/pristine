@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 20 Complete)
+> Last updated: 2026-01-05 (Iteration 21 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 63% complete (112 modules ported)
-> **Tests**: 967 passing (19 new in iteration 20)
-> **Next Action**: Phase 4 - Tinkex.Telemetry facade module
+> **Port Progress**: 64% complete (113 modules ported)
+> **Tests**: 982 passing (15 new in iteration 21)
+> **Next Action**: Phase 4 - Tinkex.Metrics ETS-based implementation
 
 ## Legend
 - [ ] Not started
@@ -458,9 +458,11 @@
 - [x] `wait_until_drained/2` - Wait for queue drain
 - [x] `stop/2` - Graceful shutdown
 
-### Tinkex.Telemetry (3 examples)
-- [ ] `attach_logger/1` - Attach telemetry logger
-- [ ] `detach/1` - Detach handler
+### Tinkex.Telemetry (3 examples) - 15 tests
+- [x] `attach_logger/1` - Attach telemetry logger with event handlers
+- [x] `detach/1` - Detach handler
+- [x] `init/1` - Initialize reporter for session
+- [x] `handle_event/4` - HTTP and queue telemetry event handlers
 
 ### Tinkex.Metrics (1 example)
 - [ ] ETS-based implementation
