@@ -1,11 +1,11 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-06 (Iteration 30 Complete)
+> Last updated: 2026-01-06 (Iteration 31 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 74% complete (128 modules ported)
-> **Tests**: 816 tinkex tests passing (32 new in iteration 30)
+> **Port Progress**: 75% complete (129 modules ported)
+> **Tests**: 833 tinkex tests passing (17 new in iteration 31)
 > **Next Action**: Phase 5 - Advanced Features (continued)
 
 ## Legend
@@ -632,6 +632,11 @@
   - [x] `set_backoff/2` - Set backoff duration
   - [x] `clear_backoff/1` - Clear backoff
   - [x] `wait_for_backoff/1` - Block until backoff expires
+- [x] Tinkex.BytesSemaphore (17 tests)
+  - [x] `start_link/1` - Start with max_bytes budget (default 5MB)
+  - [x] `acquire/2` - Acquire bytes, blocks when budget negative
+  - [x] `release/2` - Release bytes, wakes blocked waiters
+  - [x] `with_bytes/3` - Execute function with guaranteed release
 - [ ] Tinkex.SamplingDispatch
   - [ ] `set_backoff/2`
   - [ ] `with_rate_limit/3`
