@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 3 Complete)
+> Last updated: 2026-01-05 (Iteration 4 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 20% complete (35 modules ported)
-> **Tests**: 189 passing (up from 160)
-> **Next Action**: Implement Weight types (Save/Load), Checkpoint types
+> **Port Progress**: 25% complete (45 modules ported)
+> **Tests**: 244 passing (up from 189)
+> **Next Action**: Implement remaining session types, CustomLossOutput, ModelData
 
 ## Legend
 - [ ] Not started
@@ -187,32 +187,40 @@
   - [ ] Struct: loss_total, base_loss, regularizers, regularizer_total, total_grad_norm
   - [ ] `build/4`, `loss/1`
 
-### Checkpoint Types
-- [ ] Tinkex.Types.Checkpoint
-  - [ ] Struct: checkpoint_id, checkpoint_type, tinker_path, training_run_id, size_bytes, public, time
-  - [ ] `from_map/1` with datetime parsing
-  - [ ] `training_run_from_path/1`
-- [ ] Tinkex.Types.CheckpointsListResponse
-  - [ ] Struct: checkpoints, cursor
-  - [ ] `from_map/1`
-- [ ] Tinkex.Types.ParsedCheckpointTinkerPath
-  - [ ] Struct: tinker_path, training_run_id, checkpoint_type, checkpoint_id
-  - [ ] `from_tinker_path/1` - Parse tinker:// URIs
-  - [ ] `checkpoint_segment/1` - Convert to REST path
-- [ ] Tinkex.Types.SaveWeightsRequest
-  - [ ] Struct: model_id, path, seq_id, type
-- [ ] Tinkex.Types.SaveWeightsResponse
-  - [ ] Struct: path, type
-  - [ ] `from_json/1`
-- [ ] Tinkex.Types.SaveWeightsForSamplerRequest
-  - [ ] Struct: model_id, path, sampling_session_seq_id, seq_id, type
-- [ ] Tinkex.Types.SaveWeightsForSamplerResponse
-  - [ ] Struct: path, sampling_session_id, type
-- [ ] Tinkex.Types.LoadWeightsRequest
-  - [ ] Struct: model_id, path, seq_id, optimizer, type
-  - [ ] `new/3`
-- [ ] Tinkex.Types.LoadWeightsResponse
-  - [ ] Struct: path, type
+### Checkpoint Types (55 tests for weight/checkpoint types)
+- [x] Tinkex.Types.Cursor
+  - [x] Struct: offset, limit, total_count
+  - [x] `from_map/1` with integer coercion
+- [x] Tinkex.Types.Checkpoint
+  - [x] Struct: checkpoint_id, checkpoint_type, tinker_path, training_run_id, size_bytes, public, time
+  - [x] `from_map/1` with datetime parsing
+  - [x] `training_run_from_path/1`
+- [x] Tinkex.Types.CheckpointsListResponse
+  - [x] Struct: checkpoints, cursor
+  - [x] `from_map/1`
+- [x] Tinkex.Types.ParsedCheckpointTinkerPath
+  - [x] Struct: tinker_path, training_run_id, checkpoint_type, checkpoint_id
+  - [x] `from_tinker_path/1` - Parse tinker:// URIs
+  - [x] `checkpoint_segment/1` - Convert to REST path
+- [x] Tinkex.Types.SaveWeightsRequest
+  - [x] Struct: model_id, path, seq_id, type
+  - [x] Jason.Encoder implementation
+- [x] Tinkex.Types.SaveWeightsResponse
+  - [x] Struct: path, type
+  - [x] `from_json/1`
+- [x] Tinkex.Types.SaveWeightsForSamplerRequest
+  - [x] Struct: model_id, path, sampling_session_seq_id, seq_id, type
+  - [x] Jason.Encoder implementation
+- [x] Tinkex.Types.SaveWeightsForSamplerResponse
+  - [x] Struct: path, sampling_session_id, type
+  - [x] `from_json/1`
+- [x] Tinkex.Types.LoadWeightsRequest
+  - [x] Struct: model_id, path, seq_id, optimizer, type
+  - [x] `new/2`, `new/3` helper functions
+  - [x] Jason.Encoder implementation
+- [x] Tinkex.Types.LoadWeightsResponse
+  - [x] Struct: path, type
+  - [x] `from_json/1`
 
 ### Sampling Types (Extended)
 - [ ] Tinkex.Types.SamplingParams
