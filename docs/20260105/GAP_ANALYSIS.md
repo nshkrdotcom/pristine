@@ -12,14 +12,14 @@
 | Source types | **76** (67 main + 9 telemetry) |
 | Source examples | **33** |
 | Source tests | **999** across 125 files |
-| Port modules | **22** (Config + 18 types + 2 resources + 1 client) |
+| Port modules | **28** (Config + 24 types + 2 resources + 1 client) |
 | Port endpoints | 6 |
-| **Gap: Missing types** | **58** (76 - 18 ported) |
+| **Gap: Missing types** | **52** (76 - 24 ported) |
 | **Gap: Missing client functions** | **84** |
 | **Gap: Missing API endpoints** | **35** |
-| **Gap: Missing test files** | **121** |
-| Completion % | **~12%** |
-| Port tests | **126** passing |
+| **Gap: Missing test files** | **117** |
+| Completion % | **~16%** |
+| Port tests | **160** passing |
 | Blocking issues | None |
 
 ### Agent Analysis Summary (2026-01-05)

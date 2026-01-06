@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 1 Complete)
+> Last updated: 2026-01-05 (Iteration 2 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 12% complete (22 modules ported)
-> **Tests**: 126 passing (up from 102)
-> **Next Action**: Implement CreateModel types, GetInfo types
+> **Port Progress**: 16% complete (28 modules ported)
+> **Tests**: 160 passing (up from 126)
+> **Next Action**: Implement Training types (ForwardBackward, OptimStep)
 
 ## Legend
 - [ ] Not started
@@ -259,10 +259,12 @@
 - [x] Tinkex.Types.CreateSessionResponse
   - [x] Struct: session_id, info_message, warning_message, error_message
   - [x] `from_json/1`
-- [ ] Tinkex.Types.CreateSamplingSessionRequest
-  - [ ] Struct: session_id, sampling_session_seq_id, base_model, model_path, type
-- [ ] Tinkex.Types.CreateSamplingSessionResponse
-  - [ ] Struct: sampling_session_id
+- [x] Tinkex.Types.CreateSamplingSessionRequest
+  - [x] Struct: session_id, sampling_session_seq_id, base_model, model_path, type
+  - [x] Jason.Encoder implementation
+- [x] Tinkex.Types.CreateSamplingSessionResponse
+  - [x] Struct: sampling_session_id
+  - [x] `from_json/1`
 - [x] Tinkex.Types.SessionHeartbeatRequest
   - [x] Struct: session_id, type
   - [x] `new/1`, `to_json/1`, `from_json/1`
@@ -275,15 +277,20 @@
   - [ ] Struct: training_run_ids, sampler_ids
 
 ### Model Types
-- [ ] Tinkex.Types.CreateModelRequest
-  - [ ] Struct: session_id, model_seq_id, base_model, user_metadata, lora_config, type
-- [ ] Tinkex.Types.CreateModelResponse
-  - [ ] Struct: model_id
-- [ ] Tinkex.Types.GetInfoRequest
-  - [ ] Struct: model_id, type
-  - [ ] `new/1`
-- [ ] Tinkex.Types.GetInfoResponse
-  - [ ] Struct: model_id, model_data, is_lora, lora_rank, model_name, type
+- [x] Tinkex.Types.CreateModelRequest
+  - [x] Struct: session_id, model_seq_id, base_model, user_metadata, lora_config, type
+  - [x] Jason.Encoder implementation
+  - [x] Default lora_config: %LoraConfig{}
+- [x] Tinkex.Types.CreateModelResponse
+  - [x] Struct: model_id
+  - [x] `from_json/1`
+- [x] Tinkex.Types.GetInfoRequest
+  - [x] Struct: model_id, type
+  - [x] `new/1`
+  - [x] Jason.Encoder implementation
+- [x] Tinkex.Types.GetInfoResponse
+  - [x] Struct: model_id, model_data, is_lora, lora_rank, model_name, type
+  - [x] `from_json/1` (handles string and atom keys)
 - [ ] Tinkex.Types.ModelData
   - [ ] Struct: arch, model_name, tokenizer_id
 - [ ] Tinkex.Types.UnloadModelRequest
