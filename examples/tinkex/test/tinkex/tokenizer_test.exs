@@ -133,6 +133,9 @@ defmodule Tinkex.TokenizerTest do
     end
 
     test "loads tokenizer with custom load_fun" do
+      # Clear cache to ensure load_fun is called
+      Tokenizer.__supertester_clear_cache__("test-model")
+
       mock_encoding = mock_tiktoken_encoding()
       load_fun = fn _id, _opts -> {:ok, mock_encoding} end
 

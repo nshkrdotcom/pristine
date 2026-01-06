@@ -173,7 +173,7 @@ defmodule Pristine.Codegen.ResourceTest do
       code = Resource.render_resource_module("MyAPI.Models", "models", endpoints, types)
 
       assert code =~ "def create_async("
-      assert code =~ "Pipeline.execute_future"
+      assert code =~ "Runtime.execute_future"
     end
   end
 

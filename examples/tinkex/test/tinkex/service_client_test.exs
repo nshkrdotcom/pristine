@@ -54,13 +54,15 @@ defmodule Tinkex.ServiceClientTest do
       base_url: "https://example.com",
       api_key: "tml-test-key",
       timeout: 60_000,
-      max_retries: 3
+      max_retries: 3,
+      telemetry_enabled?: false
     }
 
     client =
       ServiceClient.new(config,
         session_api: MockSessionAPI,
-        service_api: MockServiceAPI
+        service_api: MockServiceAPI,
+        telemetry_enabled: false
       )
 
     {:ok, client: client, config: config}
@@ -177,6 +179,120 @@ defmodule Tinkex.ServiceClientTest do
   describe "config/1" do
     test "returns the config", %{client: client, config: config} do
       assert ServiceClient.config(client) == config
+    end
+  end
+
+  describe "telemetry_reporter/1" do
+    test "returns nil when no reporter is configured", %{client: client} do
+      assert ServiceClient.telemetry_reporter(client) == nil
+    end
+
+    test "returns the reporter pid when configured", %{config: config} do
+      # Create a client with telemetry enabled - reporter will be started
+      client =
+        ServiceClient.new(
+          %{config | telemetry_enabled?: true},
+          session_id: "telemetry-test-session",
+          telemetry_enabled: true
+        )
+
+      reporter = ServiceClient.telemetry_reporter(client)
+
+      if reporter do
+        assert is_pid(reporter)
+        assert Process.alive?(reporter)
+        # Clean up
+        Tinkex.Telemetry.Reporter.stop(reporter)
+      end
+    end
+
+    test "uses provided reporter pid", %{config: config} do
+      # Start a reporter manually
+      {:ok, reporter} =
+        Tinkex.Telemetry.Reporter.start_link(
+          config: config,
+          session_id: "manual-session",
+          enabled: true
+        )
+
+      client =
+        ServiceClient.new(config,
+          session_id: "test-session",
+          telemetry_reporter: reporter
+        )
+
+      assert ServiceClient.telemetry_reporter(client) == reporter
+
+      # Clean up
+      Tinkex.Telemetry.Reporter.stop(reporter)
+    end
+  end
+
+  describe "get_telemetry/0" do
+    test "returns global telemetry status" do
+      stats = ServiceClient.get_telemetry()
+
+      assert Map.has_key?(stats, :status)
+      assert Map.has_key?(stats, :sdk_version)
+      assert Map.has_key?(stats, :timestamp)
+      assert stats.status == :active
+    end
+  end
+
+  describe "get_telemetry/1" do
+    test "returns nil when no reporter is active", %{client: client} do
+      assert ServiceClient.get_telemetry(client) == nil
+    end
+
+    test "returns stats when reporter is active", %{config: config} do
+      # Start a reporter manually
+      {:ok, reporter} =
+        Tinkex.Telemetry.Reporter.start_link(
+          config: config,
+          session_id: "stats-session",
+          enabled: true
+        )
+
+      client =
+        ServiceClient.new(config,
+          session_id: "stats-session",
+          telemetry_reporter: reporter
+        )
+
+      stats = ServiceClient.get_telemetry(client)
+
+      assert is_map(stats)
+      assert stats.session_id == "stats-session"
+      assert stats.reporter_alive? == true
+      assert stats.reporter_pid == reporter
+
+      # Clean up
+      Tinkex.Telemetry.Reporter.stop(reporter)
+    end
+
+    test "reports reporter_alive? as false when reporter is dead", %{config: config} do
+      # Start a reporter manually
+      {:ok, reporter} =
+        Tinkex.Telemetry.Reporter.start_link(
+          config: config,
+          session_id: "dead-session",
+          enabled: true
+        )
+
+      client =
+        ServiceClient.new(config,
+          session_id: "dead-session",
+          telemetry_reporter: reporter
+        )
+
+      # Kill the reporter
+      Tinkex.Telemetry.Reporter.stop(reporter)
+      # Give it time to stop
+      Process.sleep(10)
+
+      stats = ServiceClient.get_telemetry(client)
+
+      assert stats.reporter_alive? == false
     end
   end
 end

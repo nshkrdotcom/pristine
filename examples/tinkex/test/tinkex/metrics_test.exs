@@ -4,20 +4,21 @@ defmodule Tinkex.MetricsTest do
   alias Tinkex.Metrics
 
   setup do
-    # Stop any existing metrics server
-    case Process.whereis(Metrics) do
-      nil -> :ok
-      pid -> GenServer.stop(pid)
-    end
+    # Use app-managed Metrics server, just ensure it's running and reset state
+    metrics_pid =
+      case Process.whereis(Metrics) do
+        nil ->
+          {:ok, pid} = Metrics.start_link(enabled: true)
+          pid
 
-    # Start fresh metrics server for each test
-    {:ok, pid} = Metrics.start_link(enabled: true)
+        pid ->
+          pid
+      end
 
-    on_exit(fn ->
-      if Process.alive?(pid), do: GenServer.stop(pid)
-    end)
+    # Reset metrics state for clean test
+    :ok = Metrics.reset()
 
-    {:ok, pid: pid}
+    {:ok, pid: metrics_pid}
   end
 
   describe "start_link/1" do

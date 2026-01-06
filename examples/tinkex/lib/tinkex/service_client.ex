@@ -62,7 +62,8 @@ defmodule Tinkex.ServiceClient do
     :session_api,
     :service_api,
     :training_counter,
-    :sampling_counter
+    :sampling_counter,
+    :telemetry_reporter
   ]
 
   @type t :: %__MODULE__{
@@ -71,7 +72,8 @@ defmodule Tinkex.ServiceClient do
           session_api: module() | nil,
           service_api: module() | nil,
           training_counter: reference() | nil,
-          sampling_counter: reference() | nil
+          sampling_counter: reference() | nil,
+          telemetry_reporter: pid() | nil
         }
 
   @doc """
@@ -87,10 +89,13 @@ defmodule Tinkex.ServiceClient do
     * `:service_api` - Module implementing service API (default: `Tinkex.API.Service`)
     * `:tags` - Tags for the session
     * `:user_metadata` - User metadata for the session
+    * `:telemetry_enabled` - Start a telemetry reporter (default: from config)
+    * `:telemetry_reporter` - Existing reporter pid to use
   """
   @spec new(Config.t(), keyword()) :: t()
   def new(%Config{} = config, opts \\ []) do
     session_id = resolve_session_id(config, opts)
+    reporter = resolve_telemetry_reporter(config, session_id, opts)
 
     %__MODULE__{
       session_id: session_id,
@@ -98,7 +103,8 @@ defmodule Tinkex.ServiceClient do
       session_api: Keyword.get(opts, :session_api),
       service_api: Keyword.get(opts, :service_api),
       training_counter: :atomics.new(1, []),
-      sampling_counter: :atomics.new(1, [])
+      sampling_counter: :atomics.new(1, []),
+      telemetry_reporter: reporter
     }
   end
 
@@ -311,6 +317,92 @@ defmodule Tinkex.ServiceClient do
     :atomics.add_get(counter, 1, 1)
   end
 
+  # ============================================
+  # Async Wrappers
+  # ============================================
+
+  @doc """
+  Get server capabilities asynchronously.
+
+  Returns a Task that resolves to `{:ok, GetServerCapabilitiesResponse.t()}` or
+  `{:error, Error.t()}`.
+
+  ## Example
+
+      task = ServiceClient.get_server_capabilities_async(client)
+      # Do other work...
+      {:ok, capabilities} = Task.await(task)
+  """
+  @spec get_server_capabilities_async(t()) :: Task.t()
+  def get_server_capabilities_async(%__MODULE__{} = client) do
+    Task.async(fn -> get_server_capabilities(client) end)
+  end
+
+  @doc """
+  Create a LoRA training client asynchronously.
+
+  Returns a Task that resolves to `{:ok, TrainingClient.t()}` or
+  `{:error, Error.t()}`.
+
+  ## Example
+
+      task = ServiceClient.create_lora_training_client_async(client, "model", config)
+      # Do other work...
+      {:ok, training_client} = Task.await(task)
+  """
+  @spec create_lora_training_client_async(t(), String.t(), LoraConfig.t() | nil, keyword()) ::
+          Task.t()
+  def create_lora_training_client_async(
+        %__MODULE__{} = client,
+        base_model,
+        lora_config,
+        opts \\ []
+      ) do
+    Task.async(fn -> create_lora_training_client(client, base_model, lora_config, opts) end)
+  end
+
+  @doc """
+  Create a training client from checkpoint state asynchronously.
+
+  Returns a Task that resolves to `{:ok, TrainingClient.t()}` or
+  `{:error, Error.t()}`.
+
+  ## Example
+
+      task = ServiceClient.create_training_client_from_state_async(
+        client, "model", "tinker://path/to/checkpoint"
+      )
+      {:ok, training_client} = Task.await(task)
+  """
+  @spec create_training_client_from_state_async(t(), String.t(), String.t(), keyword()) ::
+          Task.t()
+  def create_training_client_from_state_async(
+        %__MODULE__{} = client,
+        base_model,
+        checkpoint_path,
+        opts \\ []
+      ) do
+    Task.async(fn ->
+      create_training_client_from_state(client, base_model, checkpoint_path, opts)
+    end)
+  end
+
+  @doc """
+  Create a sampling client asynchronously.
+
+  Returns a Task that resolves to `{:ok, SamplingClient.t()}` or
+  `{:error, Error.t()}`.
+
+  ## Example
+
+      task = ServiceClient.create_sampling_client_async(client, base_model: "model")
+      {:ok, sampling_client} = Task.await(task)
+  """
+  @spec create_sampling_client_async(t(), keyword()) :: Task.t()
+  def create_sampling_client_async(%__MODULE__{} = client, opts \\ []) do
+    Task.async(fn -> create_sampling_client(client, opts) end)
+  end
+
   # Private helpers
 
   defp resolve_session_id(config, opts) do
@@ -344,4 +436,115 @@ defmodule Tinkex.ServiceClient do
 
   defp service_api(%__MODULE__{service_api: nil}), do: ServiceAPI
   defp service_api(%__MODULE__{service_api: api}), do: api
+
+  defp resolve_telemetry_reporter(config, session_id, opts) do
+    case Keyword.get(opts, :telemetry_reporter) do
+      nil ->
+        # Check if we should start a new reporter
+        enabled? =
+          case Keyword.get(opts, :telemetry_enabled) do
+            nil -> config.telemetry_enabled?
+            value -> value
+          end
+
+        if enabled? do
+          case Tinkex.Telemetry.Reporter.start_link(
+                 config: config,
+                 session_id: session_id,
+                 enabled: true
+               ) do
+            {:ok, pid} -> pid
+            :ignore -> nil
+            {:error, _} -> nil
+          end
+        else
+          nil
+        end
+
+      reporter when is_pid(reporter) ->
+        reporter
+    end
+  end
+
+  # ============================================
+  # Telemetry
+  # ============================================
+
+  @doc """
+  Get the telemetry reporter for this client.
+
+  Returns the reporter pid if telemetry is enabled and a reporter was started,
+  otherwise returns `nil`.
+
+  ## Examples
+
+      reporter = ServiceClient.telemetry_reporter(client)
+      if reporter do
+        Tinkex.Telemetry.Reporter.log(reporter, "custom.event", %{data: "value"})
+      end
+
+  """
+  @spec telemetry_reporter(t()) :: pid() | nil
+  def telemetry_reporter(%__MODULE__{telemetry_reporter: reporter}), do: reporter
+
+  @doc """
+  Get telemetry statistics for this client.
+
+  Returns a map containing telemetry stats for the client's session,
+  or `nil` if no reporter is active.
+
+  ## Stats returned
+
+    * `:session_id` - The session ID
+    * `:reporter_alive?` - Whether the reporter process is alive
+    * `:reporter_pid` - The reporter pid (if active)
+
+  ## Examples
+
+      case ServiceClient.get_telemetry(client) do
+        nil ->
+          IO.puts("Telemetry not enabled")
+
+        stats ->
+          IO.puts("Reporter alive: \#{stats.reporter_alive?}")
+      end
+
+  """
+  @spec get_telemetry(t()) :: map() | nil
+  def get_telemetry(%__MODULE__{telemetry_reporter: nil}), do: nil
+
+  def get_telemetry(%__MODULE__{} = client) do
+    reporter = client.telemetry_reporter
+
+    %{
+      session_id: client.session_id,
+      reporter_alive?: Process.alive?(reporter),
+      reporter_pid: reporter
+    }
+  end
+
+  @doc """
+  Get global telemetry statistics.
+
+  Returns summary statistics about telemetry across all active sessions.
+  This is a convenience function for observability dashboards.
+
+  Note: In the struct-based client architecture, this returns basic
+  global information. For full telemetry aggregation, use the Telemetry
+  module directly.
+
+  ## Examples
+
+      stats = ServiceClient.get_telemetry()
+      IO.puts("Telemetry system status: \#{stats.status}")
+
+  """
+  @spec get_telemetry() :: map()
+  def get_telemetry do
+    %{
+      status: :active,
+      sdk_version: Tinkex.version(),
+      timestamp: DateTime.utc_now()
+    }
+  end
 end

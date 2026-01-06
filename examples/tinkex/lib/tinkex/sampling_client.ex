@@ -279,4 +279,144 @@ defmodule Tinkex.SamplingClient do
 
   defp futures_api(%__MODULE__{futures_api: nil}), do: Future
   defp futures_api(%__MODULE__{futures_api: api}), do: api
+
+  # ============================================
+  # Async Creation
+  # ============================================
+
+  alias Tinkex.ServiceClient
+
+  @doc """
+  Asynchronously create a SamplingClient from a ServiceClient.
+
+  Returns a Task that resolves to `{:ok, SamplingClient.t()}` or
+  `{:error, Error.t()}`.
+
+  This is a convenience wrapper around `ServiceClient.create_sampling_client/2`
+  that runs the creation in a separate Task for non-blocking operation.
+
+  ## Parameters
+
+    * `service_client` - ServiceClient instance
+    * `opts` - Options passed to `ServiceClient.create_sampling_client/2`:
+      * `:base_model` - Base model identifier for new sampling session
+      * `:model_path` - Tinker path to existing weights
+
+  ## Examples
+
+      task = SamplingClient.create_async(service_client, base_model: "Qwen/Qwen2.5-7B")
+      # Do other work...
+      {:ok, sampling_client} = Task.await(task)
+
+  """
+  @spec create_async(ServiceClient.t(), keyword()) :: Task.t()
+  def create_async(%ServiceClient{} = service_client, opts \\ []) do
+    Task.async(fn -> ServiceClient.create_sampling_client(service_client, opts) end)
+  end
+
+  # ============================================
+  # Queue State Observability
+  # ============================================
+
+  alias Tinkex.QueueStateLogger
+
+  @debounce_interval_ms 60_000
+
+  @doc """
+  Handle queue state changes with debounced logging.
+
+  Logs warnings for non-active states with automatic debouncing to
+  prevent log spam. Uses `:persistent_term` for debounce state tracking.
+
+  ## Parameters
+
+    * `client` - SamplingClient instance
+    * `queue_state` - One of `:active`, `:paused_rate_limit`, `:paused_capacity`, `:unknown`
+
+  ## Returns
+
+    * `:ok`
+  """
+  @spec on_queue_state_change(t(), QueueStateLogger.queue_state()) :: :ok
+  def on_queue_state_change(%__MODULE__{} = client, queue_state) do
+    on_queue_state_change(client, queue_state, %{})
+  end
+
+  @doc """
+  Handle queue state changes with metadata and debounced logging.
+
+  ## Parameters
+
+    * `client` - SamplingClient instance
+    * `queue_state` - One of `:active`, `:paused_rate_limit`, `:paused_capacity`, `:unknown`
+    * `metadata` - Map with optional `:queue_state_reason` key for custom reason
+
+  ## Returns
+
+    * `:ok`
+  """
+  @spec on_queue_state_change(t(), QueueStateLogger.queue_state(), map()) :: :ok
+  def on_queue_state_change(%__MODULE__{} = _client, :active, _metadata) do
+    # Don't log for active state
+    :ok
+  end
+
+  def on_queue_state_change(%__MODULE__{} = client, queue_state, metadata) do
+    debounce_key = debounce_key(client)
+    last_logged = get_debounce_time(debounce_key)
+    server_reason = Map.get(metadata, :queue_state_reason)
+
+    if QueueStateLogger.should_log?(last_logged, @debounce_interval_ms) do
+      QueueStateLogger.log_state_change(
+        queue_state,
+        :sampling,
+        client.sampling_session_id,
+        server_reason
+      )
+
+      set_debounce_time(debounce_key)
+    end
+
+    :ok
+  end
+
+  @doc """
+  Clear the debounce state for this client.
+
+  Allows immediate logging on the next `on_queue_state_change/2` call.
+  Useful for cleanup or when forcing a fresh log.
+
+  ## Parameters
+
+    * `client` - SamplingClient instance
+
+  ## Returns
+
+    * `:ok`
+  """
+  @spec clear_queue_state_debounce(t()) :: :ok
+  def clear_queue_state_debounce(%__MODULE__{} = client) do
+    debounce_key = debounce_key(client)
+    :persistent_term.erase(debounce_key)
+    :ok
+  rescue
+    # Key may not exist
+    ArgumentError -> :ok
+  end
+
+  # Debounce helpers using :persistent_term
+
+  defp debounce_key(%__MODULE__{sampling_session_id: id}) do
+    {:tinkex_sampling_debounce, id}
+  end
+
+  defp get_debounce_time(key) do
+    :persistent_term.get(key, nil)
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp set_debounce_time(key) do
+    :persistent_term.put(key, System.monotonic_time(:millisecond))
+  end
 end

@@ -42,7 +42,9 @@ defmodule Pristine.Core.PipelineTelemetryHeadersTest do
       transport: Pristine.TransportMock,
       serializer: Pristine.SerializerMock,
       retry: Pristine.RetryMock,
-      telemetry: Pristine.TelemetryMock
+      telemetry: Pristine.TelemetryMock,
+      circuit_breaker: Pristine.CircuitBreakerMock,
+      rate_limiter: Pristine.RateLimitMock
     }
 
     payload = %{"prompt" => "hi"}
@@ -66,6 +68,14 @@ defmodule Pristine.Core.PipelineTelemetryHeadersTest do
     end)
 
     expect(Pristine.RetryMock, :with_retry, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.RateLimitMock, :within_limit, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.CircuitBreakerMock, :call, fn "ping", fun, _opts ->
       fun.()
     end)
 

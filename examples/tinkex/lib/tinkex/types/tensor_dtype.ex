@@ -67,4 +67,46 @@ defmodule Tinkex.Types.TensorDtype do
   @spec to_string(t()) :: String.t()
   def to_string(:int64), do: "int64"
   def to_string(:float32), do: "float32"
+
+  @doc """
+  Convert a Tinkex dtype to an Nx tensor type.
+
+  ## Examples
+
+      iex> TensorDtype.to_nx_type(:int64)
+      :s64
+
+      iex> TensorDtype.to_nx_type(:float32)
+      :f32
+  """
+  @spec to_nx_type(t()) :: atom()
+  def to_nx_type(:int64), do: :s64
+  def to_nx_type(:float32), do: :f32
+
+  @doc """
+  Convert an Nx tensor type to a Tinkex dtype.
+
+  Handles both the new tuple format `{:f, 32}` and legacy atom format `:f32`.
+
+  ## Examples
+
+      iex> TensorDtype.from_nx_type({:s, 64})
+      :int64
+
+      iex> TensorDtype.from_nx_type({:f, 32})
+      :float32
+  """
+  @spec from_nx_type(atom() | {atom(), non_neg_integer()}) :: t()
+  def from_nx_type({:s, 64}), do: :int64
+  def from_nx_type({:s, 32}), do: :int64
+  def from_nx_type({:s, _}), do: :int64
+  def from_nx_type({:f, 32}), do: :float32
+  def from_nx_type({:f, 64}), do: :float32
+  def from_nx_type({:f, _}), do: :float32
+  def from_nx_type({:u, _}), do: :int64
+  # Legacy atom format (for backwards compatibility)
+  def from_nx_type(:s64), do: :int64
+  def from_nx_type(:s32), do: :int64
+  def from_nx_type(:f32), do: :float32
+  def from_nx_type(:f64), do: :float32
 end

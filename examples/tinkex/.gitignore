@@ -1,0 +1,30 @@
+# Build artifacts
+/_build/
+/deps/
+/.fetch
+erl_crash.dump
+*.ez
+*.beam
+
+# Generated files
+/doc/
+/cover/
+
+# Test artifacts
+/tmp/
+
+# Dialyzer
+/priv/plts/
+*.plt
+*.plt.hash
+
+# IDE
+.idea/
+*.swp
+*.swo
+.vscode/
+.elixir_ls/
+
+# OS
+.DS_Store
+Thumbs.db
