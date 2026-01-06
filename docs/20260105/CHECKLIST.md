@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 17 Complete)
+> Last updated: 2026-01-05 (Iteration 18 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 61% complete (109 modules ported)
-> **Tests**: 926 passing (20 new in iteration 17)
-> **Next Action**: Implement streaming support, add SSE integration
+> **Port Progress**: 62% complete (111 modules ported)
+> **Tests**: 948 passing (22 new in iteration 18)
+> **Next Action**: Wire streaming to SamplingClient, add API.Sampling streaming endpoint
 
 ## Legend
 - [ ] Not started
@@ -281,6 +281,16 @@
 - [x] `compute_logprobs/3` - Compute log probabilities
 - [x] `next_seq_id/1` - Atomic sequence ID generation
 - [x] `parse_sample_response/1` - Response parsing
+
+### Streaming Infrastructure (22 tests)
+- [x] Tinkex.Streaming.SampleStream
+  - [x] `decode/1` - Decode SSE chunks to SampleStreamChunk stream
+  - [x] `decode/2` - Decode with options (last_event_id, on_error)
+  - [x] `event_to_chunk/1` - Convert SSE Event to SampleStreamChunk
+  - [x] `collect_text/1` - Collect tokens into full text
+  - [x] Integration with Pristine.Streaming.SSEDecoder
+  - [x] Handles split chunks, [DONE] markers, error events
+  - [x] Event type mapping (:token, :done, :error)
 
 ### Session Types
 - [x] Tinkex.Types.CreateSessionRequest (24 tests total for session types)
