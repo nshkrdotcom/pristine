@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 21 Complete)
+> Last updated: 2026-01-05 (Iteration 22 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 64% complete (113 modules ported)
-> **Tests**: 982 passing (15 new in iteration 21)
-> **Next Action**: Phase 4 - Tinkex.Metrics ETS-based implementation
+> **Port Progress**: 64% complete (114 modules ported)
+> **Tests**: 1000 passing (18 new in iteration 22)
+> **Next Action**: Phase 4 - Tinkex.Retry integration with Foundation
 
 ## Legend
 - [ ] Not started
@@ -464,11 +464,16 @@
 - [x] `init/1` - Initialize reporter for session
 - [x] `handle_event/4` - HTTP and queue telemetry event handlers
 
-### Tinkex.Metrics (1 example)
-- [ ] ETS-based implementation
-- [ ] `reset/0` - Reset all metrics
-- [ ] `flush/0` - Flush metrics
-- [ ] `snapshot/0` - Get current snapshot (p50, p95, p99)
+### Tinkex.Metrics (1 example) - 18 tests
+- [x] GenServer-based implementation with counters, gauges, histograms
+- [x] `start_link/1` - Start metrics server
+- [x] `increment/2` - Increment counter by delta
+- [x] `set_gauge/2` - Set gauge value
+- [x] `record_histogram/2` - Record histogram sample
+- [x] `snapshot/0` - Get current snapshot (p50, p95, p99)
+- [x] `reset/0` - Reset all metrics
+- [x] `flush/0` - Flush pending casts
+- [x] `handle_event/4` - Telemetry handler for HTTP events
 
 ### Tinkex.Retry (2 examples)
 - [ ] Integration with Foundation.Retry
