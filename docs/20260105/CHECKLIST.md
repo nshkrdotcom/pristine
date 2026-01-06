@@ -1,12 +1,12 @@
 # Implementation Checklist - Tinkex Port
 
 > Auto-maintained by iterative development agents
-> Last updated: 2026-01-05 (Iteration 16 Complete)
+> Last updated: 2026-01-05 (Iteration 17 Complete)
 > **Driver**: Examples from ~/p/g/North-Shore-AI/tinkex/examples/
 > **Source**: 179 modules, 75 types, 33 examples, 999 tests across 125 files
-> **Port Progress**: 59% complete (105 modules ported)
-> **Tests**: 906 passing (27 new in iteration 16)
-> **Next Action**: Add remaining missing types, improve streaming support
+> **Port Progress**: 61% complete (109 modules ported)
+> **Tests**: 926 passing (20 new in iteration 17)
+> **Next Action**: Implement streaming support, add SSE integration
 
 ## Legend
 - [ ] Not started
@@ -23,7 +23,7 @@
 - [x] Tinkex.Client - Basic generated client
 - [x] Tinkex.Sampling resource (create_sample, create_sample_async, create_sample_stream)
 - [x] Tinkex.Models resource (list_models, get_model)
-- [x] 9 types: ApiError, AsyncSampleResponse, ContentBlock, Model, ModelList, SampleRequest, SampleResult, SampleStreamEvent, Usage
+- [x] 9 types: ApiError, ApiSampleRequest, AsyncSampleResponse, ContentBlock, Model, ModelList, SampleResult, SampleStreamEvent, Usage
 
 **Manual Implementation (./examples/tinkex/lib/):**
 - [x] Tinkex (main module) - 9 tests
@@ -520,13 +520,20 @@
 - [ ] Orthogonality.compute/3
 - [ ] GradientPenalty.compute/3
 
-### Regularizer Types
-- [ ] Tinkex.Types.RegularizerSpec
-  - [ ] Struct: fn, weight, name, async
-  - [ ] `new/1` with validation
-- [ ] Tinkex.Types.RegularizerOutput
-  - [ ] Struct: name, value, weight, contribution, grad_norm, grad_norm_weighted, custom
-  - [ ] `from_computation/5`
+### Regularizer Types (20 tests)
+- [x] Tinkex.Types.RegularizerSpec
+  - [x] Struct: fn, weight, name, async
+  - [x] `new/1` with validation
+  - [x] `validate!/1` - Validates fn arity, weight, name, async
+- [x] Tinkex.Types.RegularizerOutput
+  - [x] Struct: name, value, weight, contribution, grad_norm, grad_norm_weighted, custom
+  - [x] `from_computation/5`
+  - [x] Jason.Encoder implementation
+- [x] Tinkex.Types.TelemetryResponse
+  - [x] Struct: status
+  - [x] `new/0`, `from_json/1`
+- [x] Tinkex.Types.TypeAliases
+  - [x] Type definitions: model_input_chunk, loss_fn_inputs, loss_fn_output
 
 ### Tinkex.CLI (3 examples)
 - [ ] `run/1` - Execute CLI commands

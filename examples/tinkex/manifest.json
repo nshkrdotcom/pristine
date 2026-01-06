@@ -25,7 +25,7 @@
       "method": "POST",
       "path": "/samples",
       "description": "Create a new sample from a model",
-      "request": "SampleRequest",
+      "request": "ApiSampleRequest",
       "response": "SampleResult",
       "idempotency": true
     },
@@ -35,7 +35,7 @@
       "method": "POST",
       "path": "/samples",
       "description": "Create a streaming sample from a model",
-      "request": "SampleRequest",
+      "request": "ApiSampleRequest",
       "response": "SampleStreamEvent",
       "streaming": true
     },
@@ -53,7 +53,7 @@
       "method": "POST",
       "path": "/samples/async",
       "description": "Create a sample asynchronously, returns a future",
-      "request": "SampleRequest",
+      "request": "ApiSampleRequest",
       "response": "AsyncSampleResponse"
     }
   ],
@@ -107,7 +107,7 @@
         }
       }
     },
-    "SampleRequest": {
+    "ApiSampleRequest": {
       "fields": {
         "model": {
           "type": "string",
