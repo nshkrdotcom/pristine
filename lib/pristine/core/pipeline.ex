@@ -776,34 +776,41 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp normalize_transform_opts(nil), do: []
-  defp normalize_transform_opts(opts) when is_list(opts), do: opts
 
   defp normalize_transform_opts(opts) when is_map(opts) do
-    Enum.reduce(opts, [], fn {key, value}, acc ->
-      case normalize_transform_key(key) do
-        nil -> acc
-        normalized -> Keyword.put(acc, normalized, value)
-      end
+    Enum.map(opts, fn {key, value} ->
+      {normalize_transform_key(key), value}
     end)
   end
 
-  defp normalize_transform_opts(_opts), do: []
+  defp normalize_transform_opts(opts) when is_list(opts) do
+    cond do
+      Keyword.keyword?(opts) ->
+        opts
 
-  defp normalize_transform_key(key) when is_atom(key),
-    do: normalize_transform_key(Atom.to_string(key))
+      Enum.all?(opts, &match?([_, _], &1)) ->
+        Enum.map(opts, fn [key, value] ->
+          {normalize_transform_key(key), value}
+        end)
 
-  defp normalize_transform_key(key) when is_binary(key) do
-    case key do
-      "aliases" -> :aliases
-      "formats" -> :formats
-      "drop_nil?" -> :drop_nil?
-      "schema" -> :schema
-      "use_aliases" -> :use_aliases
-      _ -> nil
+      true ->
+        []
     end
   end
 
-  defp normalize_transform_key(_), do: nil
+  defp normalize_transform_key(key) when is_atom(key), do: key
+
+  defp normalize_transform_key(key) when is_binary(key) do
+    case key do
+      "drop_nil?" -> :drop_nil?
+      "drop_nil" -> :drop_nil?
+      "aliases" -> :aliases
+      "formats" -> :formats
+      "use_aliases" -> :use_aliases
+      "schema" -> :schema
+      other -> other
+    end
+  end
 
   defp resolve_auth(auth, nil) when is_list(auth), do: auth
   defp resolve_auth(auth, nil) when is_map(auth), do: Map.get(auth, "default", [])

@@ -75,42 +75,124 @@ defmodule Pristine.MixProject do
       assets: %{"assets" => "assets"},
       logo: "assets/pristine.svg",
       extras: [
-        "README.md"
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "guides/getting-started.md",
+        "guides/architecture.md",
+        "guides/manifests.md",
+        "guides/ports-and-adapters.md",
+        "guides/code-generation.md",
+        "guides/streaming.md",
+        "guides/pipeline.md"
+      ],
+      groups_for_extras: [
+        Introduction: [
+          "README.md",
+          "CHANGELOG.md",
+          "guides/getting-started.md"
+        ],
+        Architecture: [
+          "guides/architecture.md",
+          "guides/ports-and-adapters.md",
+          "guides/pipeline.md"
+        ],
+        "API Definition": [
+          "guides/manifests.md",
+          "guides/code-generation.md"
+        ],
+        Features: [
+          "guides/streaming.md"
+        ]
       ],
       groups_for_modules: [
         "Core Pipeline": [
           Pristine,
-          Pristine.Pipeline,
-          Pristine.Pipeline.Context,
-          Pristine.Pipeline.Step
+          Pristine.Core.Pipeline,
+          Pristine.Core.Context,
+          Pristine.Core.Request,
+          Pristine.Core.Response,
+          Pristine.Core.StreamResponse
         ],
         Manifest: [
           Pristine.Manifest,
-          Pristine.Manifest.Normalizer,
-          Pristine.Manifest.Validator
+          Pristine.Manifest.Loader,
+          Pristine.Manifest.Schema,
+          Pristine.Manifest.Endpoint
         ],
         "Code Generation": [
           Pristine.Codegen,
-          Pristine.Codegen.TypeGenerator,
-          Pristine.Codegen.ClientGenerator,
-          Pristine.Codegen.ResourceGenerator
+          Pristine.Codegen.Elixir,
+          Pristine.Codegen.Type,
+          Pristine.Codegen.Resource
+        ],
+        Streaming: [
+          Pristine.Streaming.Event,
+          Pristine.Streaming.SSEDecoder
         ],
         Ports: [
           Pristine.Ports.Transport,
+          Pristine.Ports.StreamTransport,
           Pristine.Ports.Serializer,
-          Pristine.Ports.Retry,
-          Pristine.Ports.Telemetry,
           Pristine.Ports.Auth,
+          Pristine.Ports.Retry,
           Pristine.Ports.CircuitBreaker,
-          Pristine.Ports.RateLimit
+          Pristine.Ports.RateLimit,
+          Pristine.Ports.Telemetry,
+          Pristine.Ports.Compression,
+          Pristine.Ports.Multipart,
+          Pristine.Ports.Tokenizer,
+          Pristine.Ports.Semaphore,
+          Pristine.Ports.BytesSemaphore,
+          Pristine.Ports.Future,
+          Pristine.Ports.PoolManager,
+          Pristine.Ports.Streaming
         ],
-        Adapters: [
-          Pristine.Adapters.Finch,
-          Pristine.Adapters.Jason
+        "Transport Adapters": [
+          Pristine.Adapters.Transport.Finch,
+          Pristine.Adapters.Transport.FinchStream
         ],
-        Types: [
-          Pristine.Types,
-          Pristine.Schema
+        "Serializer Adapters": [
+          Pristine.Adapters.Serializer.JSON
+        ],
+        "Auth Adapters": [
+          Pristine.Adapters.Auth.Bearer,
+          Pristine.Adapters.Auth.APIKey,
+          Pristine.Adapters.Auth.APIKeyAlias
+        ],
+        "Resilience Adapters": [
+          Pristine.Adapters.Retry.Foundation,
+          Pristine.Adapters.Retry.Noop,
+          Pristine.Adapters.CircuitBreaker.Foundation,
+          Pristine.Adapters.CircuitBreaker.Noop,
+          Pristine.Adapters.RateLimit.BackoffWindow,
+          Pristine.Adapters.RateLimit.Noop
+        ],
+        "Telemetry Adapters": [
+          Pristine.Adapters.Telemetry.Foundation,
+          Pristine.Adapters.Telemetry.Raw,
+          Pristine.Adapters.Telemetry.Reporter,
+          Pristine.Adapters.Telemetry.Noop
+        ],
+        "Other Adapters": [
+          Pristine.Adapters.Compression.Gzip,
+          Pristine.Adapters.Multipart.Ex,
+          Pristine.Adapters.Tokenizer.Tiktoken,
+          Pristine.Adapters.Streaming.SSE,
+          Pristine.Adapters.Semaphore.Counting,
+          Pristine.Adapters.BytesSemaphore.GenServer,
+          Pristine.Adapters.Future.Polling,
+          Pristine.Adapters.PoolManager
+        ],
+        Utilities: [
+          Pristine.Core.Url,
+          Pristine.Core.Headers,
+          Pristine.Core.Auth,
+          Pristine.Core.Querystring,
+          Pristine.Core.Types,
+          Pristine.Core.TelemetryHeaders,
+          Pristine.PoolKey,
+          Pristine.Error
         ]
       ]
     ]
@@ -120,7 +202,7 @@ defmodule Pristine.MixProject do
     [
       name: "pristine",
       description: description(),
-      files: ~w(lib mix.exs README.md assets),
+      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE assets guides),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,

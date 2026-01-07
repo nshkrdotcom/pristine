@@ -1,89 +1,119 @@
-<svg width="220" height="220" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">Pristine</title>
-  <desc id="desc">Hexagonal emblem with layered cores and precise circuit lines.</desc>
+  <desc id="desc">Hexagonal emblem symbolizing purity, precision, and clean Elixir code.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="220" y2="220" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0b1117"/>
-      <stop offset="0.5" stop-color="#111a24"/>
-      <stop offset="1" stop-color="#0a0f14"/>
-    </linearGradient>
-    <linearGradient id="hexFill" x1="28" y1="24" x2="188" y2="196" gradientUnits="userSpaceOnUse">
+    <linearGradient id="hexFill" x1="25" y1="20" x2="171" y2="173" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#0f1721"/>
       <stop offset="0.6" stop-color="#142131"/>
       <stop offset="1" stop-color="#0c141c"/>
     </linearGradient>
-    <linearGradient id="hexStroke" x1="34" y1="56" x2="190" y2="156" gradientUnits="userSpaceOnUse">
+    <linearGradient id="hexStroke" x1="31" y1="49" x2="173" y2="138" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#d8f1ff"/>
       <stop offset="0.35" stop-color="#6cc3ff"/>
       <stop offset="0.7" stop-color="#2c7abf"/>
       <stop offset="1" stop-color="#163a5a"/>
     </linearGradient>
-    <radialGradient id="coreGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(112 86) rotate(90) scale(86)">
-      <stop offset="0" stop-color="#bfe5ff" stop-opacity="0.95"/>
-      <stop offset="0.5" stop-color="#4b9ad6" stop-opacity="0.5"/>
+    <radialGradient id="centerGlow" cx="100" cy="96" r="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e0f4ff" stop-opacity="0.9"/>
+      <stop offset="0.4" stop-color="#6cc3ff" stop-opacity="0.4"/>
       <stop offset="1" stop-color="#0b2136" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="core" x1="72" y1="60" x2="152" y2="160" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#e6f6ff"/>
-      <stop offset="0.5" stop-color="#79c7ff"/>
-      <stop offset="1" stop-color="#2d6ea5"/>
+    <linearGradient id="diamondFill" x1="70" y1="66" x2="130" y2="126" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.3" stop-color="#d0efff"/>
+      <stop offset="0.7" stop-color="#79c7ff"/>
+      <stop offset="1" stop-color="#3d8cc7"/>
     </linearGradient>
-    <linearGradient id="ring" x1="78" y1="78" x2="144" y2="144" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#e8fbff" stop-opacity="0.9"/>
-      <stop offset="1" stop-color="#4aa3e0" stop-opacity="0.2"/>
+    <linearGradient id="diamondStroke" x1="80" y1="76" x2="120" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#6cc3ff"/>
     </linearGradient>
-    <pattern id="grid" width="16" height="14" patternUnits="userSpaceOnUse">
-      <path d="M8 0 L16 4.5 L16 13.5 L8 18 L0 13.5 L0 4.5 Z" fill="none" stroke="#9bd3ff" stroke-opacity="0.12" stroke-width="0.7"/>
+    <linearGradient id="ringGrad" x1="60" y1="56" x2="140" y2="136" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e8fbff" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#4aa3e0" stop-opacity="0.15"/>
+    </linearGradient>
+    <pattern id="grid" width="15" height="13" patternUnits="userSpaceOnUse">
+      <path d="M7.5 0 L15 4.2 L15 12.6 L7.5 16.8 L0 12.6 L0 4.2 Z" fill="none" stroke="#9bd3ff" stroke-opacity="0.1" stroke-width="0.5"/>
     </pattern>
     <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#02060a" flood-opacity="0.7"/>
+      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#02060a" flood-opacity="0.7"/>
     </filter>
-    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
-      <feGaussianBlur stdDeviation="2" result="blur"/>
+    <filter id="innerGlow" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
       <feColorMatrix in="blur" type="matrix" values="
-        1 0 0 0 0.2
-        0 1 0 0 0.5
-        0 0 1 0 0.9
-        0 0 0 0.65 0" result="colored"/>
+        1 0 0 0 0.3
+        0 1 0 0 0.7
+        0 0 1 0 1
+        0 0 0 0.8 0" result="colored"/>
       <feBlend in="SourceGraphic" in2="colored" mode="screen"/>
     </filter>
     <clipPath id="hexClip">
-      <polygon points="110 16 190 60 190 160 110 204 30 160 30 60"/>
+      <polygon points="100 17 166 54 166 137 100 175 34 137 34 54"/>
     </clipPath>
   </defs>
 
-  <rect width="220" height="220" fill="url(#bg)"/>
-
+  <!-- Main hexagon -->
   <g filter="url(#shadow)">
-    <polygon points="110 8 198 56 198 164 110 212 22 164 22 56" fill="url(#hexFill)" stroke="url(#hexStroke)" stroke-width="6"/>
+    <polygon points="100 7 175 48 175 143 100 185 25 143 25 48" fill="url(#hexFill)" stroke="url(#hexStroke)" stroke-width="5"/>
   </g>
 
-  <polygon points="110 20 186 62 186 158 110 200 34 158 34 62" fill="none" stroke="#86c9ff" stroke-opacity="0.35" stroke-width="2"/>
+  <!-- Inner hexagon border -->
+  <polygon points="100 17 166 54 166 137 100 175 34 137 34 54" fill="none" stroke="#86c9ff" stroke-opacity="0.3" stroke-width="1.5"/>
 
+  <!-- Subtle grid background -->
   <g clip-path="url(#hexClip)">
-    <rect x="22" y="22" width="176" height="176" fill="url(#grid)"/>
-    <rect x="22" y="22" width="176" height="176" fill="url(#coreGlow)" opacity="0.35"/>
+    <rect x="22" y="18" width="156" height="156" fill="url(#grid)"/>
   </g>
 
-  <g filter="url(#softGlow)">
-    <circle cx="110" cy="104" r="52" fill="none" stroke="url(#ring)" stroke-width="3" stroke-dasharray="2 6"/>
-    <circle cx="88" cy="92" r="30" fill="url(#core)"/>
-    <circle cx="132" cy="120" r="30" fill="url(#core)"/>
-    <circle cx="124" cy="80" r="18" fill="#e2f5ff" fill-opacity="0.6"/>
-    <path d="M72 136 C86 108, 108 102, 136 114 C160 124, 158 148, 136 162 C112 178, 82 172, 72 154" fill="#b6e5ff" fill-opacity="0.25"/>
+  <!-- Center glow -->
+  <circle cx="100" cy="96" r="50" fill="url(#centerGlow)" opacity="0.5"/>
+
+  <!-- Pristine diamond/crystal - central element -->
+  <g filter="url(#innerGlow)">
+    <!-- Outer precision ring -->
+    <circle cx="100" cy="96" r="42" fill="none" stroke="url(#ringGrad)" stroke-width="1.5"/>
+    
+    <!-- Inner precision ring -->
+    <circle cx="100" cy="96" r="32" fill="none" stroke="#9bd3ff" stroke-opacity="0.25" stroke-width="1"/>
+    
+    <!-- Central diamond shape - symbol of pristine purity -->
+    <polygon points="100 62 128 96 100 130 72 96" fill="url(#diamondFill)" fill-opacity="0.85" stroke="url(#diamondStroke)" stroke-width="2"/>
+    
+    <!-- Diamond facet lines - precision cuts -->
+    <g stroke="#ffffff" stroke-opacity="0.6" stroke-width="1" stroke-linecap="round">
+      <line x1="100" y1="62" x2="100" y2="130"/>
+      <line x1="72" y1="96" x2="128" y2="96"/>
+      <line x1="86" y1="79" x2="114" y2="113"/>
+      <line x1="114" y1="79" x2="86" y2="113"/>
+    </g>
+    
+    <!-- Diamond highlight - top facet -->
+    <polygon points="100 62 114 79 100 88 86 79" fill="#ffffff" fill-opacity="0.5"/>
   </g>
 
-  <g stroke="#8fd4ff" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round">
-    <path d="M64 82 L82 82"/>
-    <path d="M138 144 L156 144"/>
-    <path d="M144 90 L156 78"/>
-    <path d="M76 132 L60 146"/>
+  <!-- Precision accent lines extending from center -->
+  <g stroke="#8fd4ff" stroke-opacity="0.4" stroke-width="1.2" stroke-linecap="round">
+    <!-- Top -->
+    <line x1="100" y1="50" x2="100" y2="38"/>
+    <!-- Bottom -->
+    <line x1="100" y1="142" x2="100" y2="154"/>
+    <!-- Top-right -->
+    <line x1="130" y1="68" x2="142" y2="58"/>
+    <!-- Top-left -->
+    <line x1="70" y1="68" x2="58" y2="58"/>
+    <!-- Bottom-right -->
+    <line x1="130" y1="124" x2="142" y2="134"/>
+    <!-- Bottom-left -->
+    <line x1="70" y1="124" x2="58" y2="134"/>
   </g>
 
-  <g fill="#cfeeff" opacity="0.85">
-    <circle cx="58" cy="106" r="2"/>
-    <circle cx="162" cy="98" r="2.5"/>
-    <circle cx="92" cy="150" r="1.8"/>
-    <circle cx="132" cy="66" r="1.5"/>
+  <!-- Corner accent dots - precision markers -->
+  <g fill="#cfeeff" opacity="0.7">
+    <circle cx="100" cy="34" r="2"/>
+    <circle cx="100" cy="158" r="2"/>
+    <circle cx="148" cy="55" r="1.8"/>
+    <circle cx="52" cy="55" r="1.8"/>
+    <circle cx="148" cy="137" r="1.8"/>
+    <circle cx="52" cy="137" r="1.8"/>
   </g>
 </svg>
