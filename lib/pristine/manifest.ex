@@ -208,7 +208,7 @@ defmodule Pristine.Manifest do
            tags: normalize_string_list(endpoint, :tags),
            error_types: normalize_list(endpoint, :error_types),
            response_unwrap: normalize_value(endpoint, :response_unwrap),
-           transform: normalize_optional(endpoint, :transform)
+           transform: normalize_transform(endpoint)
          }}
     end
   end
@@ -313,6 +313,13 @@ defmodule Pristine.Manifest do
     case normalize_value(map, key) do
       nil -> nil
       value -> normalize_key(value)
+    end
+  end
+
+  defp normalize_transform(map) when is_map(map) do
+    case normalize_value(map, :transform) do
+      nil -> nil
+      value -> value
     end
   end
 
