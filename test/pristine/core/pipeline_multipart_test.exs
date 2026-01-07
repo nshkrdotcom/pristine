@@ -44,7 +44,8 @@ defmodule Pristine.Core.PipelineMultipartTest do
       serializer: Pristine.SerializerMock,
       multipart: Pristine.MultipartMock,
       retry: Pristine.RetryMock,
-      telemetry: Pristine.TelemetryMock
+      telemetry: Pristine.TelemetryMock,
+      circuit_breaker: Pristine.Adapters.CircuitBreaker.Noop
     }
 
     payload = %{file: "hello"}

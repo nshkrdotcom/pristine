@@ -87,8 +87,8 @@ defmodule Pristine.Codegen.Resource do
         {_required, optional, _literal} = split_fields(fields, path_params)
 
         acc
-        |> Map.put(:maybe_put, acc.maybe_put or length(optional) > 0)
-        |> Map.put(:merge_path_params, acc.merge_path_params or length(path_params) > 0)
+        |> Map.put(:maybe_put, acc.maybe_put or optional != [])
+        |> Map.put(:merge_path_params, acc.merge_path_params or path_params != [])
         |> Map.put(:encode_ref, acc.encode_ref or has_ref_fields?(fields, types))
       end
     )

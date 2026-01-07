@@ -3,6 +3,17 @@ defmodule Tinkex.LoggingTest do
 
   alias Tinkex.Logging
 
+  # Restore Logger level after each test to prevent polluting other tests
+  setup do
+    original_level = Logger.level()
+
+    on_exit(fn ->
+      Logger.configure(level: original_level)
+    end)
+
+    :ok
+  end
+
   describe "maybe_set_level/1" do
     test "returns :ok for nil" do
       assert Logging.maybe_set_level(nil) == :ok

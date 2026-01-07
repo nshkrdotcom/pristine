@@ -3,7 +3,10 @@ defmodule Tinkex.API.Compression do
   Response compression handling for Tinkex API.
 
   Handles gzip decompression and content-encoding header management.
+  Delegates to `Pristine.Adapters.Compression.Gzip` for the actual decompression.
   """
+
+  alias Pristine.Adapters.Compression.Gzip
 
   @doc """
   Decompresses a Finch response if it's gzip-encoded.
@@ -26,11 +29,9 @@ defmodule Tinkex.API.Compression do
     case normalized_header(response.headers, "content-encoding") do
       "gzip" ->
         body =
-          try do
-            :zlib.gunzip(response.body)
-          rescue
-            _ ->
-              response.body
+          case Gzip.decompress(response.body) do
+            {:ok, decompressed} -> decompressed
+            {:error, _} -> response.body
           end
 
         %{response | body: body, headers: strip_content_encoding(response.headers)}
