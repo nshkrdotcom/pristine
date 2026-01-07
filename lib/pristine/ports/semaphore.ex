@@ -54,9 +54,32 @@ defmodule Pristine.Ports.Semaphore do
   @callback release(name :: term()) :: :ok
 
   @doc """
+  Acquire a permit with backoff using a registry-backed semaphore.
+  """
+  @callback acquire_blocking(
+              registry :: term(),
+              name :: term(),
+              max :: pos_integer(),
+              backoff :: term(),
+              opts :: keyword()
+            ) :: :ok
+
+  @doc """
+  Release a permit for a registry-backed semaphore.
+  """
+  @callback release(registry :: term(), name :: term()) :: :ok
+
+  @doc """
   Get the number of available permits.
   """
   @callback available(name :: term()) :: non_neg_integer()
 
-  @optional_callbacks [init: 2, acquire: 2, release: 1, available: 1]
+  @optional_callbacks [
+    init: 2,
+    acquire: 2,
+    release: 1,
+    available: 1,
+    acquire_blocking: 5,
+    release: 2
+  ]
 end

@@ -13,7 +13,11 @@ defmodule Tinkex.MixProject do
       deps: deps(),
       test_coverage: [tool: ExCoveralls],
       name: "Tinkex",
-      description: "Elixir SDK for the Tinker ML Training Platform"
+      description: "Elixir SDK for the Tinker ML Training Platform",
+      dialyzer: [
+        plt_add_apps: [:ex_unit],
+        flags: [:error_handling, :underspecs]
+      ]
     ]
   end
 
@@ -61,7 +65,11 @@ defmodule Tinkex.MixProject do
       {:supertester, path: "../../../supertester", only: :test},
       {:mox, "~> 1.1", only: :test},
       {:bypass, "~> 2.1", only: :test},
-      {:excoveralls, "~> 0.18", only: :test}
+      {:excoveralls, "~> 0.18", only: :test},
+
+      # Code Quality
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 end

@@ -15,7 +15,7 @@ defmodule Pristine.Adapters.Retry.Foundation do
 
   @impl true
   def with_retry(fun, opts) when is_function(fun, 0) do
-    policy = normalize_policy(opts)
+    {policy, opts} = normalize_policy_opts(opts)
     sleep_fun = Keyword.get(opts, :sleep_fun, &Process.sleep/1)
     time_fun = Keyword.get(opts, :time_fun, &System.monotonic_time/1)
     before_attempt = Keyword.get(opts, :before_attempt, fn _attempt -> :ok end)
@@ -70,7 +70,19 @@ defmodule Pristine.Adapters.Retry.Foundation do
       iex> Pristine.Adapters.Retry.Foundation.parse_retry_after(%{"retry-after" => "5"})
       5000
   """
+  def parse_retry_after(%{headers: headers}), do: HTTP.parse_retry_after(headers)
+  def parse_retry_after(%{"headers" => headers}), do: HTTP.parse_retry_after(headers)
   def parse_retry_after(headers), do: HTTP.parse_retry_after(headers)
+
+  @impl true
+  def build_policy(opts \\ []) do
+    Retry.Policy.new(opts)
+  end
+
+  @impl true
+  def build_backoff(opts \\ []) do
+    Backoff.Policy.new(opts)
+  end
 
   @doc """
   Create a retry policy with HTTP-aware retry-after support.
@@ -112,6 +124,24 @@ defmodule Pristine.Adapters.Retry.Foundation do
   defp normalize_policy(%Retry.Policy{} = policy), do: policy
   defp normalize_policy(opts) when is_list(opts), do: Retry.Policy.new(opts)
   defp normalize_policy(_), do: Retry.Policy.new()
+
+  defp normalize_policy_opts(opts) when is_list(opts) do
+    case Keyword.pop(opts, :policy) do
+      {nil, remaining} ->
+        {normalize_policy(remaining), remaining}
+
+      {%Retry.Policy{} = policy, remaining} ->
+        {policy, remaining}
+
+      {policy_opts, remaining} when is_list(policy_opts) ->
+        {Retry.Policy.new(policy_opts), remaining}
+
+      {_other, remaining} ->
+        {Retry.Policy.new(), remaining}
+    end
+  end
+
+  defp normalize_policy_opts(opts), do: {normalize_policy(opts), []}
 
   defp wrap_fun(fun, %Retry.Policy{} = policy) do
     fn ->

@@ -207,7 +207,8 @@ defmodule Pristine.Manifest do
            deprecated: normalize_boolean(endpoint, :deprecated, false),
            tags: normalize_string_list(endpoint, :tags),
            error_types: normalize_list(endpoint, :error_types),
-           response_unwrap: normalize_value(endpoint, :response_unwrap)
+           response_unwrap: normalize_value(endpoint, :response_unwrap),
+           transform: normalize_optional(endpoint, :transform)
          }}
     end
   end

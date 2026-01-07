@@ -10,7 +10,7 @@ defmodule Pristine.Adapters.Telemetry.Reporter do
 
   @impl true
   def emit(event, meta, meas) do
-    TelemetryReporter.log(TelemetryReporter, to_string(event), %{meta: meta, meas: meas})
+    TelemetryReporter.log(TelemetryReporter, format_event(event), %{meta: meta, meas: meas})
     :ok
   end
 
@@ -40,4 +40,7 @@ defmodule Pristine.Adapters.Telemetry.Reporter do
   def emit_gauge(event, value, metadata) do
     emit(event, metadata, %{value: value})
   end
+
+  defp format_event(event) when is_atom(event), do: Atom.to_string(event)
+  defp format_event(event) when is_list(event), do: Enum.map_join(event, ".", &Atom.to_string/1)
 end

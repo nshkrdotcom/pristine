@@ -30,7 +30,8 @@ defmodule Pristine.Manifest.Endpoint do
             deprecated: false,
             tags: nil,
             error_types: nil,
-            response_unwrap: nil
+            response_unwrap: nil,
+            transform: nil
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -60,6 +61,7 @@ defmodule Pristine.Manifest.Endpoint do
           deprecated: boolean(),
           tags: [String.t()] | nil,
           error_types: list() | nil,
-          response_unwrap: String.t() | nil
+          response_unwrap: String.t() | nil,
+          transform: map() | list() | nil
         }
 end

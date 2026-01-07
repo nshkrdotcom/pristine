@@ -39,8 +39,8 @@ defmodule Pristine.Adapters.Telemetry.Foundation do
   Emit a telemetry event under the [:pristine, event] prefix.
   """
   def emit(event, metadata, measurements)
-      when is_atom(event) and is_map(metadata) and is_map(measurements) do
-    :telemetry.execute([:pristine, event], measurements, metadata)
+      when (is_atom(event) or is_list(event)) and is_map(metadata) and is_map(measurements) do
+    :telemetry.execute(normalize_event(event), measurements, metadata)
     :ok
   end
 
@@ -53,7 +53,7 @@ defmodule Pristine.Adapters.Telemetry.Foundation do
   before re-raising.
   """
   def measure(event, metadata, fun)
-      when is_atom(event) and is_map(metadata) and is_function(fun, 0) do
+      when (is_atom(event) or is_list(event)) and is_map(metadata) and is_function(fun, 0) do
     start_time = System.monotonic_time()
 
     try do
@@ -75,7 +75,8 @@ defmodule Pristine.Adapters.Telemetry.Foundation do
 
   Emits an event with `%{count: 1}` measurement.
   """
-  def emit_counter(event, metadata) when is_atom(event) and is_map(metadata) do
+  def emit_counter(event, metadata)
+      when (is_atom(event) or is_list(event)) and is_map(metadata) do
     emit(event, metadata, %{count: 1})
   end
 
@@ -86,7 +87,11 @@ defmodule Pristine.Adapters.Telemetry.Foundation do
   Emits an event with `%{value: value}` measurement.
   """
   def emit_gauge(event, value, metadata)
-      when is_atom(event) and is_number(value) and is_map(metadata) do
+      when (is_atom(event) or is_list(event)) and is_number(value) and is_map(metadata) do
     emit(event, metadata, %{value: value})
   end
+
+  defp normalize_event(event) when is_atom(event), do: [:pristine, event]
+  defp normalize_event([:pristine | _] = event), do: event
+  defp normalize_event(event) when is_list(event), do: [:pristine | event]
 end

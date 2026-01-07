@@ -129,39 +129,54 @@ The prompt is designed for repeated execution - each agent picks up where the pr
 
 ## Implementation Status
 
-**Current Phase**: Phase 0 - Project Setup (Test Fixes)
+**Current Phase**: Phase 2 - Infrastructure Replacement (In Progress)
 **Last Updated**: 2026-01-06
+**Goal**: Downsize examples/tinkex from 22,357 lines to ~5,000 lines
 
 ### Completed
 - [x] Architecture documentation (docs/20260106/)
-- [x] ARCHITECTURE.md - Overall design
-- [x] DELINEATION.md - What goes where (Pristine vs Tinkex)
-- [x] PRISTINE_EXTENSIONS.md - Required Pristine additions
-- [x] TINKEX_MINIMAL.md - Thin tinkex specification
-- [x] MIGRATION_PLAN.md - Implementation phases with TDD
-- [x] Existing lib/tinkex files ported
-- [x] Existing test files created
-- [x] Phase 0 setup files:
-  - [x] Create mix.exs with pristine path dep
-  - [x] Create .gitignore
-  - [x] Create .formatter.exs
-  - [x] Add supertester as test dependency
-  - [x] Update test/test_helper.exs
+- [x] Phase 0: Test Fixes
+  - [x] Fixed Logger level pollution in LoggingTest (was setting global to :error)
+  - [x] All 1702 tests pass with seed 0, 12345, and random
+- [x] Analysis and Planning (docs/20260106/salvage-assessment/, tdd-downsize-plan/)
+  - [x] Feature inventory: 173 files, 67 types, 5 clients, 8 regularizers
+  - [x] Module mapping: 4 direct replacements, 5 need extensions, 80+ domain-specific
+  - [x] TDD execution plan created
+- [x] Phase 1: Pristine Extensions
+  - [x] BytesSemaphore port + adapter (lib/pristine/ports/bytes_semaphore.ex)
+  - [x] Compression port + adapter (lib/pristine/adapters/compression/gzip.ex)
+  - [x] 33 new tests added to Pristine (387 total tests, all pass)
+- [x] Phase 2 (partial): Infrastructure Replacement
+  - [x] Tinkex.BytesSemaphore → thin wrapper (170 → 49 lines)
+  - [x] Tinkex.API.Compression → delegates to Pristine.Adapters.Compression.Gzip
 
 ### In Progress
-- [ ] Phase 0: Fix test suite with supertester isolation
-  - [ ] Fix SamplingClientObservabilityTest (8 failures - log capture)
-  - [ ] Fix TrainingClient encode test (1 failure - tokenizer)
-  - [ ] Verify: `mix test --seed 0` and `mix test --seed 12345` both pass
+- [ ] Phase 2 (continued): More infrastructure replacements
+  - [ ] Tinkex.Semaphore → Pristine.Adapters.Semaphore.Counting
+  - [ ] API layer → Pristine.Core.Pipeline integration
 
 ### Next Up
-- [ ] Phase 1: Pristine Extensions (compression, bytes semaphore, session mgmt, env utils)
-- [ ] Phase 2: Tinkex Manifest (define all API endpoints)
-- [ ] Phase 3: Tinkex Types with Sinter validation
-- [ ] Phase 4: Core Clients (ServiceClient, TrainingClient, SamplingClient, RestClient)
-- [ ] Phase 5: Domain Features (Regularizers, Recovery, Streaming)
-- [ ] Phase 6: CLI (Optional)
-- [ ] Phase 7: Integration Testing
+- [ ] Phase 3: Create tinkex manifest (JSON/YAML API definition)
+- [ ] Phase 4: Generate types from manifest (4,201 lines → generated)
+- [ ] Phase 5: Wire HTTP to Pristine pipeline (2,641 lines API layer)
+- [ ] Phase 6: Final cleanup
 
-### Blockers/Decisions
-- Test failures must be fixed with proper supertester isolation before proceeding
+### Current Status
+- **Tests**: 1702 passing (all seeds: 0, 12345, random)
+- **Line Count**: 22,237 (reduced from 22,357)
+- **Compilation**: Clean (no warnings)
+- **Dialyzer**: Clean (no errors) for Pristine core
+- **Credo**: Clean (no issues) for Pristine core
+
+### Line Count Breakdown (Potential Savings)
+| Component | Lines | Can Replace? | Potential |
+|-----------|-------|--------------|-----------|
+| Types (67 modules) | 4,201 | Generate from manifest | ~4,000 |
+| API layer | 2,641 | Pristine pipeline | ~2,000 |
+| Infrastructure | ~2,500 | Pristine ports | ~1,500 |
+| Domain logic | ~13,000 | Keep (core SDK) | 0 |
+| **Total potential** | - | - | **~7,500** |
+
+### Key Documentation
+- `docs/20260106/salvage-assessment/` - What to keep vs discard
+- `docs/20260106/tdd-downsize-plan/EXECUTION_PLAN.md` - Detailed TDD phases

@@ -100,10 +100,12 @@ defmodule Pristine.Test.MockServer do
       startup_log: false
     ]
 
-    {:ok, bandit_pid} = Bandit.start_link(bandit_opts)
+    bandit_module = Bandit
+    {:ok, bandit_pid} = bandit_module.start_link(bandit_opts)
 
     # Get the actual port
-    {:ok, {_, actual_port}} = ThousandIsland.listener_info(bandit_pid)
+    thousand_island_module = ThousandIsland
+    {:ok, {_, actual_port}} = thousand_island_module.listener_info(bandit_pid)
 
     {:ok,
      %__MODULE__{

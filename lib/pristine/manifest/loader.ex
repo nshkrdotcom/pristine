@@ -16,13 +16,22 @@ defmodule Pristine.Manifest.Loader do
         {:ok, manifest}
 
       ".yaml" ->
-        {:error, :yaml_not_supported}
+        decode_yaml_or_json(path)
 
       ".yml" ->
-        {:error, :yaml_not_supported}
+        decode_yaml_or_json(path)
 
       other ->
         {:error, {:unsupported_extension, other}}
+    end
+  end
+
+  defp decode_yaml_or_json(path) do
+    with {:ok, data} <- File.read(path),
+         {:ok, manifest} <- Jason.decode(data) do
+      {:ok, manifest}
+    else
+      {:error, _} -> {:error, :yaml_not_supported}
     end
   end
 end

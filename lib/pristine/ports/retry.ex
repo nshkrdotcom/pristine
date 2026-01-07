@@ -18,10 +18,20 @@ defmodule Pristine.Ports.Retry do
   @callback should_retry?(map()) :: boolean()
 
   @doc """
+  Build a retry policy struct from keyword options.
+  """
+  @callback build_policy(keyword()) :: term()
+
+  @doc """
+  Build a backoff policy struct from keyword options.
+  """
+  @callback build_backoff(keyword()) :: term()
+
+  @doc """
   Parse retry delay from HTTP response headers.
   Returns delay in milliseconds, or nil if not available.
   """
   @callback parse_retry_after(map()) :: non_neg_integer() | nil
 
-  @optional_callbacks [should_retry?: 1, parse_retry_after: 1]
+  @optional_callbacks [should_retry?: 1, parse_retry_after: 1, build_policy: 1, build_backoff: 1]
 end

@@ -35,7 +35,7 @@ defmodule Pristine.Adapters.Transport.FinchStream do
 
   @impl true
   def stream(%Request{} = request, %Context{} = context) do
-    finch_name = get_finch_name(context)
+    finch_name = Map.get(request.metadata, :pool_name, get_finch_name(context))
     timeout = get_timeout(context)
 
     finch_request = build_finch_request(request)

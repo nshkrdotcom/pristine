@@ -94,6 +94,16 @@ defmodule Pristine.Adapters.Semaphore.Counting do
   end
 
   @impl true
+  def acquire_blocking(registry, name, max, backoff, opts \\ []) do
+    FoundationSemaphore.acquire_blocking(registry, name, max, backoff, opts)
+  end
+
+  @impl true
+  def release(registry, name) do
+    FoundationSemaphore.release(registry, name)
+  end
+
+  @impl true
   @doc """
   Get the number of available permits.
 
