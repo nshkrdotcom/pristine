@@ -25,7 +25,7 @@ defmodule Pristine.Codegen.Elixir do
   def render_client_module(module_name, manifest) when is_map(manifest) do
     manifest_literal = inspect(manifest, pretty: true, limit: :infinity)
     moduledoc = render_moduledoc(manifest)
-    endpoints = Map.get(manifest, :endpoints) || Map.get(manifest, "endpoints") || []
+    endpoints = manifest_endpoints(manifest)
     resources = get_unique_resources(endpoints)
     ungrouped = get_ungrouped_endpoints(endpoints)
     base_namespace = get_base_namespace(module_name)
@@ -42,7 +42,7 @@ defmodule Pristine.Codegen.Elixir do
       @manifest #{manifest_literal}
 
       @doc "Returns the manifest used to generate this client."
-      @spec manifest() :: map()
+      @spec manifest() :: Pristine.Manifest.t()
       def manifest, do: @manifest
 
       @doc \"\"\"
@@ -59,7 +59,7 @@ defmodule Pristine.Codegen.Elixir do
       \"\"\"
       @spec new(keyword()) :: t()
       def new(opts \\\\ []) do
-        %__MODULE__{context: Context.new(opts)}
+        %__MODULE__{context: Pristine.Runtime.build_context!(@manifest, opts)}
       end
 
     #{render_resource_accessors(base_namespace, resources)}
@@ -138,6 +138,16 @@ defmodule Pristine.Codegen.Elixir do
   end
 
   defp render_fields(_), do: ""
+
+  defp manifest_endpoints(%{endpoints: endpoints}) when is_map(endpoints),
+    do: Map.values(endpoints)
+
+  defp manifest_endpoints(%{"endpoints" => endpoints}) when is_map(endpoints),
+    do: Map.values(endpoints)
+
+  defp manifest_endpoints(%{endpoints: endpoints}) when is_list(endpoints), do: endpoints
+  defp manifest_endpoints(%{"endpoints" => endpoints}) when is_list(endpoints), do: endpoints
+  defp manifest_endpoints(_manifest), do: []
 
   defp render_field(name, defn) do
     field_name = normalize_key(name)

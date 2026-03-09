@@ -23,8 +23,9 @@ defmodule Pristine.Adapters.Transport.Finch do
       {:ok, method} ->
         headers = Enum.into(request.headers, [])
         req = Finch.build(method, request.url, headers, request.body)
+        finch_opts = send_opts(request, context)
 
-        case Finch.request(req, pool) do
+        case Finch.request(req, pool, finch_opts) do
           {:ok, response} ->
             {:ok,
              %Response{
@@ -60,6 +61,20 @@ defmodule Pristine.Adapters.Transport.Finch do
   end
 
   defp normalize_method(_), do: {:error, :invalid_method}
+
+  defp send_opts(%Request{} = request, %Context{} = context) do
+    request_timeout = Map.get(request.metadata, :timeout)
+
+    context.transport_opts
+    |> maybe_override_timeout(request_timeout)
+    |> finch_opts()
+  end
+
+  defp maybe_override_timeout(opts, timeout) when is_integer(timeout) and timeout >= 0 do
+    Keyword.put(opts, :timeout, timeout)
+  end
+
+  defp maybe_override_timeout(opts, _timeout), do: opts
 
   @impl true
   def request(method, url, headers, body, opts) do

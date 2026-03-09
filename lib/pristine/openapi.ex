@@ -20,11 +20,29 @@ defmodule Pristine.OpenAPI do
 
   alias Pristine.Manifest
   alias Pristine.Manifest.Endpoint
+  alias Sinter.Schema, as: SinterSchema
 
   @openapi_version "3.1.0"
 
   @type format :: :map | :json | :yaml
   @type option :: {:format, format}
+
+  @default_simple_type_schema %{"type" => "string"}
+  @simple_type_schemas %{
+    any: %{},
+    array: %{"type" => "array", "items" => %{}},
+    boolean: %{"type" => "boolean"},
+    float: %{"type" => "number"},
+    integer: %{"type" => "integer"},
+    map: %{"type" => "object"},
+    null: %{"type" => "null"},
+    number: %{"type" => "number"},
+    object: %{"type" => "object"},
+    string: %{"type" => "string"}
+  }
+  @simple_type_aliases Map.new(@simple_type_schemas, fn {type, _schema} ->
+                         {Atom.to_string(type), type}
+                       end)
 
   @doc """
   Generates an OpenAPI specification from a Pristine manifest.
@@ -79,8 +97,16 @@ defmodule Pristine.OpenAPI do
       %{"type" => "integer", "minimum" => 1}
 
   """
-  @spec schema_to_openapi(map() | atom()) :: map()
+  @spec schema_to_openapi(map() | tuple() | atom() | SinterSchema.t()) :: map()
+  def schema_to_openapi(%SinterSchema{} = schema) do
+    convert_schema(schema)
+  end
+
   def schema_to_openapi(schema) when is_map(schema) do
+    convert_schema(schema)
+  end
+
+  def schema_to_openapi(schema) when is_tuple(schema) do
     convert_schema(schema)
   end
 
@@ -195,7 +221,7 @@ defmodule Pristine.OpenAPI do
     schemas =
       types
       |> Enum.map(fn {type_name, type_def} ->
-        {type_name, convert_type_def(type_def)}
+        {type_name, convert_type_def(type_name, type_def, types)}
       end)
       |> Map.new()
 
@@ -204,11 +230,38 @@ defmodule Pristine.OpenAPI do
     }
   end
 
-  defp convert_type_def(%{fields: fields}) when is_map(fields) do
+  defp convert_type_def(
+         _type_name,
+         %{kind: :union, discriminator: discriminator} = type_def,
+         _types
+       ) do
+    mapping = discriminator.mapping || %{}
+
+    %{
+      "oneOf" =>
+        mapping
+        |> Map.values()
+        |> Enum.uniq()
+        |> Enum.map(&%{"$ref" => type_ref(&1)}),
+      "discriminator" => %{
+        "propertyName" => discriminator.field,
+        "mapping" => Map.new(mapping, fn {value, target} -> {value, type_ref(target)} end)
+      }
+    }
+    |> maybe_put("description", Map.get(type_def, :description))
+  end
+
+  defp convert_type_def(_type_name, %{kind: :alias} = type_def, types) do
+    type_def
+    |> convert_alias_type_def(types)
+    |> maybe_put("description", Map.get(type_def, :description))
+  end
+
+  defp convert_type_def(_type_name, %{fields: fields} = type_def, types) when is_map(fields) do
     {properties, required} =
       Enum.reduce(fields, {%{}, []}, fn {name, field_def}, {props_acc, req_acc} ->
         field_name = normalize_key(name)
-        prop_schema = convert_field_def(field_def)
+        prop_schema = convert_field_def(field_def, types)
         new_props = Map.put(props_acc, field_name, prop_schema)
 
         new_req =
@@ -219,24 +272,25 @@ defmodule Pristine.OpenAPI do
         {new_props, new_req}
       end)
 
-    result = %{
+    %{
       "type" => "object",
       "properties" => properties
     }
-
-    if Enum.empty?(required),
-      do: result,
-      else: Map.put(result, "required", Enum.reverse(required))
+    |> maybe_put("description", Map.get(type_def, :description))
+    |> maybe_put_required(required)
   end
 
-  defp convert_type_def(_), do: %{"type" => "object"}
+  defp convert_type_def(_type_name, _type_def, _types), do: %{"type" => "object"}
 
-  defp convert_field_def(field_def) when is_map(field_def) do
-    type = Map.get(field_def, :type) || Map.get(field_def, "type") || "string"
-    convert_simple_type(type)
+  defp convert_field_def(field_def, types) when is_map(field_def) do
+    field_def
+    |> convert_type_descriptor(types)
+    |> apply_field_constraints(field_def)
+    |> maybe_put("description", get_value(field_def, :description))
+    |> maybe_put("default", get_value(field_def, :default))
   end
 
-  defp convert_field_def(_), do: %{"type" => "string"}
+  defp convert_field_def(_field_def, _types), do: %{"type" => "string"}
 
   defp field_required?(field_def) when is_map(field_def) do
     Map.get(field_def, :required) == true or Map.get(field_def, "required") == true
@@ -245,6 +299,29 @@ defmodule Pristine.OpenAPI do
   defp field_required?(_), do: false
 
   # Private functions - Schema Conversion
+
+  defp convert_schema(%SinterSchema{} = schema) do
+    {properties, required} =
+      Enum.reduce(schema.fields, {%{}, []}, fn {name, field}, {props_acc, req_acc} ->
+        prop_schema = convert_schema(field.type)
+        new_props = Map.put(props_acc, to_string(name), prop_schema)
+
+        new_req =
+          if field.required,
+            do: [to_string(name) | req_acc],
+            else: req_acc
+
+        {new_props, new_req}
+      end)
+
+    %{
+      "type" => "object",
+      "properties" => properties
+    }
+    |> maybe_put_required(required)
+    |> maybe_put("title", schema.config[:title])
+    |> maybe_put("description", schema.config[:description])
+  end
 
   defp convert_schema(%{type: :string} = schema) do
     %{"type" => "string"}
@@ -267,6 +344,42 @@ defmodule Pristine.OpenAPI do
   end
 
   defp convert_schema(%{type: :boolean}), do: %{"type" => "boolean"}
+
+  defp convert_schema({:object, %SinterSchema{} = schema}) do
+    convert_schema(schema)
+  end
+
+  defp convert_schema({:array, item_type}) do
+    %{
+      "type" => "array",
+      "items" => convert_schema(item_type)
+    }
+  end
+
+  defp convert_schema({:literal, value}) do
+    %{"const" => value}
+  end
+
+  defp convert_schema({:union, types}) do
+    %{
+      "oneOf" => Enum.map(types, &convert_schema/1)
+    }
+  end
+
+  defp convert_schema({:discriminated_union, opts}) do
+    discriminator = Keyword.fetch!(opts, :discriminator)
+    variants = Keyword.fetch!(opts, :variants)
+
+    %{
+      "oneOf" =>
+        Enum.map(variants, fn {_key, schema} ->
+          convert_schema(schema)
+        end),
+      "discriminator" => %{
+        "propertyName" => to_string(discriminator)
+      }
+    }
+  end
 
   defp convert_schema(%{type: {:array, item_type}}) do
     %{
@@ -331,24 +444,106 @@ defmodule Pristine.OpenAPI do
 
   defp convert_schema(_), do: %{"type" => "string"}
 
-  defp convert_simple_type(:string), do: %{"type" => "string"}
-  defp convert_simple_type(:integer), do: %{"type" => "integer"}
-  defp convert_simple_type(:number), do: %{"type" => "number"}
-  defp convert_simple_type(:boolean), do: %{"type" => "boolean"}
-  defp convert_simple_type(:any), do: %{}
-  defp convert_simple_type(:null), do: %{"type" => "null"}
+  defp convert_simple_type(type) do
+    type
+    |> normalize_simple_type()
+    |> simple_type_schema()
+  end
 
-  defp convert_simple_type(type) when is_binary(type) do
-    case type do
-      "string" -> %{"type" => "string"}
-      "integer" -> %{"type" => "integer"}
-      "number" -> %{"type" => "number"}
-      "boolean" -> %{"type" => "boolean"}
-      _ -> %{"type" => "string"}
+  # Private functions - Helpers
+
+  defp convert_alias_type_def(type_def, types) do
+    cond do
+      type_ref = get_value(type_def, :type_ref) ->
+        %{"$ref" => type_ref(type_ref)}
+
+      is_list(get_value(type_def, :choices)) ->
+        get_value(type_def, :choices)
+        |> enum_schema()
+
+      not is_nil(get_value(type_def, :value)) ->
+        %{"const" => get_value(type_def, :value)}
+
+      normalize_key(get_value(type_def, :type) || "") == "array" ->
+        %{
+          "type" => "array",
+          "items" => convert_items_descriptor(get_value(type_def, :items), types)
+        }
+
+      type = get_value(type_def, :type) ->
+        convert_simple_type(type)
+
+      true ->
+        %{"type" => "object"}
     end
   end
 
-  defp convert_simple_type(_), do: %{"type" => "string"}
+  defp convert_type_descriptor(definition, types) do
+    cond do
+      type_ref = get_value(definition, :type_ref) ->
+        %{"$ref" => type_ref(type_ref)}
+
+      normalize_key(get_value(definition, :type) || "") == "array" ->
+        %{
+          "type" => "array",
+          "items" => convert_items_descriptor(get_value(definition, :items), types)
+        }
+
+      literal_type?(definition) ->
+        %{"const" => get_value(definition, :value)}
+
+      type = get_value(definition, :type) ->
+        convert_simple_type(type)
+
+      true ->
+        %{"type" => "string"}
+    end
+  end
+
+  defp convert_items_descriptor(items, types) when is_map(items) do
+    convert_type_descriptor(items, types)
+  end
+
+  defp convert_items_descriptor(items, types) when is_binary(items) or is_atom(items) do
+    normalized = normalize_key(items)
+
+    if Map.has_key?(types, normalized) do
+      %{"$ref" => type_ref(normalized)}
+    else
+      convert_simple_type(items)
+    end
+  end
+
+  defp convert_items_descriptor(_items, _types), do: %{}
+
+  defp apply_field_constraints(schema, field_def) do
+    schema
+    |> maybe_put("enum", get_value(field_def, :choices))
+    |> maybe_put("minLength", get_value(field_def, :min_length))
+    |> maybe_put("maxLength", get_value(field_def, :max_length))
+    |> maybe_put("minItems", get_value(field_def, :min_items))
+    |> maybe_put("maxItems", get_value(field_def, :max_items))
+    |> maybe_put("minimum", get_value(field_def, :gteq))
+    |> maybe_put("exclusiveMinimum", get_value(field_def, :gt))
+    |> maybe_put("maximum", get_value(field_def, :lteq))
+    |> maybe_put("exclusiveMaximum", get_value(field_def, :lt))
+    |> maybe_put("format", format_to_string(get_value(field_def, :format)))
+  end
+
+  defp enum_schema(values) when is_list(values) do
+    inferred_type =
+      case Enum.uniq_by(values, &value_kind/1) do
+        [value] -> enum_value_type(value)
+        _ -> nil
+      end
+
+    %{}
+    |> maybe_put("type", inferred_type)
+    |> Map.put("enum", values)
+  end
+
+  defp maybe_put_required(map, []), do: map
+  defp maybe_put_required(map, required), do: Map.put(map, "required", Enum.reverse(required))
 
   defp build_discriminator_mapping(variants) do
     variants
@@ -357,8 +552,6 @@ defmodule Pristine.OpenAPI do
     end)
     |> Map.new()
   end
-
-  # Private functions - Helpers
 
   defp type_ref(type_id), do: "#/components/schemas/#{type_id}"
 
@@ -373,6 +566,38 @@ defmodule Pristine.OpenAPI do
   defp normalize_key(key) when is_atom(key), do: Atom.to_string(key)
   defp normalize_key(key) when is_binary(key), do: key
   defp normalize_key(key), do: to_string(key)
+
+  defp get_value(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, normalize_key(key))
+  end
+
+  defp normalize_simple_type(type) when is_atom(type), do: type
+  defp normalize_simple_type(type) when is_binary(type), do: Map.get(@simple_type_aliases, type)
+  defp normalize_simple_type(_type), do: nil
+
+  defp simple_type_schema(type),
+    do: Map.get(@simple_type_schemas, type, @default_simple_type_schema)
+
+  defp literal_type?(definition) when is_map(definition) do
+    normalize_key(get_value(definition, :type) || "") == "literal" or
+      not is_nil(get_value(definition, :value))
+  end
+
+  defp value_kind(value) when is_binary(value), do: :string
+  defp value_kind(value) when is_integer(value), do: :integer
+  defp value_kind(value) when is_float(value), do: :number
+  defp value_kind(value) when is_boolean(value), do: :boolean
+  defp value_kind(_value), do: :mixed
+
+  defp enum_value_type(value) do
+    case value_kind(value) do
+      :string -> "string"
+      :integer -> "integer"
+      :number -> "number"
+      :boolean -> "boolean"
+      _ -> nil
+    end
+  end
 
   defp format_to_string(nil), do: nil
   defp format_to_string(format) when is_atom(format), do: Atom.to_string(format)

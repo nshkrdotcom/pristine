@@ -11,6 +11,43 @@ defmodule Pristine.Core.Pipeline do
   alias Pristine.Core.{Context, Headers, Request, Response, StreamResponse, TelemetryHeaders, Url}
   alias Pristine.Manifest
 
+  @retry_policy_key_aliases %{
+    "backoff" => :backoff,
+    "backoff_opts" => :backoff_opts,
+    "base_delay_ms" => :base_delay_ms,
+    "jitter" => :jitter,
+    "jitter_strategy" => :jitter_strategy,
+    "max_attempts" => :max_attempts,
+    "max_delay_ms" => :max_delay_ms,
+    "max_retries" => :max_retries,
+    "progress_timeout_ms" => :progress_timeout_ms,
+    "retry_after_ms_fun" => :retry_after_ms_fun,
+    "retry_on" => :retry_on,
+    "strategy" => :strategy
+  }
+  @backoff_key_aliases %{
+    "base_delay_ms" => :base_ms,
+    "base_ms" => :base_ms,
+    "jitter" => :jitter,
+    "jitter_strategy" => :jitter_strategy,
+    "max_delay_ms" => :max_ms,
+    "max_ms" => :max_ms,
+    "strategy" => :strategy
+  }
+  @backoff_strategy_aliases %{
+    "constant" => :constant,
+    "exponential" => :exponential,
+    "linear" => :linear
+  }
+  @backoff_strategies Map.values(@backoff_strategy_aliases)
+  @backoff_jitter_strategy_aliases %{
+    "additive" => :additive,
+    "factor" => :factor,
+    "none" => :none,
+    "range" => :range
+  }
+  @backoff_jitter_strategies Map.values(@backoff_jitter_strategy_aliases)
+
   @spec execute(Manifest.t(), String.t() | atom(), term(), Context.t(), keyword()) ::
           {:ok, term()} | {:error, term()}
   def execute(%Manifest{} = manifest, endpoint_id, payload, %Context{} = context, opts \\ []) do
@@ -443,7 +480,7 @@ defmodule Pristine.Core.Pipeline do
     path_params = Keyword.get(opts, :path_params, %{})
     query_opts = Keyword.merge(context.query_opts, Keyword.get(opts, :query_opts, []))
     retry_count = Keyword.get(opts, :retry_count, 0)
-    timeout = Keyword.get(opts, :timeout) || context.default_timeout || endpoint.timeout
+    timeout = Keyword.get(opts, :timeout) || endpoint.timeout || context.default_timeout
 
     auth_modules = resolve_auth(context.auth, endpoint.auth)
 
@@ -498,7 +535,8 @@ defmodule Pristine.Core.Pipeline do
         method: endpoint.method,
         path: path,
         base_url: context.base_url,
-        url: url
+        url: url,
+        timeout: timeout
       }
     }
   end
@@ -607,47 +645,94 @@ defmodule Pristine.Core.Pipeline do
 
   defp normalize_retry_policy_opts(nil), do: []
   defp normalize_retry_policy_opts(policy) when is_list(policy), do: policy
-  defp normalize_retry_policy_opts(policy) when is_map(policy), do: Map.to_list(policy)
+
+  defp normalize_retry_policy_opts(policy) when is_map(policy) do
+    policy
+    |> Enum.reduce([], fn entry, acc ->
+      case normalize_retry_policy_entry(entry) do
+        nil -> acc
+        option -> [option | acc]
+      end
+    end)
+    |> Enum.reverse()
+  end
+
   defp normalize_retry_policy_opts(_), do: []
+
+  defp normalize_retry_policy_entry({key, value}) do
+    case normalize_retry_policy_key(key) do
+      nil -> nil
+      atom_key -> {atom_key, normalize_retry_policy_value(atom_key, value)}
+    end
+  end
+
+  defp normalize_retry_policy_key(key) when is_atom(key), do: key
+
+  defp normalize_retry_policy_key(key) when is_binary(key) do
+    Map.get(@retry_policy_key_aliases, key) || existing_retry_atom(key)
+  end
+
+  defp normalize_retry_policy_key(_), do: nil
+
+  defp normalize_retry_policy_value(:backoff, value), do: normalize_backoff_value(value)
+  defp normalize_retry_policy_value(:backoff_opts, value), do: normalize_backoff_opts(value)
+
+  defp normalize_retry_policy_value(:jitter_strategy, value),
+    do: normalize_backoff_jitter_strategy(value) || value
+
+  defp normalize_retry_policy_value(:strategy, value),
+    do: normalize_backoff_strategy(value) || value
+
+  defp normalize_retry_policy_value(_key, value), do: value
+
+  defp existing_retry_atom(value) do
+    String.to_existing_atom(value)
+  rescue
+    ArgumentError -> nil
+  end
 
   defp apply_request_retry_opts(base_opts, %Context{} = context, opts) do
     merged =
       (base_opts || [])
       |> Keyword.merge(Keyword.get(opts, :retry_opts, []))
 
-    max_retries =
-      normalize_max_retries(Keyword.get(opts, :max_retries, Keyword.get(merged, :max_retries)))
+    max_attempts =
+      opts
+      |> Keyword.get(
+        :max_retries,
+        Keyword.get(merged, :max_retries, Keyword.get(merged, :max_attempts))
+      )
+      |> normalize_retry_attempts()
 
-    maybe_put_retry_policy(merged, context, max_retries)
+    maybe_put_retry_policy(merged, context, max_attempts)
   end
 
   defp maybe_put_retry_policy(merged, _context, nil), do: merged
 
-  defp maybe_put_retry_policy(merged, context, max_retries) do
+  defp maybe_put_retry_policy(merged, context, max_attempts) do
     if Keyword.has_key?(merged, :policy) do
       merged
     else
-      case build_http_retry_policy(context, max_retries, merged) do
+      case build_http_retry_policy(context, max_attempts, merged) do
         nil -> merged
         policy -> Keyword.put(Keyword.delete(merged, :max_retries), :policy, policy)
       end
     end
   end
 
-  defp normalize_max_retries(nil), do: nil
+  defp normalize_retry_attempts(nil), do: nil
 
-  defp normalize_max_retries(value) when is_integer(value) and value >= 0, do: value
+  defp normalize_retry_attempts(value) when is_integer(value) and value >= 0, do: value
 
-  defp normalize_max_retries(_), do: nil
+  defp normalize_retry_attempts(_), do: nil
 
-  defp build_http_retry_policy(%Context{retry: retry}, max_retries, opts) do
-    if is_atom(retry) and function_exported?(retry, :build_policy, 1) and
-         function_exported?(retry, :build_backoff, 1) do
+  defp build_http_retry_policy(%Context{retry: retry}, max_attempts, opts) do
+    if retry_supports_http_policy?(retry) do
       backoff = build_backoff(retry, opts)
 
       policy_opts =
         opts
-        |> Keyword.put(:max_attempts, max_retries)
+        |> Keyword.put(:max_attempts, max_attempts)
         |> Keyword.put(:backoff, backoff)
         |> Keyword.put(:retry_on, &http_retry_on(retry, &1))
         |> Keyword.put(:retry_after_ms_fun, &http_retry_after_ms(retry, &1))
@@ -658,16 +743,115 @@ defmodule Pristine.Core.Pipeline do
     end
   end
 
-  defp build_backoff(retry, opts) do
-    case Keyword.get(opts, :backoff) do
-      nil ->
-        backoff_opts = Keyword.get(opts, :backoff_opts, default_backoff_opts())
-        retry.build_backoff(backoff_opts)
+  # Mox exports optional callbacks on generated mocks, but generic retry mocks do not
+  # necessarily opt into the HTTP-aware policy-building path.
+  defp retry_supports_http_policy?(retry) do
+    is_atom(retry) and
+      not function_exported?(retry, :__mock_for__, 0) and
+      function_exported?(retry, :build_policy, 1) and
+      function_exported?(retry, :build_backoff, 1)
+  end
 
-      backoff ->
+  defp build_backoff(retry, opts) do
+    case normalize_backoff_source(opts) do
+      {:ready, backoff} ->
         backoff
+
+      backoff_opts ->
+        retry.build_backoff(backoff_opts)
     end
   end
+
+  defp normalize_backoff_source(opts) do
+    backoff = Keyword.get(opts, :backoff)
+
+    backoff_opts =
+      Keyword.merge(
+        normalize_backoff_opts(Keyword.get(opts, :backoff_opts, [])),
+        normalize_backoff_opts(opts)
+      )
+
+    case backoff do
+      nil ->
+        merge_default_backoff_opts(backoff_opts)
+
+      source when is_list(source) or is_map(source) ->
+        source
+        |> normalize_backoff_opts()
+        |> Keyword.merge(backoff_opts)
+        |> merge_default_backoff_opts()
+
+      source ->
+        case normalize_backoff_strategy(source) do
+          nil -> {:ready, source}
+          strategy -> merge_default_backoff_opts(Keyword.put(backoff_opts, :strategy, strategy))
+        end
+    end
+  end
+
+  defp normalize_backoff_value(value) when is_list(value) or is_map(value),
+    do: normalize_backoff_opts(value)
+
+  defp normalize_backoff_value(value), do: normalize_backoff_strategy(value) || value
+
+  defp normalize_backoff_opts(opts) when is_list(opts) or is_map(opts) do
+    opts
+    |> Enum.reduce([], fn {key, value}, acc ->
+      case normalize_backoff_entry(key, value) do
+        nil -> acc
+        option -> [option | acc]
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp normalize_backoff_opts(_opts), do: []
+
+  defp normalize_backoff_entry(key, value) do
+    case normalize_backoff_key(key) do
+      nil -> nil
+      :jitter_strategy -> {:jitter_strategy, normalize_backoff_jitter_strategy(value) || value}
+      :strategy -> {:strategy, normalize_backoff_strategy(value) || value}
+      atom_key -> {atom_key, value}
+    end
+  end
+
+  defp normalize_backoff_key(key) when is_atom(key) do
+    case key do
+      :base_delay_ms -> :base_ms
+      :max_delay_ms -> :max_ms
+      :base_ms -> :base_ms
+      :max_ms -> :max_ms
+      :jitter -> :jitter
+      :jitter_strategy -> :jitter_strategy
+      :strategy -> :strategy
+      _ -> nil
+    end
+  end
+
+  defp normalize_backoff_key(key) when is_binary(key), do: Map.get(@backoff_key_aliases, key)
+  defp normalize_backoff_key(_key), do: nil
+
+  defp normalize_backoff_strategy(value) when is_atom(value) do
+    if value in @backoff_strategies, do: value, else: nil
+  end
+
+  defp normalize_backoff_strategy(value) when is_binary(value),
+    do: Map.get(@backoff_strategy_aliases, value)
+
+  defp normalize_backoff_strategy(_value), do: nil
+
+  defp normalize_backoff_jitter_strategy(value) when is_atom(value) do
+    if value in @backoff_jitter_strategies, do: value, else: nil
+  end
+
+  defp normalize_backoff_jitter_strategy(value) when is_binary(value),
+    do: Map.get(@backoff_jitter_strategy_aliases, value)
+
+  defp normalize_backoff_jitter_strategy(_value), do: nil
+
+  defp merge_default_backoff_opts(backoff_opts),
+    do: Keyword.merge(default_backoff_opts(), backoff_opts)
 
   defp default_backoff_opts do
     [

@@ -57,7 +57,7 @@ defmodule Pristine.Manifest do
     fields = normalize_manifest_fields(validated)
     errors = required_field_errors(fields) ++ contract_errors(input)
 
-    {endpoint_map, endpoint_errors} = normalize_endpoints(fields.endpoints)
+    {endpoint_map, endpoint_errors} = normalize_endpoints(fields.endpoints, fields.defaults)
     {type_map, type_errors} = normalize_types(fields.types)
 
     errors = errors ++ endpoint_errors ++ type_errors
@@ -132,10 +132,12 @@ defmodule Pristine.Manifest do
     end
   end
 
-  defp normalize_endpoints(nil), do: {%{}, []}
+  defp normalize_endpoints(nil, _defaults), do: {%{}, []}
 
-  defp normalize_endpoints(endpoints) when is_list(endpoints) do
+  defp normalize_endpoints(endpoints, defaults) when is_list(endpoints) do
     Enum.reduce(endpoints, {%{}, []}, fn endpoint, {acc, errors} ->
+      endpoint = apply_endpoint_defaults(endpoint, defaults)
+
       case normalize_endpoint(endpoint) do
         {:ok, %Endpoint{} = normalized} ->
           {Map.put(acc, normalized.id, normalized), errors}
@@ -146,7 +148,7 @@ defmodule Pristine.Manifest do
     end)
   end
 
-  defp normalize_endpoints(_), do: {%{}, ["endpoints must be a list"]}
+  defp normalize_endpoints(_, _defaults), do: {%{}, ["endpoints must be a list"]}
 
   defp normalize_endpoint(endpoint) when is_map(endpoint) do
     id = normalize_value(endpoint, :id)
@@ -240,6 +242,7 @@ defmodule Pristine.Manifest do
             description: description,
             type: normalize_value(definition, :type),
             type_ref: normalize_type_ref(definition),
+            items: normalize_items(definition),
             value: normalize_value(definition, :value),
             choices: normalize_value(definition, :choices)
           }}}
@@ -293,6 +296,41 @@ defmodule Pristine.Manifest do
 
   defp normalize_method(method) when is_binary(method), do: String.upcase(method)
   defp normalize_method(method), do: to_string(method) |> String.upcase()
+
+  defp apply_endpoint_defaults(endpoint, defaults) when is_map(endpoint) and is_map(defaults) do
+    endpoint
+    |> maybe_apply_endpoint_default(:timeout, normalize_value(defaults, :timeout))
+    |> maybe_apply_endpoint_default(:retry, normalize_value(defaults, :retry))
+    |> merge_endpoint_default_map(:headers, normalize_value(defaults, :headers))
+  end
+
+  defp apply_endpoint_defaults(endpoint, _defaults), do: endpoint
+
+  defp maybe_apply_endpoint_default(endpoint, _key, nil), do: endpoint
+
+  defp maybe_apply_endpoint_default(endpoint, key, value) do
+    case normalize_value(endpoint, key) do
+      nil -> Map.put(endpoint, key, value)
+      _ -> endpoint
+    end
+  end
+
+  defp merge_endpoint_default_map(endpoint, _key, nil), do: endpoint
+
+  defp merge_endpoint_default_map(endpoint, key, defaults) when is_map(defaults) do
+    case normalize_value(endpoint, key) do
+      nil ->
+        Map.put(endpoint, key, defaults)
+
+      value when is_map(value) ->
+        Map.put(endpoint, key, Map.merge(defaults, value))
+
+      _other ->
+        endpoint
+    end
+  end
+
+  defp merge_endpoint_default_map(endpoint, _key, _defaults), do: endpoint
 
   defp normalize_value(map, key) when is_map(map) do
     Map.get(map, key) || Map.get(map, Atom.to_string(key))

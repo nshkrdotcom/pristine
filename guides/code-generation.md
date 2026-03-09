@@ -334,15 +334,15 @@ defmodule MyAPI.Client do
 
   @type t :: %__MODULE__{context: Context.t()}
 
-  # Embedded manifest for runtime access
-  @manifest %{
+  # Embedded normalized manifest for runtime access
+  @manifest %Pristine.Manifest{
     name: "myapi",
     version: "1.0.0",
-    # ... full manifest
+    # ... normalized endpoints and types
   }
 
   @doc "Returns the embedded manifest."
-  @spec manifest() :: map()
+  @spec manifest() :: Pristine.Manifest.t()
   def manifest, do: @manifest
 
   @doc """
@@ -364,7 +364,7 @@ defmodule MyAPI.Client do
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
-    %__MODULE__{context: Context.new(opts)}
+    %__MODULE__{context: Pristine.Runtime.build_context!(@manifest, opts)}
   end
 
   @doc "Access users resource endpoints."
