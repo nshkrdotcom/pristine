@@ -14,8 +14,8 @@ defmodule Pristine.Codegen.ClientTest do
       code = ElixirCodegen.render_client_module("TestAPI.Client", build_manifest(endpoints))
 
       # Resource accessors
-      assert code =~ "def models(%__MODULE__{} = client)"
-      assert code =~ "def sampling(%__MODULE__{} = client)"
+      assert code =~ "def models(%__MODULE__{context: %Context{}} = client)"
+      assert code =~ "def sampling(%__MODULE__{context: %Context{}} = client)"
 
       # Returns resource module instance
       assert code =~ "TestAPI.Models.with_client(client)"
@@ -81,8 +81,8 @@ defmodule Pristine.Codegen.ClientTest do
       code = ElixirCodegen.render_client_module("TestAPI.Client", build_manifest(endpoints))
 
       # Resource accessors
-      assert code =~ "def models(%__MODULE__{} = client)"
-      assert code =~ "def sampling(%__MODULE__{} = client)"
+      assert code =~ "def models(%__MODULE__{context: %Context{}} = client)"
+      assert code =~ "def sampling(%__MODULE__{context: %Context{}} = client)"
 
       # Ungrouped endpoint
       assert code =~ "def health("
@@ -91,13 +91,13 @@ defmodule Pristine.Codegen.ClientTest do
     test "deduplicates resource accessors" do
       endpoints = [
         %Endpoint{id: "create", resource: "models", method: "POST", path: "/models"},
-        %Endpoint{id: "get", resource: "models", method: "GET", path: "/models/:id"}
+        %Endpoint{id: "get", resource: "models", method: "GET", path: "/models/{id}"}
       ]
 
       code = ElixirCodegen.render_client_module("TestAPI.Client", build_manifest(endpoints))
 
       # Should only have one models accessor
-      matches = Regex.scan(~r/def models\(%__MODULE__\{\} = client\)/, code)
+      matches = Regex.scan(~r/def models\(%__MODULE__\{context: %Context\{\}\} = client\)/, code)
       assert length(matches) == 1
     end
 
@@ -108,7 +108,7 @@ defmodule Pristine.Codegen.ClientTest do
 
       code = ElixirCodegen.render_client_module("TestAPI.Client", build_manifest(endpoints))
 
-      assert code =~ "def api_keys(%__MODULE__{} = client)"
+      assert code =~ "def api_keys(%__MODULE__{context: %Context{}} = client)"
       assert code =~ "TestAPI.ApiKeys.with_client(client)"
     end
   end

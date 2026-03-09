@@ -230,7 +230,7 @@ defmodule Pristine.Codegen.Elixir do
       """
         @doc "Access #{resource} resource endpoints."
         @spec #{resource}(t()) :: #{module}.t()
-        def #{resource}(%__MODULE__{} = client) do
+        def #{resource}(%__MODULE__{context: %Context{}} = client) do
           #{module}.with_client(client)
         end
       """

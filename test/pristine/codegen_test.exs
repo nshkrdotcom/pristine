@@ -72,7 +72,7 @@ defmodule Pristine.CodegenTest do
       assert {:ok, sources} = Codegen.build_sources(manifest, output_dir: "lib/generated")
       client_source = sources["lib/generated/client.ex"]
 
-      assert client_source =~ "def models(%__MODULE__{} = client)"
+      assert client_source =~ "def models(%__MODULE__{context: %Context{}} = client)"
       assert client_source =~ "Pristine.Generated.Models.with_client(client)"
     end
 

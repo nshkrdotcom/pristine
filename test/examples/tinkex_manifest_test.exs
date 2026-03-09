@@ -171,13 +171,13 @@ defmodule Examples.TinkexManifestTest do
     end
   end
 
-  describe "policy configuration" do
+  describe "retry policy configuration" do
     test "has default retry policy" do
       {:ok, manifest} = Manifest.load_file(@manifest_path)
 
-      assert Map.has_key?(manifest.policies, "default")
+      assert Map.has_key?(manifest.retry_policies, "default")
 
-      default_policy = manifest.policies["default"]
+      default_policy = manifest.retry_policies["default"]
       assert default_policy["max_attempts"] == 3
       assert default_policy["backoff"] == "exponential"
     end

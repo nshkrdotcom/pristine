@@ -8,7 +8,7 @@ defmodule Pristine.Codegen.ResourceTest do
     test "groups endpoints by resource field" do
       endpoints = [
         %Endpoint{id: "create_model", resource: "models", method: "POST", path: "/models"},
-        %Endpoint{id: "get_model", resource: "models", method: "GET", path: "/models/:id"},
+        %Endpoint{id: "get_model", resource: "models", method: "GET", path: "/models/{id}"},
         %Endpoint{id: "sample", resource: "sampling", method: "POST", path: "/sample"},
         %Endpoint{id: "health", resource: nil, method: "GET", path: "/health"}
       ]
@@ -43,7 +43,7 @@ defmodule Pristine.Codegen.ResourceTest do
         %Endpoint{
           id: "get",
           method: "GET",
-          path: "/api/v1/models/:id",
+          path: "/api/v1/models/{id}",
           resource: "models",
           description: "Get a model by ID"
         }
@@ -121,12 +121,38 @@ defmodule Pristine.Codegen.ResourceTest do
       refute code =~ "@doc nil"
     end
 
+    test "generates valid module-based example calls in docs" do
+      endpoints = [
+        %Endpoint{
+          id: "get",
+          method: "GET",
+          path: "/api/v1/models/{id}",
+          resource: "models",
+          description: "Get a model by ID"
+        },
+        %Endpoint{
+          id: "list",
+          method: "GET",
+          path: "/api/v1/models",
+          resource: "models",
+          description: "List models"
+        }
+      ]
+
+      code = Resource.render_resource_module("MyAPI.Models", "models", endpoints, %{})
+
+      assert code =~ "MyAPI.Models.get(resource, id, [])"
+      assert code =~ "MyAPI.Models.list(resource)"
+      refute code =~ "resource.get("
+      refute code =~ "resource.list("
+    end
+
     test "renders path params and typed arguments" do
       endpoints = [
         %Endpoint{
           id: "get",
           method: "GET",
-          path: "/api/v1/models/:id",
+          path: "/api/v1/models/{id}",
           resource: "models",
           request: "GetModelRequest"
         }

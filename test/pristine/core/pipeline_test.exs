@@ -91,7 +91,7 @@ defmodule Pristine.Core.PipelineTest do
         %{
           id: "sample",
           method: "POST",
-          path: "/sampling/:id",
+          path: "/sampling/{id}",
           request: "SampleRequest",
           response: "SampleResponse",
           retry: "default"

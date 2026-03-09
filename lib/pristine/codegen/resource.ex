@@ -3,7 +3,8 @@ defmodule Pristine.Codegen.Resource do
   Generates resource modules for grouped endpoints.
 
   Resource modules provide a namespace for related API endpoints,
-  following the pattern `client.models.create()` seen in modern SDKs.
+  following the pattern `resource = MyAPI.Client.models(client)` and
+  `MyAPI.Models.create(resource, ...)`.
   """
 
   alias Pristine.Codegen.Type
@@ -67,12 +68,12 @@ defmodule Pristine.Codegen.Resource do
       @type t :: %__MODULE__{context: Pristine.Core.Context.t()}
 
       @doc "Create a resource module instance with the given client."
-      @spec with_client(%{context: Pristine.Core.Context.t()}) :: t()
+      @spec with_client(#{client_module}.t()) :: t()
       def with_client(%{context: context}) do
         %__MODULE__{context: context}
       end
 
-    #{render_endpoint_functions(endpoints, types, types_namespace, client_module)}
+    #{render_endpoint_functions(module_name, endpoints, types, types_namespace, client_module)}
     #{render_helpers(helper_usage)}end
     """
   end
@@ -183,20 +184,42 @@ defmodule Pristine.Codegen.Resource do
 
   # Private functions
 
-  defp render_endpoint_functions(endpoints, types, types_namespace, client_module) do
+  defp render_endpoint_functions(module_name, endpoints, types, types_namespace, client_module) do
     Enum.map_join(endpoints, "\n", fn endpoint ->
-      sync = render_endpoint_function(endpoint, types, types_namespace, client_module, :sync)
+      sync =
+        render_endpoint_function(
+          endpoint,
+          types,
+          types_namespace,
+          client_module,
+          module_name,
+          :sync
+        )
 
       async =
         if endpoint.async do
-          render_endpoint_function(endpoint, types, types_namespace, client_module, :async)
+          render_endpoint_function(
+            endpoint,
+            types,
+            types_namespace,
+            client_module,
+            module_name,
+            :async
+          )
         else
           ""
         end
 
       stream =
         if endpoint.streaming do
-          render_endpoint_function(endpoint, types, types_namespace, client_module, :stream)
+          render_endpoint_function(
+            endpoint,
+            types,
+            types_namespace,
+            client_module,
+            module_name,
+            :stream
+          )
         else
           ""
         end
@@ -205,7 +228,14 @@ defmodule Pristine.Codegen.Resource do
     end)
   end
 
-  defp render_endpoint_function(endpoint, types, types_namespace, client_module, mode) do
+  defp render_endpoint_function(
+         endpoint,
+         types,
+         types_namespace,
+         client_module,
+         module_name,
+         mode
+       ) do
     fn_name = function_name(endpoint.id, mode)
     path_params = extract_path_params(endpoint.path)
     fields = request_fields(endpoint, types)
@@ -219,7 +249,7 @@ defmodule Pristine.Codegen.Resource do
     params_with_context = ["%__MODULE__{context: context}" | Enum.map(params, &to_string/1)]
     param_list = Enum.join(params_with_context, ", ")
 
-    doc = render_doc(endpoint, params, optional_fields, mode)
+    doc = render_doc(endpoint, params, optional_fields, mode, module_name)
     spec = render_spec(fn_name, params, endpoint, types_namespace, types, mode)
     call_opts = %{client_module: client_module, mode: mode}
 
@@ -241,7 +271,7 @@ defmodule Pristine.Codegen.Resource do
     """
   end
 
-  defp render_doc(endpoint, params, optional_fields, mode) do
+  defp render_doc(endpoint, params, optional_fields, mode, module_name) do
     description = endpoint.description || ""
 
     param_lines =
@@ -281,7 +311,7 @@ defmodule Pristine.Codegen.Resource do
         "## Returns",
         "  * `#{returns}`",
         "## Example",
-        "    #{example_call(endpoint.id, params, mode)}"
+        "    #{example_call(module_name, endpoint.id, params, mode)}"
       ]
       |> Enum.reject(&(&1 == "" || is_nil(&1)))
       |> Enum.join("\n")
@@ -299,7 +329,7 @@ defmodule Pristine.Codegen.Resource do
   defp render_returns(:stream),
     do: "{:ok, Pristine.Core.StreamResponse.t()} | {:error, Pristine.Error.t()}"
 
-  defp example_call(endpoint_id, params, mode) do
+  defp example_call(module_name, endpoint_id, params, mode) do
     suffix =
       case mode do
         :sync -> ""
@@ -310,9 +340,9 @@ defmodule Pristine.Codegen.Resource do
     args = Enum.map_join(params, ", ", &to_string/1)
 
     if args == "" do
-      "resource.#{endpoint_id}#{suffix}()"
+      "#{module_name}.#{endpoint_id}#{suffix}(resource)"
     else
-      "resource.#{endpoint_id}#{suffix}(#{args}, [])"
+      "#{module_name}.#{endpoint_id}#{suffix}(resource, #{args}, [])"
     end
   end
 
@@ -570,11 +600,8 @@ defmodule Pristine.Codegen.Resource do
   end
 
   defp extract_path_params(path) do
-    Regex.scan(~r/{([^}]+)}|:([A-Za-z0-9_]+)/, path, capture: :all_but_first)
-    |> Enum.map(fn captures ->
-      Enum.find(captures, fn value -> value not in [nil, ""] end)
-    end)
-    |> Enum.reject(&is_nil/1)
+    Regex.scan(~r/{([^}]+)}/, path, capture: :all_but_first)
+    |> Enum.map(fn [name] -> name end)
     |> Enum.uniq()
   end
 

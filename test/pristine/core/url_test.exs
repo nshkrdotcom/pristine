@@ -11,9 +11,11 @@ defmodule Pristine.Core.UrlTest do
   test "applies path params" do
     assert Url.build("https://example.com", "/v1/models/{id}", %{"id" => "abc"}, %{}) ==
              "https://example.com/v1/models/abc"
+  end
 
+  test "does not treat colon-prefixed segments as path params" do
     assert Url.build("https://example.com", "/v1/models/:id", %{id: "abc"}, %{}) ==
-             "https://example.com/v1/models/abc"
+             "https://example.com/v1/models/:id"
   end
 
   test "appends query params" do

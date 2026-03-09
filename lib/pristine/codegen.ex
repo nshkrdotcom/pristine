@@ -6,7 +6,7 @@ defmodule Pristine.Codegen do
   manifest definitions, including:
 
   - **Client module**: Main entry point with resource accessors and ungrouped endpoints
-  - **Resource modules**: Per-resource endpoint groupings (e.g., `Client.models()`)
+  - **Resource modules**: Per-resource endpoint groupings (e.g., `MyAPI.Client.models(client)`)
   - **Type modules**: Structured types with Sinter schemas
 
   ## Example
@@ -101,8 +101,7 @@ defmodule Pristine.Codegen do
       name: manifest.name,
       version: manifest.version,
       endpoints: endpoints_list(manifest) |> Enum.map(&Map.from_struct/1),
-      types: manifest.types,
-      policies: manifest.policies
+      types: manifest.types
     }
   end
 

@@ -14,17 +14,30 @@ defmodule Pristine.Manifest.LoaderTest do
     assert manifest.name == "demo"
   end
 
-  test "loads manifest from exs file" do
+  test "rejects exs manifest files" do
     path = Path.join(System.tmp_dir!(), "pristine_manifest.exs")
     on_exit(fn -> File.rm(path) end)
 
-    content = """
-    %{name: \"demo\", version: \"0.1.0\", endpoints: [], types: %{}}
+    File.write!(path, "%{name: \"demo\", version: \"0.1.0\", endpoints: [], types: %{}}")
+
+    assert {:error, {:unsupported_extension, ".exs"}} = Manifest.load_file(path)
+  end
+
+  test "loads manifest from yaml file" do
+    path = Path.join(System.tmp_dir!(), "pristine_manifest.yaml")
+    on_exit(fn -> File.rm(path) end)
+
+    yaml = """
+    name: demo
+    version: 0.1.0
+    endpoints: []
+    types: {}
     """
 
-    File.write!(path, content)
+    File.write!(path, yaml)
 
     assert {:ok, manifest} = Manifest.load_file(path)
+    assert manifest.name == "demo"
     assert manifest.version == "0.1.0"
   end
 end

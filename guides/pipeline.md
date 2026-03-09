@@ -126,7 +126,7 @@ Pipeline.execute(manifest, :get_post, %{}, context,
 
 **URL Features:**
 
-- Path parameter substitution (`{param}` or `:param`)
+- Path parameter substitution (`{param}`)
 - Query string encoding
 - Base URL normalization
 

@@ -11,27 +11,16 @@ defmodule Pristine.Manifest.Loader do
           Jason.decode(data)
         end
 
-      ".exs" ->
-        {manifest, _binding} = Code.eval_file(path)
-        {:ok, manifest}
-
       ".yaml" ->
-        decode_yaml_or_json(path)
+        decode_yaml(path)
 
       ".yml" ->
-        decode_yaml_or_json(path)
+        decode_yaml(path)
 
       other ->
         {:error, {:unsupported_extension, other}}
     end
   end
 
-  defp decode_yaml_or_json(path) do
-    with {:ok, data} <- File.read(path),
-         {:ok, manifest} <- Jason.decode(data) do
-      {:ok, manifest}
-    else
-      {:error, _} -> {:error, :yaml_not_supported}
-    end
-  end
+  defp decode_yaml(path), do: YamlElixir.read_from_file(path)
 end
