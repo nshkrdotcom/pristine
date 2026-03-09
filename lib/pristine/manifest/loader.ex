@@ -17,10 +17,26 @@ defmodule Pristine.Manifest.Loader do
       ".yml" ->
         decode_yaml(path)
 
+      ".exs" ->
+        decode_elixir(path)
+
       other ->
         {:error, {:unsupported_extension, other}}
     end
   end
 
   defp decode_yaml(path), do: YamlElixir.read_from_file(path)
+
+  defp decode_elixir(path) do
+    case Code.eval_file(path) do
+      {manifest, _binding} when is_map(manifest) ->
+        {:ok, manifest}
+
+      {other, _binding} ->
+        {:error, {:invalid_elixir_manifest, other}}
+    end
+  rescue
+    error ->
+      {:error, {:invalid_elixir_manifest, error}}
+  end
 end

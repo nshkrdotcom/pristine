@@ -1,8 +1,26 @@
 defmodule Pristine.Adapters.Transport.FinchStreamTest do
   use ExUnit.Case, async: true
 
+  @compile {:no_warn_undefined, [Bandit, ThousandIsland]}
+
   alias Pristine.Adapters.Transport.FinchStream
+  alias Pristine.Core.{Context, Request}
   alias Pristine.Streaming.Event
+
+  defmodule SlowStreamPlug do
+    use Plug.Router
+
+    plug(:match)
+    plug(:dispatch)
+
+    get "/slow" do
+      Process.sleep(150)
+
+      conn
+      |> put_resp_content_type("text/event-stream")
+      |> send_resp(200, "data: hello\n\n")
+    end
+  end
 
   describe "decode_sse_body/1" do
     test "decodes SSE body into events" do
@@ -77,6 +95,52 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
       [event] = FinchStream.decode_sse_body(body)
 
       assert %{"n" => 42} = Event.json!(event)
+    end
+  end
+
+  describe "stream/2 timeout handling" do
+    test "uses request timeout metadata when opening the stream" do
+      finch_name = :"pristine_stream_finch_#{System.unique_integer([:positive])}"
+      {:ok, finch_pid} = Finch.start_link(name: finch_name)
+
+      {:ok, server_pid} =
+        Bandit.start_link(
+          plug: SlowStreamPlug,
+          port: 0,
+          ip: {127, 0, 0, 1},
+          startup_log: false
+        )
+
+      {:ok, {_, port}} = ThousandIsland.listener_info(server_pid)
+
+      on_exit(fn ->
+        stop_supervised_pid(server_pid)
+
+        if Process.alive?(finch_pid) do
+          Process.exit(finch_pid, :normal)
+        end
+      end)
+
+      request = %Request{
+        method: "GET",
+        url: "http://localhost:#{port}/slow",
+        headers: %{},
+        metadata: %{timeout: 10}
+      }
+
+      context = %Context{transport_opts: [finch: finch_name]}
+
+      assert {:error, :timeout} = FinchStream.stream(request, context)
+    end
+  end
+
+  defp stop_supervised_pid(pid) when is_pid(pid) do
+    if Process.alive?(pid) do
+      try do
+        Supervisor.stop(pid, :normal)
+      catch
+        :exit, _ -> :ok
+      end
     end
   end
 end

@@ -90,19 +90,10 @@ defmodule Pristine.Codegen do
 
   defp build_client_sources(manifest, namespace, output_dir) do
     client_module = "#{namespace}.Client"
-    client_source = ElixirCodegen.render_client_module(client_module, manifest_to_map(manifest))
+    client_source = ElixirCodegen.render_client_module(client_module, manifest)
     client_path = Path.join(output_dir, "client.ex")
 
     %{client_path => client_source}
-  end
-
-  defp manifest_to_map(%Manifest{} = manifest) do
-    %{
-      name: manifest.name,
-      version: manifest.version,
-      endpoints: endpoints_list(manifest) |> Enum.map(&Map.from_struct/1),
-      types: manifest.types
-    }
   end
 
   defp endpoints_list(%Manifest{endpoints: endpoints}) when is_map(endpoints) do

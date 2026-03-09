@@ -26,7 +26,7 @@ defmodule Pristine.Codegen.ClientTest do
       code = ElixirCodegen.render_client_module("TestAPI.Client", build_manifest([]))
 
       assert code =~ "def new(opts \\\\ [])"
-      assert code =~ "Context.new(opts)"
+      assert code =~ "Pristine.Runtime.build_context!(@manifest, opts)"
     end
 
     test "generates defstruct with context" do
@@ -49,6 +49,12 @@ defmodule Pristine.Codegen.ClientTest do
       code = ElixirCodegen.render_client_module("TestAPI.Client", build_manifest([]))
 
       assert code =~ "@type t :: %__MODULE__{context: Context.t()}"
+    end
+
+    test "embeds a normalized manifest type" do
+      code = ElixirCodegen.render_client_module("TestAPI.Client", build_manifest([]))
+
+      assert code =~ "@spec manifest() :: Pristine.Manifest.t()"
     end
 
     test "generates @spec for resource accessors" do
@@ -115,11 +121,14 @@ defmodule Pristine.Codegen.ClientTest do
 
   # Helper to build manifest map
   defp build_manifest(endpoints) do
-    %{
-      name: "TestAPI",
-      version: "1.0.0",
-      endpoints: Enum.map(endpoints, &Map.from_struct/1),
-      types: %{}
-    }
+    {:ok, manifest} =
+      Pristine.Manifest.load(%{
+        name: "TestAPI",
+        version: "1.0.0",
+        endpoints: Enum.map(endpoints, &Map.from_struct/1),
+        types: %{}
+      })
+
+    manifest
   end
 end

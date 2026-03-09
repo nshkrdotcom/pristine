@@ -138,6 +138,40 @@ defmodule Pristine.OpenAPITest do
       assert spec["paths"]["/users/{id}"]["get"]["description"] == "Retrieves a user by ID"
     end
 
+    test "exports discriminated unions and nested refs from normalized manifest types" do
+      path = Path.expand("../fixtures/tinkex_manifest.json", __DIR__)
+      {:ok, manifest} = Manifest.load_file(path)
+
+      {:ok, spec} = OpenAPI.generate(manifest)
+
+      union = spec["components"]["schemas"]["ModelInputChunk"]
+      sample_request = spec["components"]["schemas"]["SampleRequest"]
+      model_input = spec["components"]["schemas"]["ModelInput"]
+
+      assert union["discriminator"]["propertyName"] == "type"
+      assert union["discriminator"]["mapping"]["text"] == "#/components/schemas/TextChunk"
+      assert %{"$ref" => "#/components/schemas/TextChunk"} in union["oneOf"]
+      assert sample_request["properties"]["prompt"]["$ref"] == "#/components/schemas/ModelInput"
+
+      assert model_input["properties"]["chunks"]["items"]["$ref"] ==
+               "#/components/schemas/ModelInputChunk"
+    end
+
+    test "exports alias enums and alias arrays" do
+      manifest =
+        build_test_manifest_with_types(%{
+          "StopReason" => %{type: "string", choices: ["end_turn", "stop_sequence"]},
+          "TagList" => %{type: "array", items: "string"}
+        })
+
+      {:ok, spec} = OpenAPI.generate(manifest)
+
+      assert spec["components"]["schemas"]["StopReason"]["type"] == "string"
+      assert spec["components"]["schemas"]["StopReason"]["enum"] == ["end_turn", "stop_sequence"]
+      assert spec["components"]["schemas"]["TagList"]["type"] == "array"
+      assert spec["components"]["schemas"]["TagList"]["items"]["type"] == "string"
+    end
+
     test "formats output as JSON string with json option" do
       manifest = build_test_manifest()
 

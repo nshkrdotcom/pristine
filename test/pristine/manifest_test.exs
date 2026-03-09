@@ -136,4 +136,53 @@ defmodule Pristine.ManifestTest do
     assert items[:type_ref] == "ModelInputChunk"
     refute Map.has_key?(Map.from_struct(manifest), :policies)
   end
+
+  test "applies manifest endpoint defaults during normalization" do
+    input = %{
+      name: "demo",
+      version: "0.1.0",
+      defaults: %{
+        timeout: 30_000,
+        retry: "default",
+        headers: %{"X-App" => "pristine", "X-Shared" => "default"}
+      },
+      endpoints: [
+        %{
+          id: "sample",
+          method: "POST",
+          path: "/sample",
+          headers: %{"X-Shared" => "endpoint", "X-Endpoint" => "1"}
+        }
+      ],
+      types: %{}
+    }
+
+    assert {:ok, manifest} = Manifest.load(input)
+
+    endpoint = manifest.endpoints["sample"]
+
+    assert endpoint.timeout == 30_000
+    assert endpoint.retry == "default"
+    assert endpoint.headers["X-App"] == "pristine"
+    assert endpoint.headers["X-Shared"] == "endpoint"
+    assert endpoint.headers["X-Endpoint"] == "1"
+  end
+
+  test "preserves alias array item definitions" do
+    input = %{
+      name: "demo",
+      version: "0.1.0",
+      endpoints: [%{id: "list", method: "GET", path: "/list"}],
+      types: %{
+        "TagList" => %{
+          type: "array",
+          items: "string"
+        }
+      }
+    }
+
+    assert {:ok, manifest} = Manifest.load(input)
+    assert manifest.types["TagList"].kind == :alias
+    assert manifest.types["TagList"].items == %{type: "string"}
+  end
 end
