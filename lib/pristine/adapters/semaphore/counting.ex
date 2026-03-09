@@ -26,6 +26,7 @@ defmodule Pristine.Adapters.Semaphore.Counting do
   @behaviour Pristine.Ports.Semaphore
 
   alias Foundation.Semaphore.Counting, as: FoundationSemaphore
+  alias Pristine.Adapters.Semaphore.Counting.Owner
 
   # ETS table to store semaphore configuration (name -> limit)
   @config_table __MODULE__.Config
@@ -119,30 +120,18 @@ defmodule Pristine.Adapters.Semaphore.Counting do
   # Private functions
 
   defp ensure_tables do
-    ensure_config_table()
-    ensure_registry()
+    Owner.ensure_started()
     :ok
   end
 
   defp ensure_config_table do
-    case :ets.whereis(@config_table) do
-      :undefined ->
-        :ets.new(@config_table, [:set, :public, :named_table, {:read_concurrency, true}])
-
-      _tid ->
-        :ok
-    end
+    Owner.ensure_started()
+    :ok
   end
 
   defp ensure_registry do
-    # Use a named ETS table for the registry to avoid persistent_term staleness issues
-    case :ets.whereis(@registry_table) do
-      :undefined ->
-        FoundationSemaphore.new_registry(name: @registry_table)
-
-      _tid ->
-        @registry_table
-    end
+    Owner.ensure_started()
+    @registry_table
   end
 
   defp get_limit(name) do

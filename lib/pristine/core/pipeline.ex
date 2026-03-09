@@ -8,7 +8,18 @@ defmodule Pristine.Core.Pipeline do
 
   require Logger
 
-  alias Pristine.Core.{Context, Headers, Request, Response, StreamResponse, TelemetryHeaders, Url}
+  alias Pristine.Core.{
+    Context,
+    Headers,
+    HTTPMethod,
+    PoolRouting,
+    Request,
+    Response,
+    StreamResponse,
+    TelemetryHeaders,
+    Url
+  }
+
   alias Pristine.Manifest
 
   @retry_policy_key_aliases %{
@@ -510,8 +521,8 @@ defmodule Pristine.Core.Pipeline do
 
     headers = maybe_add_idempotency_header(headers, endpoint, context, opts)
 
-    pool_type = resolve_pool_type(endpoint, opts)
-    pool_name = resolve_pool_name(context, pool_type)
+    pool_type = PoolRouting.resolve_type(endpoint, opts)
+    pool_name = PoolRouting.resolve_name(context, pool_type)
 
     url =
       Url.build(
@@ -601,30 +612,6 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp normalize_query_map(_), do: %{}
-
-  defp resolve_pool_type(endpoint, opts) do
-    opts
-    |> Keyword.get(:pool_type, endpoint.resource || :default)
-    |> normalize_pool_type()
-  end
-
-  defp normalize_pool_type(value) when is_atom(value), do: value
-
-  defp normalize_pool_type(value) when is_binary(value) do
-    String.to_atom(value)
-  end
-
-  defp normalize_pool_type(_), do: :default
-
-  defp resolve_pool_name(
-         %Context{pool_manager: manager, pool_base: pool_base, base_url: base_url},
-         pool_type
-       )
-       when is_atom(manager) and not is_nil(pool_base) and is_binary(base_url) do
-    manager.resolve_pool_name(pool_base, base_url, pool_type)
-  end
-
-  defp resolve_pool_name(_context, _pool_type), do: nil
 
   defp retry_opts(%{retry: nil}, %Context{} = context, opts) do
     apply_request_retry_opts(context.retry_opts, context, opts)
@@ -1111,13 +1098,13 @@ defmodule Pristine.Core.Pipeline do
   defp telemetry_event(_context, key), do: key
 
   defp build_telemetry_metadata(%Context{} = context, endpoint, opts) do
-    pool_type = resolve_pool_type(endpoint, opts)
+    pool_type = PoolRouting.resolve_type(endpoint, opts)
     path = Keyword.get(opts, :path, endpoint.path)
 
     base =
       %{
         endpoint_id: endpoint.id,
-        method: telemetry_method(endpoint.method),
+        method: HTTPMethod.telemetry(endpoint.method),
         path: path,
         pool_type: pool_type,
         base_url: context.base_url
@@ -1129,23 +1116,6 @@ defmodule Pristine.Core.Pipeline do
       _ -> base
     end
   end
-
-  defp telemetry_method(method) when is_atom(method), do: method
-
-  defp telemetry_method(method) when is_binary(method) do
-    case String.downcase(method) do
-      "get" -> :get
-      "post" -> :post
-      "put" -> :put
-      "patch" -> :patch
-      "delete" -> :delete
-      "head" -> :head
-      "options" -> :options
-      other -> String.to_atom(other)
-    end
-  end
-
-  defp telemetry_method(method), do: method
 
   defp emit_request_stop(
          telemetry,
@@ -1224,7 +1194,7 @@ defmodule Pristine.Core.Pipeline do
 
       wrapper_opts =
         [
-          method: telemetry_method(response.metadata[:method] || response.metadata["method"]),
+          method: HTTPMethod.telemetry(response.metadata[:method] || response.metadata["method"]),
           url: response.metadata[:url],
           retries: retry_count,
           elapsed_ms: elapsed_ms,

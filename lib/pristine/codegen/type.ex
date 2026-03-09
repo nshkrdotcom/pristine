@@ -227,14 +227,10 @@ defmodule Pristine.Codegen.Type do
   end
 
   defp render_defstruct_fields(fields) do
-    field_names =
-      fields
-      |> Enum.map(fn field ->
-        name = get_value(field, "name")
-        String.to_atom(name)
-      end)
-
-    inspect(field_names)
+    fields
+    |> Enum.map(fn field -> get_value(field, "name") end)
+    |> Enum.map_join(", ", &atom_literal/1)
+    |> then(&"[#{&1}]")
   end
 
   defp render_type_fields(fields, types, base_namespace) do
@@ -255,7 +251,7 @@ defmodule Pristine.Codegen.Type do
     name = get_value(field, "name")
     sinter_type = render_sinter_type(field, types, base_namespace)
     opts = render_schema_opts(field)
-    "      {:#{name}, #{sinter_type}, #{opts}}"
+    "      {#{atom_literal(name)}, #{sinter_type}, #{opts}}"
   end
 
   defp render_schema_opts(field) do
@@ -736,7 +732,30 @@ defmodule Pristine.Codegen.Type do
   defp maybe_add_opt(opts, key, value), do: Keyword.put(opts, key, value)
 
   defp get_value(field, key) do
-    Map.get(field, key) || Map.get(field, String.to_atom(key))
+    Map.get(field, key) || maybe_get_existing_atom_key(field, key)
+  end
+
+  defp atom_literal(name) do
+    name = to_string(name)
+
+    if String.match?(name, ~r/^[a-z_][a-zA-Z0-9_@]*[!?]?$/) do
+      ":#{name}"
+    else
+      ":" <> inspect(name)
+    end
+  end
+
+  defp maybe_get_existing_atom_key(field, key) do
+    case safe_existing_atom(key) do
+      {:ok, atom_key} -> Map.get(field, atom_key)
+      :error -> nil
+    end
+  end
+
+  defp safe_existing_atom(key) do
+    {:ok, String.to_existing_atom(to_string(key))}
+  rescue
+    ArgumentError -> :error
   end
 
   defp type_kind(type_def) when is_map(type_def) do
