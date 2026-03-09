@@ -1,5 +1,6 @@
 defmodule Pristine.Test.MockServerTest do
   use ExUnit.Case, async: false
+  import ExUnit.CaptureLog
 
   alias Pristine.Manifest
   alias Pristine.Test.MockServer
@@ -38,6 +39,20 @@ defmodule Pristine.Test.MockServerTest do
       # Server should no longer accept connections
       result = request(:get, "http://localhost:#{server.port}/test")
       assert {:error, _} = result
+    end
+
+    test "stop/1 does not emit acceptor shutdown errors" do
+      manifest = build_test_manifest()
+
+      log =
+        capture_log(fn ->
+          {:ok, server} = MockServer.start(manifest, port: 0)
+          :ok = MockServer.stop(server)
+          Process.sleep(100)
+        end)
+
+      refute log =~ "acceptor_info"
+      refute log =~ "started from"
     end
   end
 

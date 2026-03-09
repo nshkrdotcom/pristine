@@ -97,7 +97,8 @@ defmodule Pristine.Test.MockServer do
       plug: {__MODULE__.Router, plug_opts},
       port: port,
       ip: {127, 0, 0, 1},
-      startup_log: false
+      startup_log: false,
+      thousand_island_options: [num_acceptors: 1, silent_terminate_on_error: true]
     ]
 
     bandit_module = Bandit

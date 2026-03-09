@@ -218,8 +218,8 @@ defmodule Pristine.Codegen.TypeTest do
         Type.render_type_module(parent_module, parent_name, types[parent_name], types)
       )
 
-      child_mod = Module.concat([MyAPI, Types, String.to_atom(child_name)])
-      parent_mod = Module.concat([MyAPI, Types, String.to_atom(parent_name)])
+      child_mod = Module.concat([MyAPI, Types, child_name])
+      parent_mod = Module.concat([MyAPI, Types, parent_name])
 
       assert {:ok, parent} = parent_mod.decode(%{"child" => %{"name" => "Ada"}})
       assert %^parent_mod{} = parent

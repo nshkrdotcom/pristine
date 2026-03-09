@@ -241,12 +241,9 @@ defmodule Pristine.Codegen.Resource do
     fields = request_fields(endpoint, types)
     {required_fields, optional_fields, literal_fields} = split_fields(fields, path_params)
 
-    params =
-      path_params
-      |> Enum.map(&String.to_atom/1)
-      |> Kernel.++(Enum.map(required_fields, &String.to_atom(&1.name)))
+    params = path_params ++ Enum.map(required_fields, & &1.name)
 
-    params_with_context = ["%__MODULE__{context: context}" | Enum.map(params, &to_string/1)]
+    params_with_context = ["%__MODULE__{context: context}" | params]
     param_list = Enum.join(params_with_context, ", ")
 
     doc = render_doc(endpoint, params, optional_fields, mode, module_name)
