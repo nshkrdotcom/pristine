@@ -490,16 +490,10 @@ defmodule Pristine.Manifest do
   defp contract_errors(input) do
     []
     |> maybe_add_contract_error(
-      has_key?(input, :policies),
+      Map.has_key?(input, :policies) or Map.has_key?(input, "policies"),
       "policies has been removed; use retry_policies"
     )
   end
-
-  defp has_key?(map, key) when is_map(map) do
-    Map.has_key?(map, key) or Map.has_key?(map, Atom.to_string(key))
-  end
-
-  defp has_key?(_map, _key), do: false
 
   defp colon_path_params?(path) do
     Regex.match?(~r/(^|\/):[A-Za-z0-9_]+/, to_string(path))
