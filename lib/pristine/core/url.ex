@@ -44,9 +44,7 @@ defmodule Pristine.Core.Url do
     Enum.reduce(params, path, fn {key, value}, acc ->
       value = URI.encode(to_string(value))
 
-      acc
-      |> String.replace("{" <> normalize_key(key) <> "}", value)
-      |> String.replace(":" <> normalize_key(key), value)
+      String.replace(acc, "{" <> normalize_key(key) <> "}", value)
     end)
   end
 

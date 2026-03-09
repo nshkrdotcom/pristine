@@ -4,11 +4,10 @@ Manifests are declarative definitions of your API that drive both code generatio
 
 ## File Formats
 
-Pristine supports three manifest formats:
+Pristine supports two manifest file formats:
 
 - **JSON** (`.json`) - Standard JSON format
 - **YAML** (`.yaml`, `.yml`) - YAML format
-- **Elixir** (`.exs`) - Elixir script returning a map
 
 ## Loading Manifests
 
@@ -37,8 +36,7 @@ Pristine supports three manifest formats:
   "defaults": "{object} (optional)",
   "retry_policies": "{object} (optional)",
   "rate_limits": "{object} (optional)",
-  "error_types": "{object} (optional)",
-  "policies": "{object} (optional)"
+  "error_types": "{object} (optional)"
 }
 ```
 
@@ -61,7 +59,6 @@ Pristine supports three manifest formats:
 | `retry_policies` | object | Named retry policy definitions |
 | `rate_limits` | object | Named rate limit configurations |
 | `error_types` | object | Error type mappings by status code |
-| `policies` | object | Generic policy definitions |
 
 ## Endpoints
 
@@ -155,7 +152,7 @@ Each endpoint defines an API operation:
 
 ### Path Parameters
 
-Use `{param}` or `:param` syntax:
+Use `{param}` syntax:
 
 ```json
 {

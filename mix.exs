@@ -38,6 +38,7 @@ defmodule Pristine.MixProject do
   defp deps do
     [
       {:jason, "~> 1.4"},
+      {:yaml_elixir, "~> 2.12"},
       {:telemetry, "~> 1.2"},
       {:finch, "~> 0.18"},
       {:sinter, path: "../sinter"},
@@ -53,7 +54,7 @@ defmodule Pristine.MixProject do
       {:bandit, "~> 1.0", only: :test},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false}
     ]
   end
 

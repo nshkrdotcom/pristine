@@ -28,7 +28,7 @@ mix deps.get
 
 ### 1. Define Your Manifest
 
-Create a manifest file that describes your API. Manifests can be JSON, YAML, or Elixir script format:
+Create a manifest file that describes your API. File-based manifests can be JSON or YAML:
 
 ```json
 {
@@ -40,12 +40,14 @@ Create a manifest file that describes your API. Manifests can be JSON, YAML, or 
       "id": "get_user",
       "method": "GET",
       "path": "/users/{id}",
+      "resource": "users",
       "response": "User"
     },
     {
       "id": "create_user",
       "method": "POST",
       "path": "/users",
+      "resource": "users",
       "request": "CreateUserRequest",
       "response": "User"
     }
@@ -99,8 +101,9 @@ client = MyAPI.Client.new(
 )
 
 # Make API calls
-{:ok, user} = MyAPI.Users.get(client.users(), "user-123")
-{:ok, new_user} = MyAPI.Users.create(client.users(), "John Doe", email: "john@example.com")
+resource = MyAPI.Client.users(client)
+{:ok, user} = MyAPI.Users.get(resource, "user-123")
+{:ok, new_user} = MyAPI.Users.create(resource, "John Doe", email: "john@example.com")
 ```
 
 ## Runtime Execution (Without Code Generation)

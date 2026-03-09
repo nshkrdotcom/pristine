@@ -63,6 +63,37 @@ defmodule Pristine.ManifestTest do
     assert Enum.any?(errors, &String.contains?(&1, "endpoint sample"))
   end
 
+  test "rejects deprecated policies key" do
+    input = %{
+      name: "tinkex",
+      version: "0.3.4",
+      endpoints: [
+        %{id: "sample", method: "POST", path: "/sampling"}
+      ],
+      types: %{},
+      policies: %{
+        default: %{max_attempts: 3}
+      }
+    }
+
+    assert {:error, errors} = Manifest.load(input)
+    assert "policies has been removed; use retry_policies" in errors
+  end
+
+  test "rejects colon-style path params" do
+    input = %{
+      name: "tinkex",
+      version: "0.3.4",
+      endpoints: [
+        %{id: "sample", method: "POST", path: "/sampling/:id"}
+      ],
+      types: %{}
+    }
+
+    assert {:error, errors} = Manifest.load(input)
+    assert "endpoint sample path params must use {param} syntax" in errors
+  end
+
   test "loads tinkex manifest fixture with extended fields" do
     path = Path.expand("../fixtures/tinkex_manifest.json", __DIR__)
 
@@ -103,5 +134,6 @@ defmodule Pristine.ManifestTest do
 
     items = manifest.types["ModelInput"].fields["chunks"][:items]
     assert items[:type_ref] == "ModelInputChunk"
+    refute Map.has_key?(Map.from_struct(manifest), :policies)
   end
 end

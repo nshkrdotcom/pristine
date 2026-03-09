@@ -15,7 +15,6 @@ defmodule Pristine.Manifest.Schema do
       {:error_types, :map, [optional: true]},
       {:endpoints, {:array, :map}, [required: true]},
       {:types, :map, [required: true]},
-      {:policies, :map, [optional: true]},
       {:retry_policies, :map, [optional: true]},
       {:rate_limits, :map, [optional: true]},
       {:resources, :map, [optional: true]},

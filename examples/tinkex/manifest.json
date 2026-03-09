@@ -295,7 +295,7 @@
     }
   },
 
-  "policies": {
+  "retry_policies": {
     "default": {
       "max_attempts": 3,
       "base_delay_ms": 1000,

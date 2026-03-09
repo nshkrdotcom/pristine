@@ -18,8 +18,7 @@ defmodule Pristine.Manifest do
             rate_limits: %{},
             middleware: %{},
             endpoints: %{},
-            types: %{},
-            policies: %{}
+            types: %{}
 
   @type t :: %__MODULE__{
           name: String.t(),
@@ -34,8 +33,7 @@ defmodule Pristine.Manifest do
           rate_limits: map(),
           middleware: map(),
           endpoints: %{String.t() => Endpoint.t()},
-          types: map(),
-          policies: map()
+          types: map()
         }
 
   @spec load(map()) :: {:ok, t()} | {:error, [String.t()]}
@@ -44,10 +42,10 @@ defmodule Pristine.Manifest do
 
     case Validator.validate(schema, input, coerce: true) do
       {:ok, validated} ->
-        build_manifest(validated)
+        build_manifest(validated, input)
 
       {:error, errors} ->
-        {:error, Enum.map(errors, &format_error/1)}
+        {:error, Enum.map(errors, &format_error/1) ++ contract_errors(input)}
     end
   end
 
@@ -55,9 +53,9 @@ defmodule Pristine.Manifest do
     {:error, ["manifest must be a map"]}
   end
 
-  defp build_manifest(validated) do
+  defp build_manifest(validated, input) do
     fields = normalize_manifest_fields(validated)
-    errors = required_field_errors(fields)
+    errors = required_field_errors(fields) ++ contract_errors(input)
 
     {endpoint_map, endpoint_errors} = normalize_endpoints(fields.endpoints)
     {type_map, type_errors} = normalize_types(fields.types)
@@ -79,8 +77,7 @@ defmodule Pristine.Manifest do
          rate_limits: fields.rate_limits,
          middleware: fields.middleware,
          endpoints: endpoint_map,
-         types: type_map,
-         policies: fields.policies
+         types: type_map
        }}
     else
       {:error, errors}
@@ -97,27 +94,16 @@ defmodule Pristine.Manifest do
       error_types: normalize_optional_map(validated, :error_types),
       resources: normalize_optional_map(validated, :resources),
       servers: normalize_optional_map(validated, :servers),
-      retry_policies: normalize_retry_policies(validated),
+      retry_policies: normalize_optional_map(validated, :retry_policies),
       rate_limits: normalize_optional_map(validated, :rate_limits),
       middleware: normalize_optional_map(validated, :middleware),
       endpoints: normalize_value(validated, :endpoints),
-      types: normalize_value(validated, :types),
-      policies: normalize_policies(validated)
+      types: normalize_value(validated, :types)
     }
   end
 
   defp normalize_optional_map(validated, key) do
     normalize_deep_map(validated, key) || %{}
-  end
-
-  defp normalize_retry_policies(validated) do
-    normalize_deep_map(validated, :retry_policies) ||
-      normalize_deep_map(validated, :policies) ||
-      %{}
-  end
-
-  defp normalize_policies(validated) do
-    normalize_value(validated, :policies) || %{}
   end
 
   defp required_field_errors(fields) do
@@ -176,6 +162,9 @@ defmodule Pristine.Manifest do
 
       not String.starts_with?(to_string(path), "/") ->
         {:error, "endpoint #{normalize_key(id)} path must start with '/'"}
+
+      colon_path_params?(path) ->
+        {:error, "endpoint #{normalize_key(id)} path params must use {param} syntax"}
 
       true ->
         {:ok,
@@ -498,6 +487,24 @@ defmodule Pristine.Manifest do
   defp normalize_key(key) when is_binary(key), do: key
   defp normalize_key(key), do: to_string(key)
 
+  defp contract_errors(input) do
+    []
+    |> maybe_add_contract_error(
+      has_key?(input, :policies),
+      "policies has been removed; use retry_policies"
+    )
+  end
+
+  defp has_key?(map, key) when is_map(map) do
+    Map.has_key?(map, key) or Map.has_key?(map, Atom.to_string(key))
+  end
+
+  defp has_key?(_map, _key), do: false
+
+  defp colon_path_params?(path) do
+    Regex.match?(~r/(^|\/):[A-Za-z0-9_]+/, to_string(path))
+  end
+
   defp format_error(%Error{} = error) do
     path = error.path |> List.wrap() |> Enum.map_join(".", &to_string/1)
 
@@ -510,6 +517,8 @@ defmodule Pristine.Manifest do
 
   defp format_error(error), do: to_string(error)
 
+  defp maybe_add_contract_error(errors, true, message), do: errors ++ [message]
+  defp maybe_add_contract_error(errors, false, _message), do: errors
   defp maybe_require(errors, nil, message), do: errors ++ [message]
   defp maybe_require(errors, _value, _message), do: errors
 end

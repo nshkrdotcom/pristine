@@ -186,6 +186,48 @@ defmodule Examples.TinkexGenerationTest do
       assert content =~ "def models("
       assert content =~ "def sampling("
     end
+
+    test "generated sdk compiles end to end" do
+      {:ok, manifest} = Manifest.load_file(@manifest_path)
+      namespace = "TinkexCompile#{System.unique_integer([:positive])}"
+
+      {:ok, sources} =
+        Codegen.build_sources(manifest,
+          output_dir: @output_path,
+          namespace: namespace
+        )
+
+      source_paths =
+        sources
+        |> Map.keys()
+        |> Enum.sort_by(fn path ->
+          cond do
+            String.contains?(path, "/types/") -> 0
+            String.contains?(path, "/resources/") -> 1
+            String.ends_with?(path, "/client.ex") -> 2
+            true -> 3
+          end
+        end)
+
+      compiled =
+        source_paths
+        |> Enum.map_join("\n\n", &Map.fetch!(sources, &1))
+        |> Code.compile_string("generated_sdk.ex")
+
+      assert compiled != []
+
+      assert Enum.any?(compiled, fn {module, _binary} ->
+               module == Module.concat([namespace, "Client"])
+             end)
+
+      assert Enum.any?(compiled, fn {module, _binary} ->
+               module == Module.concat([namespace, "Models"])
+             end)
+
+      assert Enum.any?(compiled, fn {module, _binary} ->
+               module == Module.concat([namespace, "Sampling"])
+             end)
+    end
   end
 
   describe "mix pristine.generate task" do

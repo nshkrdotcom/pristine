@@ -107,8 +107,9 @@ client = MyAPI.Client.new(
 )
 
 # Make API calls
-{:ok, user} = MyAPI.Users.get(client.users(), "user-123")
-{:ok, new_user} = MyAPI.Users.create(client.users(), "John Doe", email: "john@example.com")
+resource = MyAPI.Client.users(client)
+{:ok, user} = MyAPI.Users.get(resource, "user-123")
+{:ok, new_user} = MyAPI.Users.create(resource, "John Doe", email: "john@example.com")
 ```
 
 ## Architecture
