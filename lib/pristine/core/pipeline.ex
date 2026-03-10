@@ -13,6 +13,7 @@ defmodule Pristine.Core.Pipeline do
     Headers,
     HTTPMethod,
     PoolRouting,
+    RequestPath,
     Request,
     Response,
     StreamResponse,
@@ -83,6 +84,8 @@ defmodule Pristine.Core.Pipeline do
       %{system_time: System.system_time()}
     )
 
+    maybe_log(context, :info, "request start", telemetry_metadata)
+
     retry_key = {:pristine_retry_attempt, make_ref()}
     Process.put(retry_key, 0)
 
@@ -134,6 +137,14 @@ defmodule Pristine.Core.Pipeline do
       handle_execute_result(result, serializer, response_schema, endpoint, telemetry_state)
     rescue
       exception ->
+        maybe_log(context, :error, "request fail", %{
+          endpoint_id: endpoint.id,
+          method: HTTPMethod.telemetry(endpoint.method),
+          path: Keyword.get(opts, :path, endpoint.path),
+          reason: log_reason(exception),
+          retry_count: current_retry_count(retry_key)
+        })
+
         emit_request_exception(
           telemetry,
           context,
@@ -168,6 +179,16 @@ defmodule Pristine.Core.Pipeline do
       {:ok, data} ->
         retry_count = current_retry_count(retry_key)
 
+        maybe_log(
+          context,
+          :info,
+          "request success",
+          Map.merge(telemetry_metadata, %{
+            status: response.status,
+            retry_count: retry_count
+          })
+        )
+
         emit_request_stop(
           telemetry,
           context,
@@ -182,6 +203,17 @@ defmodule Pristine.Core.Pipeline do
 
       {:error, reason} = error ->
         retry_count = current_retry_count(retry_key)
+
+        maybe_log(
+          context,
+          :warn,
+          "request fail",
+          Map.merge(telemetry_metadata, %{
+            status: response.status,
+            reason: log_reason(reason),
+            retry_count: retry_count
+          })
+        )
 
         emit_request_stop(
           telemetry,
@@ -219,6 +251,16 @@ defmodule Pristine.Core.Pipeline do
       else
         error
       end
+
+    maybe_log(
+      context,
+      :warn,
+      "request fail",
+      Map.merge(telemetry_metadata, %{
+        reason: log_reason(reason),
+        retry_count: retry_count
+      })
+    )
 
     emit_request_stop(
       telemetry,
@@ -493,7 +535,10 @@ defmodule Pristine.Core.Pipeline do
     retry_count = Keyword.get(opts, :retry_count, 0)
     timeout = Keyword.get(opts, :timeout) || endpoint.timeout || context.default_timeout
 
-    auth_modules = resolve_auth(context.auth, endpoint.auth)
+    RequestPath.validate!(path)
+    RequestPath.validate_path_params!(path_params)
+
+    auth_modules = resolve_auth(context.auth, endpoint.auth, Keyword.fetch(opts, :auth))
 
     package_version =
       context.package_version ||
@@ -983,11 +1028,67 @@ defmodule Pristine.Core.Pipeline do
     end
   end
 
+  defp resolve_auth(auth, key, :error), do: resolve_auth(auth, key)
+  defp resolve_auth(_auth, _key, {:ok, override}), do: normalize_auth_override!(override)
+
   defp resolve_auth(auth, nil) when is_list(auth), do: auth
   defp resolve_auth(auth, nil) when is_map(auth), do: Map.get(auth, "default", [])
   defp resolve_auth(auth, key) when is_map(auth), do: Map.get(auth, to_string(key), [])
   defp resolve_auth(auth, _key) when is_list(auth), do: auth
   defp resolve_auth(_auth, _key), do: []
+
+  defp normalize_auth_override!(nil), do: []
+  defp normalize_auth_override!(false), do: []
+  defp normalize_auth_override!([]), do: []
+
+  defp normalize_auth_override!({module, opts})
+       when is_atom(module) and is_list(opts) do
+    [{module, opts}]
+  end
+
+  defp normalize_auth_override!(override) when is_list(override) do
+    if Enum.all?(override, &match?({module, opts} when is_atom(module) and is_list(opts), &1)) do
+      override
+    else
+      raise ArgumentError, "invalid auth override: #{inspect(override)}"
+    end
+  end
+
+  defp normalize_auth_override!(override) when is_binary(override) do
+    [Pristine.Adapters.Auth.Bearer.new(override)]
+  end
+
+  defp normalize_auth_override!(override) when is_map(override) do
+    normalized =
+      Map.new(override, fn {key, value} ->
+        {to_string(key), value}
+      end)
+
+    cond do
+      Map.has_key?(normalized, "client_id") and Map.has_key?(normalized, "client_secret") ->
+        [
+          Pristine.Adapters.Auth.Basic.new(
+            normalized["client_id"],
+            normalized["client_secret"]
+          )
+        ]
+
+      Map.has_key?(normalized, "username") and Map.has_key?(normalized, "password") ->
+        [
+          Pristine.Adapters.Auth.Basic.new(
+            normalized["username"],
+            normalized["password"]
+          )
+        ]
+
+      true ->
+        raise ArgumentError, "invalid auth override: #{inspect(override)}"
+    end
+  end
+
+  defp normalize_auth_override!(override) do
+    raise ArgumentError, "invalid auth override: #{inspect(override)}"
+  end
 
   defp normalize_transport_result({:ok, %Response{} = response}), do: {:ok, response}
   defp normalize_transport_result({:error, _} = error), do: error
@@ -1046,9 +1147,25 @@ defmodule Pristine.Core.Pipeline do
       method = format_method(request.method)
       url = request.url
 
-      Logger.info(
-        "HTTP #{method} #{url} attempt=#{attempt} headers=#{inspect(redacted)} body=#{body_dump}"
-      )
+      cond do
+        logger_configured?(context) and log_enabled?(context, :debug) ->
+          maybe_log(context, :debug, "request attempt", %{
+            attempt: attempt,
+            endpoint_id: request.endpoint_id,
+            method: method,
+            url: url,
+            headers: normalize_header_map(redacted),
+            body: body_dump
+          })
+
+        logger_configured?(context) ->
+          :ok
+
+        true ->
+          Logger.info(
+            "HTTP #{method} #{url} attempt=#{attempt} headers=#{inspect(redacted)} body=#{body_dump}"
+          )
+      end
     end
   end
 
@@ -1114,6 +1231,57 @@ defmodule Pristine.Core.Pipeline do
     case Keyword.get(opts, :telemetry_metadata) do
       meta when is_map(meta) -> Map.merge(base, meta)
       _ -> base
+    end
+  end
+
+  defp maybe_log(%Context{} = context, level, message, metadata) when is_map(metadata) do
+    if logger_configured?(context) and log_enabled?(context, level) do
+      context.logger.(level, message, metadata)
+    end
+
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp maybe_log(_context, _level, _message, _metadata), do: :ok
+
+  defp logger_configured?(%Context{logger: logger}), do: is_function(logger, 3)
+
+  defp log_enabled?(%Context{log_level: threshold}, level) do
+    log_level_severity(level) >= log_level_severity(normalize_log_level(threshold))
+  end
+
+  defp normalize_log_level(:warning), do: :warn
+  defp normalize_log_level(:debug), do: :debug
+  defp normalize_log_level(:info), do: :info
+  defp normalize_log_level(:warn), do: :warn
+  defp normalize_log_level(:error), do: :error
+  defp normalize_log_level("warning"), do: :warn
+  defp normalize_log_level("debug"), do: :debug
+  defp normalize_log_level("info"), do: :info
+  defp normalize_log_level("warn"), do: :warn
+  defp normalize_log_level("error"), do: :error
+  defp normalize_log_level(_), do: :info
+
+  defp log_level_severity(:debug), do: 20
+  defp log_level_severity(:info), do: 40
+  defp log_level_severity(:warn), do: 60
+  defp log_level_severity(:error), do: 80
+
+  defp log_reason(reason) do
+    cond do
+      is_binary(reason) ->
+        reason
+
+      is_atom(reason) ->
+        Atom.to_string(reason)
+
+      is_struct(reason) and function_exported?(reason.__struct__, :message, 1) ->
+        Exception.message(reason)
+
+      true ->
+        inspect(reason)
     end
   end
 
