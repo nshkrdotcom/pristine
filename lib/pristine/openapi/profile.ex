@@ -13,6 +13,8 @@ defmodule Pristine.OpenAPI.Profile do
           {:base_module, module()}
           | {:output_dir, String.t()}
           | {:default_client, module()}
+          | {:operation_use, module()}
+          | {:error_type, module() | {module(), atom()}}
           | {:processor, module()}
           | {:renderer, module()}
           | {:supplemental_files, [String.t()]}
@@ -25,14 +27,18 @@ defmodule Pristine.OpenAPI.Profile do
 
     defaults = [
       processor: Keyword.get(opts, :processor, OpenAPI.Processor),
-      renderer: Keyword.get(opts, :renderer, OpenAPI.Renderer),
+      renderer: Keyword.get(opts, :renderer, Pristine.OpenAPI.Renderer),
       reader: [
         additional_files: Keyword.get(opts, :supplemental_files, [])
       ],
       output: [
         base_module: base_module,
         default_client: Keyword.get(opts, :default_client, Pristine.OpenAPI.Client),
-        location: output_dir
+        location: output_dir,
+        operation_use: Keyword.get(opts, :operation_use, Pristine.OpenAPI.Operation),
+        types: [
+          error: Keyword.get(opts, :error_type, Pristine.Error)
+        ]
       ]
     ]
 

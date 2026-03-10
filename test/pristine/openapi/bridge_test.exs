@@ -6,12 +6,50 @@ defmodule Pristine.OpenAPI.BridgeTest do
   @notion_reference_root "/home/home/p/g/n/jido_brainstorm/nshkrdotcom/notion_docs/reference"
   @proof_pages [
     "get-self.md",
+    "get-users.md",
     "create-a-token.md",
     "create-a-file-upload.md",
     "send-a-file-upload.md"
   ]
+  @parity_pages [
+    "get-self.md",
+    "get-user.md",
+    "get-users.md",
+    "post-page.md",
+    "retrieve-a-page.md",
+    "patch-page.md",
+    "move-page.md",
+    "retrieve-a-page-property.md",
+    "retrieve-page-markdown.md",
+    "update-page-markdown.md",
+    "retrieve-a-block.md",
+    "update-a-block.md",
+    "delete-a-block.md",
+    "get-block-children.md",
+    "patch-block-children.md",
+    "retrieve-a-data-source.md",
+    "update-a-data-source.md",
+    "query-a-data-source.md",
+    "create-a-data-source.md",
+    "list-data-source-templates.md",
+    "retrieve-a-database.md",
+    "update-a-database.md",
+    "create-a-database.md",
+    "post-search.md",
+    "create-a-comment.md",
+    "list-comments.md",
+    "retrieve-comment.md",
+    "create-a-file-upload.md",
+    "list-file-uploads.md",
+    "send-a-file-upload.md",
+    "complete-a-file-upload.md",
+    "retrieve-a-file-upload.md",
+    "create-a-token.md",
+    "revoke-token.md",
+    "introspect-token.md"
+  ]
 
-  test "processes official Notion docs snippets through oapi_generator" do
+  test "processes official Notion docs snippets through the pristine bridge profile" do
     tmp_dir = tmp_dir!("proof")
     output_dir = Path.join(tmp_dir, "generated")
     profile = unique_profile(:proof)
@@ -37,6 +75,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
              :create_a_token,
              :create_file,
              :get_self,
+             :get_users,
              :upload_file
            ]
 
@@ -49,6 +88,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert Enum.any?(Map.keys(sources), &String.ends_with?(&1, "/o_auth.ex"))
 
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "Pristine.OpenAPI.Client"))
+    assert Enum.any?(Map.values(sources), &String.contains?(&1, "use Pristine.OpenAPI.Operation"))
 
     compile_generated_sources!(sources)
 
@@ -56,21 +96,84 @@ defmodule Pristine.OpenAPI.BridgeTest do
     oauth_module = Module.concat([base_module, OAuth])
     file_uploads_module = Module.concat([base_module, FileUploads])
 
-    assert {:ok, get_self_request} = apply(users_module, :get_self, [[]])
+    assert function_exported?(users_module, :get_self, 1)
+    assert function_exported?(users_module, :get_self, 2)
+    assert function_exported?(users_module, :get_users, 1)
+    assert function_exported?(users_module, :get_users, 2)
+    assert function_exported?(oauth_module, :create_a_token, 1)
+    assert function_exported?(oauth_module, :create_a_token, 2)
+    assert function_exported?(file_uploads_module, :upload_file, 1)
+    assert function_exported?(file_uploads_module, :upload_file, 2)
+
+    assert {:ok, get_self_request} =
+             apply(users_module, :get_self, [%{auth: "secret-token"}, []])
+
     assert get_self_request.method == :get
     assert get_self_request.url == "/v1/users/me"
-    assert get_self_request.args == []
+    assert get_self_request.args == %{auth: "secret-token"}
+    assert get_self_request.path_params == %{}
+    assert get_self_request.query == %{}
+    assert get_self_request.body == %{}
+    assert get_self_request.form_data == %{}
+    assert get_self_request.auth == "secret-token"
 
-    assert {:ok, token_request} = apply(oauth_module, :create_a_token, [%{}, []])
+    assert {:ok, list_users_request} =
+             apply(users_module, :get_users, [%{start_cursor: "cursor-1", page_size: 50}, []])
+
+    assert list_users_request.method == :get
+    assert list_users_request.url == "/v1/users"
+    assert list_users_request.path_params == %{}
+    assert list_users_request.query == %{"page_size" => 50, "start_cursor" => "cursor-1"}
+    assert list_users_request.body == %{}
+    assert list_users_request.form_data == %{}
+
+    assert {:ok, token_request} =
+             apply(oauth_module, :create_a_token, [
+               %{
+                 grant_type: "refresh_token",
+                 refresh_token: "refresh-token",
+                 auth: %{client_id: "client-id", client_secret: "client-secret"}
+               },
+               []
+             ])
+
     assert token_request.method == :post
     assert token_request.url == "/v1/oauth/token"
+    assert token_request.path_params == %{}
+    assert token_request.query == %{}
+
+    assert token_request.body == %{
+             "grant_type" => "refresh_token",
+             "refresh_token" => "refresh-token"
+           }
+
+    assert token_request.form_data == %{}
+    assert token_request.auth == %{client_id: "client-id", client_secret: "client-secret"}
     assert token_request.request == [{"application/json", :map}]
 
     assert {:ok, upload_request} =
-             apply(file_uploads_module, :upload_file, ["file-upload-id", %{}, []])
+             apply(file_uploads_module, :upload_file, [
+               %{
+                 file_upload_id: "file-upload-id",
+                 file: %{filename: "report.pdf", data: "bytes"},
+                 part_number: "1",
+                 auth: "secret-token"
+               },
+               []
+             ])
 
     assert upload_request.method == :post
     assert upload_request.url == "/v1/file_uploads/file-upload-id/send"
+    assert upload_request.path_params == %{"file_upload_id" => "file-upload-id"}
+    assert upload_request.query == %{}
+    assert upload_request.body == %{}
+
+    assert upload_request.form_data == %{
+             "file" => %{filename: "report.pdf", data: "bytes"},
+             "part_number" => "1"
+           }
+
+    assert upload_request.auth == "secret-token"
     assert upload_request.request == [{"multipart/form-data", :map}]
   end
 
@@ -107,9 +210,50 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     users_module = Module.concat([base_module, Users])
 
-    assert {:ok, alias_request} = apply(users_module, :get_self_alias, [[]])
+    assert {:ok, alias_request} = apply(users_module, :get_self_alias, [%{}, []])
     assert alias_request.url == "/v1/users/me/alias"
     assert alias_request.method == :get
+  end
+
+  test "represents the full 35-operation Notion endpoint surface" do
+    tmp_dir = tmp_dir!("parity")
+    output_dir = Path.join(tmp_dir, "generated")
+    profile = unique_profile(:parity)
+    base_module = unique_base_module(:parity)
+
+    on_exit(fn ->
+      Application.delete_env(:oapi_generator, profile)
+      File.rm_rf!(tmp_dir)
+    end)
+
+    spec_files =
+      Enum.map(@parity_pages, fn page ->
+        extract_openapi_fixture!(Path.join(@notion_reference_root, page), tmp_dir)
+      end)
+
+    state =
+      Bridge.run(profile, spec_files,
+        base_module: base_module,
+        output_dir: output_dir
+      )
+
+    assert length(state.operations) == 35
+
+    modules =
+      state.operations
+      |> Enum.map(& &1.module_name)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    assert Users in modules
+    assert Pages in modules
+    assert Blocks in modules
+    assert DataSources in modules
+    assert Databases in modules
+    assert Comments in modules
+    assert FileUploads in modules
+    assert OAuth in modules
+    assert Search in modules
   end
 
   test "documents the upstream gap for supplemental roots without components" do
