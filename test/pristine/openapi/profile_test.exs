@@ -3,7 +3,7 @@ defmodule Pristine.OpenAPI.ProfileTest do
 
   alias Pristine.OpenAPI.Profile
 
-  test "build/1 keeps defaults while exposing supplemental and override hooks" do
+  test "build/1 keeps pristine defaults while exposing supplemental and override hooks" do
     config =
       Profile.build(
         base_module: Pristine.OpenAPI.ProfileTest.Generated,
@@ -11,12 +11,12 @@ defmodule Pristine.OpenAPI.ProfileTest do
         supplemental_files: ["/tmp/notion-supplement.yaml"],
         profile_overrides: [
           naming: [rename: [{"OAuth", "OAuth"}]],
-          output: [types: [error: Pristine.Error]]
+          output: [types: [specs: :spec_comprehensive]]
         ]
       )
 
     assert Keyword.get(config, :processor) == OpenAPI.Processor
-    assert Keyword.get(config, :renderer) == OpenAPI.Renderer
+    assert Keyword.get(config, :renderer) == Pristine.OpenAPI.Renderer
 
     assert config |> Keyword.get(:reader) |> Keyword.get(:additional_files) == [
              "/tmp/notion-supplement.yaml"
@@ -27,7 +27,9 @@ defmodule Pristine.OpenAPI.ProfileTest do
     assert Keyword.get(output, :base_module) == Pristine.OpenAPI.ProfileTest.Generated
     assert Keyword.get(output, :default_client) == Pristine.OpenAPI.Client
     assert Keyword.get(output, :location) == "/tmp/pristine-openapi-profile"
+    assert Keyword.get(output, :operation_use) == Pristine.OpenAPI.Operation
     assert output |> Keyword.get(:types) |> Keyword.get(:error) == Pristine.Error
+    assert output |> Keyword.get(:types) |> Keyword.get(:specs) == :spec_comprehensive
 
     assert config |> Keyword.get(:naming) |> Keyword.get(:rename) == [{"OAuth", "OAuth"}]
   end

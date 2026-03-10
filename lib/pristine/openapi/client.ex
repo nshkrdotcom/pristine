@@ -9,13 +9,16 @@ defmodule Pristine.OpenAPI.Client do
   @type response_type :: term()
 
   @type request_t :: %{
-          required(:args) => keyword(),
+          required(:args) => map(),
           required(:call) => {module(), atom()},
           required(:method) => atom(),
           required(:opts) => keyword(),
           required(:url) => String.t(),
-          optional(:body) => term(),
-          optional(:query) => keyword(),
+          required(:path_params) => map(),
+          required(:query) => map(),
+          required(:body) => term(),
+          required(:form_data) => term(),
+          optional(:auth) => term(),
           optional(:request) => [{String.t(), response_type()}],
           optional(:response) => [{integer() | :default, response_type()}]
         }
