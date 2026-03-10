@@ -4,6 +4,14 @@ defmodule Pristine.MixProject do
   @version "0.1.0"
   @source_url "https://github.com/nshkrdotcom/pristine"
 
+  defp local_or_github(app, path, github, opts \\ []) do
+    if File.dir?(path) do
+      {app, [path: path] ++ opts}
+    else
+      {app, [github: github] ++ opts}
+    end
+  end
+
   def project do
     [
       app: :pristine,
@@ -41,11 +49,26 @@ defmodule Pristine.MixProject do
       {:yaml_elixir, "~> 2.12"},
       {:telemetry, "~> 1.2"},
       {:finch, "~> 0.18"},
-      {:sinter, path: "../sinter"},
-      {:foundation, path: "../foundation"},
-      {:multipart_ex, path: "../multipart_ex"},
-      {:telemetry_reporter, path: "../telemetry_reporter"},
-      {:tiktoken_ex, path: "../../North-Shore-AI/tiktoken_ex"},
+      local_or_github(:sinter, "../sinter", "nshkrdotcom/sinter"),
+      local_or_github(:foundation, "../foundation", "nshkrdotcom/foundation"),
+      local_or_github(:multipart_ex, "../multipart_ex", "nshkrdotcom/multipart_ex"),
+      local_or_github(
+        :telemetry_reporter,
+        "../telemetry_reporter",
+        "nshkrdotcom/telemetry_reporter"
+      ),
+      local_or_github(
+        :tiktoken_ex,
+        "../../North-Shore-AI/tiktoken_ex",
+        "North-Shore-AI/tiktoken_ex"
+      ),
+      local_or_github(
+        :oapi_generator,
+        "../../aj-foster/open-api-generator",
+        "aj-foster/open-api-generator",
+        only: [:dev, :test],
+        runtime: false
+      ),
       {:nx, "~> 0.9"},
       {:uuid, "~> 1.1"},
       {:mox, "~> 1.1", only: :test},
