@@ -175,6 +175,16 @@ defmodule Pristine.Codegen.ResourceTest do
       refute code =~ "\"id\" => encode_ref"
     end
 
+    test "documents request-level auth overrides in generated endpoint docs" do
+      endpoints = [
+        %Endpoint{id: "get", method: "GET", path: "/api/v1/models", resource: "models"}
+      ]
+
+      code = Resource.render_resource_module("MyAPI.Models", "models", endpoints, %{})
+
+      assert code =~ "`:auth` - Request-level auth override."
+    end
+
     test "generates async variants for async endpoints" do
       endpoints = [
         %Endpoint{

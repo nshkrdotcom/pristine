@@ -281,6 +281,7 @@ defmodule Pristine.Codegen.Resource do
 
     optional_lines =
       optional_lines ++
+        ["    * `:auth` - Request-level auth override."] ++
         if(endpoint.idempotency,
           do: ["    * `:idempotency_key` - Idempotency key override."],
           else: []

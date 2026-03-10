@@ -38,6 +38,8 @@ defmodule Pristine.Core.Context do
             package_version: nil,
             error_module: nil,
             response_wrapper: nil,
+            logger: nil,
+            log_level: nil,
             dump_headers?: false,
             redact_headers: nil,
             extra_headers: nil
@@ -78,6 +80,8 @@ defmodule Pristine.Core.Context do
           package_version: String.t() | nil,
           error_module: module() | nil,
           response_wrapper: module() | nil,
+          logger: (atom(), String.t(), map() -> term()) | nil,
+          log_level: :debug | :info | :warn | :error | nil,
           dump_headers?: boolean(),
           redact_headers: function() | nil,
           extra_headers: function() | nil
@@ -121,6 +125,8 @@ defmodule Pristine.Core.Context do
       package_version: Keyword.get(opts, :package_version),
       error_module: Keyword.get(opts, :error_module),
       response_wrapper: Keyword.get(opts, :response_wrapper),
+      logger: Keyword.get(opts, :logger),
+      log_level: Keyword.get(opts, :log_level),
       dump_headers?: Keyword.get(opts, :dump_headers?, false),
       redact_headers: Keyword.get(opts, :redact_headers),
       extra_headers: Keyword.get(opts, :extra_headers)
