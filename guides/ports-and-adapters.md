@@ -10,7 +10,7 @@ Pristine implements a hexagonal architecture where **ports** define interface co
 | StreamTransport | Streaming responses | FinchStream |
 | Serializer | Payload encoding | JSON |
 | Auth | Authentication | Bearer, APIKey, OAuth2 |
-| TokenSource | OAuth2 token retrieval | File, Static |
+| TokenSource | OAuth2 token retrieval | File, Refreshable, Static |
 | Retry | Retry logic | Foundation, Noop |
 | CircuitBreaker | Failure isolation | Foundation, Noop |
 | RateLimit | Request throttling | BackoffWindow, Noop |
@@ -247,6 +247,33 @@ Behavior:
 - writes atomically
 - forces `0600` permissions
 - preserves provider-specific metadata in `other_params`
+
+#### Refreshable Token Source
+
+```elixir
+Pristine.Adapters.TokenSource.Refreshable
+```
+
+Wraps another token source and refreshes through `Pristine.OAuth2` when the
+current token already includes real expiry metadata.
+
+```elixir
+token_source =
+  {Pristine.Adapters.TokenSource.Refreshable,
+   inner_source: {Pristine.Adapters.TokenSource.File, path: token_path},
+   provider: provider,
+   context: oauth_context,
+   client_id: System.fetch_env!("OAUTH_CLIENT_ID"),
+   client_secret: System.fetch_env!("OAUTH_CLIENT_SECRET"),
+   refresh_skew_seconds: 60}
+```
+
+Behavior:
+- delegates reads and writes to the wrapped token source
+- refreshes only when `expires_at` is present and refresh is needed
+- persists replacement access tokens through the wrapped source
+- preserves rotated refresh tokens returned by the provider
+- does not invent expiry behavior when `expires_at` is `nil`
 
 ## OAuth2 Interactive Helpers
 
