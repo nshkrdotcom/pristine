@@ -68,6 +68,7 @@ Pipeline.execute()
 | `:headers` | Additional headers |
 | `:timeout` | Override timeout |
 | `:idempotency_key` | Custom idempotency key |
+| `:typed_responses` | Materialize successful OpenAPI responses through generated `decode/1,2` helpers |
 
 ### Streaming Execution
 
@@ -217,6 +218,18 @@ payload = %{
 payload = "raw binary data"
 # Sent as-is
 ```
+
+## Runtime Schema Resolution
+
+At execution time, endpoint `request` and `response` entries can resolve from multiple schema forms:
+
+- manifest type keys such as `"User"`
+- direct Sinter type specs
+- direct OpenAPI refs such as `{MySDK.User, :t}`
+
+For OpenAPI-generated modules, Pristine looks for `__schema__/1` during validation and `decode/1,2` during typed response materialization.
+
+Default success handling still returns maps. If you pass `typed_responses: true`, the pipeline validates first and then materializes successful responses through the generated schema module when one is available.
 
 ## Resilience Stack
 

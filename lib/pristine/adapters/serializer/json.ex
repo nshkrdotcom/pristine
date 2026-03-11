@@ -8,8 +8,10 @@ defmodule Pristine.Adapters.Serializer.JSON do
   alias Sinter.{Schema, Types, Validator}
 
   @impl true
-  def encode(payload, _opts \\ []) do
-    Jason.encode(payload)
+  def encode(payload, opts \\ []) do
+    with {:ok, validated} <- maybe_validate(payload, Keyword.get(opts, :schema), opts) do
+      Jason.encode(validated)
+    end
   end
 
   @impl true
@@ -30,7 +32,7 @@ defmodule Pristine.Adapters.Serializer.JSON do
   end
 
   defp validate(decoded, type_spec, opts) do
-    path = Keyword.get(opts, :path, [])
+    path = normalize_validation_path(Keyword.get(opts, :path, []))
     coerce = Keyword.get(opts, :coerce, false)
 
     if coerce do
@@ -41,4 +43,13 @@ defmodule Pristine.Adapters.Serializer.JSON do
       Types.validate(type_spec, decoded, path)
     end
   end
+
+  defp maybe_validate(payload, nil, _opts), do: {:ok, payload}
+
+  defp maybe_validate(payload, schema, opts) do
+    validate(payload, schema, opts)
+  end
+
+  defp normalize_validation_path(path) when is_list(path), do: path
+  defp normalize_validation_path(_path), do: []
 end

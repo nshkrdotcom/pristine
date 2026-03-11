@@ -22,6 +22,96 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     end
   end
 
+  defmodule OpenAPIRequest do
+    def __schema__(type \\ :t)
+
+    def __schema__(:t) do
+      Sinter.Schema.define([
+        {:prompt, :string, required: true},
+        {:count, :integer, optional: true}
+      ])
+    end
+
+    def decode(data, type \\ :t) do
+      Sinter.Validator.validate(__schema__(type), data)
+    end
+  end
+
+  defmodule OpenAPIProfile do
+    defstruct [:city, :created_at]
+
+    def __schema__(type \\ :t)
+
+    def __schema__(:t) do
+      Sinter.Schema.define([
+        {:city, :string, required: true},
+        {:created_at, :datetime, required: true}
+      ])
+    end
+
+    def decode(data, type \\ :t) do
+      with {:ok, validated} <- Sinter.Validator.validate(__schema__(type), data),
+           {:ok, created_at, _offset} <- DateTime.from_iso8601(validated["created_at"]) do
+        {:ok,
+         %__MODULE__{
+           city: validated["city"],
+           created_at: created_at
+         }}
+      end
+    end
+  end
+
+  defmodule OpenAPIResponse do
+    defstruct [:id, :object, :profile, :tags]
+
+    def __schema__(type \\ :t)
+
+    def __schema__(:t) do
+      Sinter.Schema.define([
+        {:id, :uuid, required: true},
+        {:object, {:literal, "user"}, required: true},
+        {:profile, {:object, OpenAPIProfile.__schema__(:t)}, required: true},
+        {:tags, {:array, :string}, optional: true}
+      ])
+    end
+
+    def decode(data, type \\ :t) do
+      with {:ok, validated} <- Sinter.Validator.validate(__schema__(type), data),
+           {:ok, profile} <- OpenAPIProfile.decode(validated["profile"]) do
+        {:ok,
+         %__MODULE__{
+           id: validated["id"],
+           object: validated["object"],
+           profile: profile,
+           tags: validated["tags"]
+         }}
+      end
+    end
+  end
+
+  defmodule OpenAPILiteralFlag do
+    def __openapi_fields__(:t) do
+      [
+        %{
+          default: nil,
+          name: "type",
+          nullable: false,
+          required: true,
+          type: {:const, "workspace"}
+        },
+        %{default: nil, name: "workspace", nullable: false, required: true, type: {:const, true}}
+      ]
+    end
+
+    def __schema__(:t) do
+      Pristine.OpenAPI.Runtime.build_schema(__openapi_fields__(:t))
+    end
+
+    def decode(data, type \\ :t) do
+      Pristine.OpenAPI.Runtime.decode_module_type(__MODULE__, type, data)
+    end
+  end
+
   test "supports request-level bearer auth override" do
     manifest = runtime_manifest()
     payload = %{"prompt" => "hi"}
@@ -175,6 +265,136 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
             }} = Pipeline.execute(manifest, "ping", payload, context)
   end
 
+  test "validates request payloads from direct OpenAPI schema refs" do
+    manifest = openapi_manifest(request: {OpenAPIRequest, :t})
+    context = runtime_context(serializer: Pristine.Adapters.Serializer.JSON)
+
+    expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas ->
+      :ok
+    end)
+
+    assert {:error, [%Sinter.Error{code: :required, path: ["prompt"]}]} =
+             Pipeline.execute(manifest, "ping", %{"count" => 2}, context)
+  end
+
+  test "validates success responses from direct OpenAPI schema refs" do
+    manifest = openapi_manifest(response: {OpenAPIResponse, :t})
+    context = runtime_context(serializer: Pristine.Adapters.Serializer.JSON)
+
+    expect(Pristine.RateLimitMock, :within_limit, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.CircuitBreakerMock, :call, fn "ping", fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TransportMock, :send, fn %Request{}, _context ->
+      {:ok,
+       %Response{
+         status: 200,
+         body:
+           ~s({"object":"user","profile":{"city":"Honolulu","created_at":"2026-03-10T00:00:00Z"}})
+       }}
+    end)
+
+    expect(Pristine.RetryMock, :with_retry, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas ->
+      :ok
+    end)
+
+    assert {:error, [%Sinter.Error{code: :required, path: ["id"]}]} =
+             Pipeline.execute(manifest, "ping", %{"prompt" => "hi"}, context)
+  end
+
+  test "returns validated maps by default for direct OpenAPI schema refs" do
+    manifest = openapi_manifest(response: {OpenAPIResponse, :t})
+    context = runtime_context(serializer: Pristine.Adapters.Serializer.JSON)
+
+    expect(Pristine.RateLimitMock, :within_limit, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.CircuitBreakerMock, :call, fn "ping", fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TransportMock, :send, fn %Request{}, _context ->
+      {:ok,
+       %Response{
+         status: 200,
+         body:
+           ~s({"id":"01234567-89ab-cdef-0123-456789abcdef","object":"user","profile":{"city":"Honolulu","created_at":"2026-03-10T00:00:00Z"},"tags":["alpha","beta"]})
+       }}
+    end)
+
+    expect(Pristine.RetryMock, :with_retry, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas ->
+      :ok
+    end)
+
+    assert {:ok,
+            %{
+              "id" => "01234567-89ab-cdef-0123-456789abcdef",
+              "object" => "user",
+              "profile" => %{
+                "city" => "Honolulu",
+                "created_at" => "2026-03-10T00:00:00Z"
+              },
+              "tags" => ["alpha", "beta"]
+            }} = Pipeline.execute(manifest, "ping", %{"prompt" => "hi"}, context)
+  end
+
+  test "builds schemas for generated literal boolean OpenAPI fields" do
+    assert {:ok, %{"type" => "workspace", "workspace" => true}} =
+             OpenAPILiteralFlag.decode(%{"type" => "workspace", "workspace" => true})
+  end
+
+  test "materializes typed OpenAPI responses when opted in" do
+    manifest = openapi_manifest(response: {OpenAPIResponse, :t})
+    context = runtime_context(serializer: Pristine.Adapters.Serializer.JSON)
+
+    expect(Pristine.RateLimitMock, :within_limit, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.CircuitBreakerMock, :call, fn "ping", fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TransportMock, :send, fn %Request{}, _context ->
+      {:ok,
+       %Response{
+         status: 200,
+         body:
+           ~s({"id":"01234567-89ab-cdef-0123-456789abcdef","object":"user","profile":{"city":"Honolulu","created_at":"2026-03-10T00:00:00Z"},"tags":["alpha","beta"]})
+       }}
+    end)
+
+    expect(Pristine.RetryMock, :with_retry, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas ->
+      :ok
+    end)
+
+    assert {:ok, %OpenAPIResponse{} = response} =
+             Pipeline.execute(manifest, "ping", %{"prompt" => "hi"}, context,
+               typed_responses: true
+             )
+
+    assert %OpenAPIProfile{} = response.profile
+    assert response.profile.city == "Honolulu"
+    assert %DateTime{} = response.profile.created_at
+  end
+
   defp runtime_manifest(overrides \\ []) do
     manifest = %{
       name: "demo",
@@ -205,6 +425,25 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
 
     {:ok, loaded} = Manifest.load(manifest)
     loaded
+  end
+
+  defp openapi_manifest(overrides \\ []) do
+    endpoint =
+      %{
+        id: "ping",
+        method: "POST",
+        path: "/ping",
+        request: {OpenAPIRequest, :t},
+        response: {OpenAPIResponse, :t}
+      }
+      |> Map.merge(Enum.into(overrides, %{}))
+
+    %Manifest{
+      name: "openapi-demo",
+      version: "0.1.0",
+      endpoints: %{"ping" => struct(Manifest.Endpoint, endpoint)},
+      types: %{}
+    }
   end
 
   defp runtime_context(overrides \\ []) do

@@ -141,6 +141,17 @@ defmodule MyAPI.Types.User do
 end
 ```
 
+## OpenAPI-Generated Runtime Helpers
+
+When you generate from OpenAPI through the bridge, schema modules should expose a small runtime contract in addition to typespecs:
+
+- `__fields__/1` for readable field metadata
+- `__openapi_fields__/1` for runtime field descriptors
+- `__schema__/1` for validation-ready `Sinter.Schema` values
+- `decode/1,2` for struct or map materialization
+
+That contract lets the generic pipeline validate direct refs such as `{MySDK.PageObjectResponse, :t}` and, when `typed_responses: true` is enabled by the generated SDK, materialize successful responses without bespoke runtime code in each SDK.
+
 ### Union Types
 
 **Manifest:**

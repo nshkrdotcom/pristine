@@ -87,14 +87,22 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert Enum.any?(Map.keys(sources), &String.ends_with?(&1, "/file_uploads.ex"))
     assert Enum.any?(Map.keys(sources), &String.ends_with?(&1, "/o_auth.ex"))
 
+    assert Enum.any?(
+             Map.keys(sources),
+             &String.ends_with?(&1, "/partial_user_object_response.ex")
+           )
+
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "Pristine.OpenAPI.Client"))
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "use Pristine.OpenAPI.Operation"))
+    assert Enum.any?(Map.values(sources), &String.contains?(&1, "def __schema__(type \\\\ :t)"))
+    assert Enum.any?(Map.values(sources), &String.contains?(&1, "def decode(data, type \\\\ :t)"))
 
     compile_generated_sources!(sources)
 
     users_module = Module.concat([base_module, Users])
     oauth_module = Module.concat([base_module, OAuth])
     file_uploads_module = Module.concat([base_module, FileUploads])
+    partial_user_module = Module.concat([base_module, PartialUserObjectResponse])
 
     assert function_exported?(users_module, :get_self, 1)
     assert function_exported?(users_module, :get_self, 2)
@@ -104,6 +112,17 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert function_exported?(oauth_module, :create_a_token, 2)
     assert function_exported?(file_uploads_module, :upload_file, 1)
     assert function_exported?(file_uploads_module, :upload_file, 2)
+    assert function_exported?(partial_user_module, :__schema__, 1)
+    assert function_exported?(partial_user_module, :decode, 1)
+    assert %Sinter.Schema{} = partial_user_module.__schema__(:t)
+
+    assert {:ok, decoded_partial_user} =
+             partial_user_module.decode(%{
+               "id" => "01234567-89ab-cdef-0123-456789abcdef",
+               "object" => "user"
+             })
+
+    assert decoded_partial_user.__struct__ == partial_user_module
 
     assert {:ok, get_self_request} =
              apply(users_module, :get_self, [%{auth: "secret-token"}, []])

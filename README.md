@@ -175,6 +175,21 @@ context = Pristine.context(
 )
 ```
 
+## OpenAPI Runtime Contract
+
+Pristine also supports OpenAPI-generated schema refs directly at runtime. Endpoint `request` and `response` entries can point at:
+
+- manifest-native string keys such as `"User"`
+- direct type specs
+- direct OpenAPI refs such as `{MySDK.User, :t}`
+
+Generated OpenAPI schema modules are expected to expose runtime helpers:
+
+- `__schema__/1` for validation
+- `decode/1` or `decode/2` for materialization
+
+When an SDK opts into `typed_responses: true`, successful responses are materialized through those helpers. Default runtime behavior stays compatibility-friendly: validated maps when schema refs are present, or raw decoded maps when the SDK chooses not to wire typed refs into the manifest.
+
 ## Streaming Support
 
 Handle SSE streams with first-class support:

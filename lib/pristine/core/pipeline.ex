@@ -21,6 +21,7 @@ defmodule Pristine.Core.Pipeline do
     Url
   }
 
+  alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
   alias Pristine.Manifest
 
   @retry_policy_key_aliases %{
@@ -72,8 +73,8 @@ defmodule Pristine.Core.Pipeline do
     circuit_breaker = context.circuit_breaker || Pristine.Adapters.CircuitBreaker.Foundation
     telemetry = context.telemetry || Pristine.Adapters.Telemetry.Noop
 
-    request_schema = Map.get(context.type_schemas, endpoint.request)
-    response_schema = Map.get(context.type_schemas, endpoint.response)
+    request_schema = OpenAPIRuntime.resolve_schema(endpoint.request, context.type_schemas)
+    response_schema = OpenAPIRuntime.resolve_schema(endpoint.response, context.type_schemas)
 
     telemetry_metadata = build_telemetry_metadata(context, endpoint, opts)
     start_time = System.monotonic_time()
@@ -247,7 +248,11 @@ defmodule Pristine.Core.Pipeline do
 
     error =
       if error_module?(context) do
-        {:error, connection_error(context, reason)}
+        if validation_reason?(reason) do
+          {:error, validation_error(context, reason, nil)}
+        else
+          {:error, connection_error(context, reason)}
+        end
       else
         error
       end
@@ -1422,10 +1427,31 @@ defmodule Pristine.Core.Pipeline do
     case decode_body(serializer, body, opts) do
       {:ok, decoded} ->
         unwrapped = unwrap_response(decoded, endpoint)
-        validate_response_schema(unwrapped, response_schema, opts)
+
+        case validate_response_schema(unwrapped, response_schema, opts) do
+          {:ok, validated} ->
+            {:ok, maybe_materialize_response(validated, endpoint.response, context, opts)}
+
+          {:error, reason} ->
+            if error_module?(context) do
+              {:error, validation_error(context, reason, unwrapped)}
+            else
+              {:error, reason}
+            end
+        end
 
       {:error, _} when body in [nil, ""] ->
-        validate_response_schema(%{}, response_schema, opts)
+        case validate_response_schema(%{}, response_schema, opts) do
+          {:ok, validated} ->
+            {:ok, maybe_materialize_response(validated, endpoint.response, context, opts)}
+
+          {:error, reason} ->
+            if error_module?(context) do
+              {:error, validation_error(context, reason, %{})}
+            else
+              {:error, reason}
+            end
+        end
 
       {:error, reason} ->
         if error_module?(context) do
@@ -1490,6 +1516,10 @@ defmodule Pristine.Core.Pipeline do
 
   defp error_module?(%Context{error_module: error_module}),
     do: is_atom(error_module) and not is_nil(error_module)
+
+  defp validation_reason?(%Sinter.Error{}), do: true
+  defp validation_reason?([%Sinter.Error{} | _]), do: true
+  defp validation_reason?(_reason), do: false
 
   defp build_error(
          %Context{error_module: error_module},
@@ -1667,7 +1697,7 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp validate_response_schema(data, type_spec, opts) do
-    path = Keyword.get(opts, :path, [])
+    path = normalize_validation_path(Keyword.get(opts, :path, []))
     coerce = Keyword.get(opts, :coerce, false)
 
     if coerce do
@@ -1681,4 +1711,15 @@ defmodule Pristine.Core.Pipeline do
 
   defp success_status?(status) when is_integer(status), do: status >= 200 and status < 300
   defp success_status?(_status), do: false
+
+  defp normalize_validation_path(path) when is_list(path), do: path
+  defp normalize_validation_path(_path), do: []
+
+  defp maybe_materialize_response(data, response_ref, %Context{} = context, opts) do
+    if Keyword.get(opts, :typed_responses, false) do
+      OpenAPIRuntime.materialize(response_ref, data, context.type_schemas)
+    else
+      data
+    end
+  end
 end
