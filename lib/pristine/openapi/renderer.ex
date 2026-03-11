@@ -13,6 +13,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     alias OpenAPI.Processor.Operation
     alias OpenAPI.Processor.Operation.Param
     alias OpenAPI.Processor.Schema, as: ProcessedSchema
+    alias OpenAPI.Renderer.File
     alias OpenAPI.Renderer.Operation, as: OperationRenderer
     alias OpenAPI.Renderer.Schema, as: SchemaRenderer
     alias OpenAPI.Renderer.State
@@ -41,6 +42,13 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
       state
       |> OpenAPI.Renderer.format(file)
       |> rewrite_nested_module_aliases_in_source()
+    end
+
+    @impl OpenAPI.Renderer
+    def render_operations(_state, %File{operations: []}), do: []
+
+    def render_operations(state, file) do
+      OpenAPI.Renderer.render_operations(state, file)
     end
 
     @impl OpenAPI.Renderer
@@ -461,8 +469,8 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
       source = IO.iodata_to_binary(contents)
 
       rewrites =
-        Enum.filter(@nested_module_alias_source_rewrites, fn {full, _short, _declaration} ->
-          String.contains?(source, full <> ".")
+        Enum.filter(@nested_module_alias_source_rewrites, fn {full, short, _declaration} ->
+          String.contains?(source, full <> ".") or String.contains?(source, short <> ".")
         end)
 
       source =
@@ -514,31 +522,29 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
       case Enum.at(lines, index) do
         line when is_binary(line) ->
           if Regex.match?(~r/^\s*@moduledoc\b/, line) do
-            cond do
-              not String.contains?(line, "\"\"\"") ->
-                index + 1
-
-              triple_quote_count(line) >= 2 ->
-                index + 1
-
-              true ->
-                closing_offset =
-                  lines
-                  |> Enum.drop(index + 1)
-                  |> Enum.find_index(&String.contains?(&1, "\"\"\""))
-
-                if closing_offset do
-                  index + closing_offset + 2
-                else
-                  index + 1
-                end
-            end
+            moduledoc_block_end_index(index, line, lines)
           else
             index
           end
 
         _ ->
           index
+      end
+    end
+
+    defp moduledoc_block_end_index(index, line, lines) do
+      cond do
+        not String.contains?(line, "\"\"\"") ->
+          index + 1
+
+        triple_quote_count(line) >= 2 ->
+          index + 1
+
+        true ->
+          case Enum.find_index(Enum.drop(lines, index + 1), &String.contains?(&1, "\"\"\"")) do
+            nil -> index + 1
+            closing_offset -> index + closing_offset + 2
+          end
       end
     end
 
