@@ -20,6 +20,28 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
 
     @multipart_content_type "multipart/form-data"
+    @nested_module_alias_rewrites [
+      {[:Pristine, :OAuth2], [:OAuth2], quote(do: alias(Pristine.OAuth2, as: OAuth2))},
+      {[:Pristine, :OpenAPI, :Runtime], [:OpenAPIRuntime],
+       quote(do: alias(Pristine.OpenAPI.Runtime, as: OpenAPIRuntime))}
+    ]
+    @nested_module_alias_source_rewrites [
+      {"Pristine.OAuth2", "OAuth2", "alias Pristine.OAuth2, as: OAuth2"},
+      {"Pristine.OpenAPI.Runtime", "OpenAPIRuntime",
+       "alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime"}
+    ]
+
+    @impl OpenAPI.Renderer
+    def render(state, file) do
+      OpenAPI.Renderer.render(state, file)
+    end
+
+    @impl OpenAPI.Renderer
+    def format(state, file) do
+      state
+      |> OpenAPI.Renderer.format(file)
+      |> rewrite_nested_module_aliases_in_source()
+    end
 
     @impl OpenAPI.Renderer
     def render_operation_spec(state, operation) do
@@ -335,8 +357,6 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     end
 
     defp render_schema_function(schemas, default_type) do
-      runtime_module = OpenAPIRuntime
-
       typespec =
         quote do
           @doc false
@@ -352,7 +372,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
         Enum.map(schemas, fn %ProcessedSchema{type_name: type_name} ->
           quote do
             def __schema__(unquote(type_name)) do
-              unquote(runtime_module).build_schema(__openapi_fields__(unquote(type_name)))
+              OpenAPIRuntime.build_schema(__openapi_fields__(unquote(type_name)))
             end
           end
         end)
@@ -361,17 +381,186 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     end
 
     defp render_decode_function(default_type) do
-      runtime_module = OpenAPIRuntime
-
       quote do
         @doc false
         @spec decode(term(), atom) :: {:ok, term()} | {:error, term()}
         def decode(data, type \\ unquote(default_type))
 
         def decode(data, type) do
-          unquote(runtime_module).decode_module_type(__MODULE__, type, data)
+          OpenAPIRuntime.decode_module_type(__MODULE__, type, data)
         end
       end
+    end
+
+    @doc false
+    def rewrite_nested_module_aliases(nil), do: nil
+
+    def rewrite_nested_module_aliases({:defmodule, meta, [module_name, [do: body]]}) do
+      {rewritten_body, used_prefixes} =
+        Macro.prewalk(body, MapSet.new(), fn
+          {:__aliases__, alias_meta, segments} = node, used_prefixes ->
+            case rewrite_alias_segments(segments) do
+              {:rewrite, full_prefix, rewritten_segments} ->
+                {{:__aliases__, alias_meta, rewritten_segments},
+                 MapSet.put(used_prefixes, full_prefix)}
+
+              :no_rewrite ->
+                {node, used_prefixes}
+            end
+
+          node, used_prefixes ->
+            {node, used_prefixes}
+        end)
+
+      rewrites =
+        Enum.filter(@nested_module_alias_rewrites, fn {full_prefix, _short_prefix, _declaration} ->
+          MapSet.member?(used_prefixes, full_prefix)
+        end)
+
+      body_expressions = body_to_expressions(rewritten_body)
+      insertion_index = body_expressions |> Enum.take_while(&header_expression?/1) |> length()
+      alias_declarations = Enum.map(rewrites, &elem(&1, 2))
+      {prefix, suffix} = Enum.split(body_expressions, insertion_index)
+
+      {:defmodule, meta,
+       [module_name, [do: expressions_to_body(prefix ++ alias_declarations ++ suffix)]]}
+    end
+
+    def rewrite_nested_module_aliases(ast), do: ast
+
+    defp body_to_expressions({:__block__, _meta, expressions}), do: expressions
+    defp body_to_expressions(nil), do: []
+    defp body_to_expressions(expression), do: [expression]
+
+    defp expressions_to_body([]), do: nil
+    defp expressions_to_body([expression]), do: expression
+    defp expressions_to_body(expressions), do: {:__block__, [], expressions}
+
+    defp header_expression?({:@, _meta, [{:moduledoc, _, _}]}), do: true
+    defp header_expression?({:use, _meta, _args}), do: true
+    defp header_expression?({:import, _meta, _args}), do: true
+    defp header_expression?({:require, _meta, _args}), do: true
+    defp header_expression?({:alias, _meta, _args}), do: true
+    defp header_expression?(_expression), do: false
+
+    defp rewrite_alias_segments(segments) do
+      Enum.find_value(@nested_module_alias_rewrites, :no_rewrite, fn
+        {full_prefix, short_prefix, _declaration} ->
+          if alias_prefix?(segments, full_prefix) do
+            {:rewrite, full_prefix, short_prefix ++ Enum.drop(segments, length(full_prefix))}
+          end
+      end)
+    end
+
+    defp alias_prefix?(segments, full_prefix) do
+      Enum.take(segments, length(full_prefix)) == full_prefix
+    end
+
+    @doc false
+    def rewrite_nested_module_aliases_in_source(contents) do
+      source = IO.iodata_to_binary(contents)
+
+      rewrites =
+        Enum.filter(@nested_module_alias_source_rewrites, fn {full, _short, _declaration} ->
+          String.contains?(source, full <> ".")
+        end)
+
+      source =
+        Enum.reduce(rewrites, source, fn {full, short, _declaration}, acc ->
+          String.replace(acc, full <> ".", short <> ".")
+        end)
+
+      insert_nested_module_alias_lines(source, rewrites)
+    end
+
+    defp insert_nested_module_alias_lines(source, []), do: source
+
+    defp insert_nested_module_alias_lines(source, rewrites) do
+      lines = String.split(source, "\n", trim: false)
+
+      alias_lines =
+        rewrites
+        |> Enum.map(&elem(&1, 2))
+        |> Enum.reject(&String.contains?(source, &1))
+        |> Enum.map(&("  " <> &1))
+
+      if alias_lines == [] do
+        source
+      else
+        insertion_index = nested_module_alias_source_insertion_index(lines)
+        {prefix, suffix} = Enum.split(lines, insertion_index)
+        Enum.join(prefix ++ alias_lines ++ [""] ++ suffix, "\n")
+      end
+    end
+
+    defp nested_module_alias_source_insertion_index(lines) do
+      lines
+      |> skip_module_declaration(0)
+      |> skip_moduledoc_block(lines)
+      |> skip_top_level_directives(lines)
+    end
+
+    defp skip_module_declaration(lines, index) do
+      case Enum.at(lines, index) do
+        line when is_binary(line) ->
+          if String.starts_with?(line, "defmodule "), do: index + 1, else: index
+
+        _ ->
+          index
+      end
+    end
+
+    defp skip_moduledoc_block(index, lines) do
+      case Enum.at(lines, index) do
+        line when is_binary(line) ->
+          if Regex.match?(~r/^\s*@moduledoc\b/, line) do
+            cond do
+              not String.contains?(line, "\"\"\"") ->
+                index + 1
+
+              triple_quote_count(line) >= 2 ->
+                index + 1
+
+              true ->
+                closing_offset =
+                  lines
+                  |> Enum.drop(index + 1)
+                  |> Enum.find_index(&String.contains?(&1, "\"\"\""))
+
+                if closing_offset do
+                  index + closing_offset + 2
+                else
+                  index + 1
+                end
+            end
+          else
+            index
+          end
+
+        _ ->
+          index
+      end
+    end
+
+    defp skip_top_level_directives(index, lines) do
+      case Enum.at(lines, index) do
+        line when is_binary(line) ->
+          if Regex.match?(~r/^\s*(use|alias|require|import)\b/, line) do
+            skip_top_level_directives(index + 1, lines)
+          else
+            index
+          end
+
+        _ ->
+          index
+      end
+    end
+
+    defp triple_quote_count(line) do
+      line
+      |> String.split("\"\"\"")
+      |> length()
+      |> Kernel.-(1)
     end
 
     defp config(%State{profile: profile}) do
@@ -392,5 +581,8 @@ else
           {:oapi_generator, "~> 0.4", only: [:dev, :test], runtime: false}
       """
     end
+
+    def rewrite_nested_module_aliases(ast), do: ast
+    def rewrite_nested_module_aliases_in_source(contents), do: IO.iodata_to_binary(contents)
   end
 end

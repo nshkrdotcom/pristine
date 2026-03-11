@@ -185,7 +185,13 @@ defmodule Pristine.OAuth2 do
     headers = prepared_client |> Map.get(:headers, []) |> normalize_headers()
 
     with {:ok, {headers, params}} <- apply_client_auth_method(provider, headers, params, opts),
-         {:ok, body} <- encode_request_body(provider.token_content_type, params, context),
+         {:ok, body} <-
+           encode_request_body(
+             provider.token_method,
+             provider.token_content_type,
+             params,
+             context
+           ),
          {:ok, url} <- request_url(provider.site, path, provider.token_method, params) do
       {:ok,
        %Request{
@@ -210,7 +216,13 @@ defmodule Pristine.OAuth2 do
     headers = normalize_headers(request_headers(opts))
 
     with {:ok, {headers, params}} <- apply_client_auth_method(provider, headers, params, opts),
-         {:ok, body} <- encode_request_body(provider.token_content_type, params, context),
+         {:ok, body} <-
+           encode_request_body(
+             provider.token_method,
+             provider.token_content_type,
+             params,
+             context
+           ),
          {:ok, url} <- request_url(provider.site, path, provider.token_method, params) do
       {:ok,
        %Request{
@@ -236,12 +248,15 @@ defmodule Pristine.OAuth2 do
 
   defp request_url(site, path, _method, _params), do: {:ok, build_url(site, path)}
 
-  defp encode_request_body(content_type, _params, _context) when is_nil(content_type),
+  defp encode_request_body(:get, _content_type, _params, _context), do: {:ok, nil}
+
+  defp encode_request_body(_method, content_type, _params, _context) when is_nil(content_type),
     do: {:ok, nil}
 
-  defp encode_request_body(_content_type, params, _context) when params == %{}, do: {:ok, nil}
+  defp encode_request_body(_method, _content_type, params, _context) when params == %{},
+    do: {:ok, nil}
 
-  defp encode_request_body("application/json", params, %Context{serializer: serializer}) do
+  defp encode_request_body(_method, "application/json", params, %Context{serializer: serializer}) do
     serializer = serializer || Pristine.Adapters.Serializer.JSON
 
     case serializer.encode(params, []) do
@@ -250,11 +265,16 @@ defmodule Pristine.OAuth2 do
     end
   end
 
-  defp encode_request_body("application/x-www-form-urlencoded", params, _context) do
+  defp encode_request_body(
+         _method,
+         "application/x-www-form-urlencoded",
+         params,
+         _context
+       ) do
     {:ok, URI.encode_query(params)}
   end
 
-  defp encode_request_body(_content_type, params, _context) do
+  defp encode_request_body(_method, _content_type, params, _context) do
     {:ok, params}
   end
 

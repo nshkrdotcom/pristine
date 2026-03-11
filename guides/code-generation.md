@@ -150,7 +150,7 @@ When you generate from OpenAPI through the bridge, schema modules should expose 
 - `__schema__/1` for validation-ready `Sinter.Schema` values
 - `decode/1,2` for struct or map materialization
 
-That contract lets the generic pipeline validate direct refs such as `{MySDK.PageObjectResponse, :t}` and, when `typed_responses: true` is enabled by the generated SDK, materialize successful responses without bespoke runtime code in each SDK.
+That contract lets the generic pipeline validate direct refs such as `{MySDK.PageObjectResponse, :t}` and, when `typed_responses: true` is enabled by the generated SDK, materialize successful responses without bespoke runtime code in each SDK. Missing helpers are treated as a programming error and fail fast.
 
 OpenAPI-generated operation request maps also preserve effective security metadata. That metadata is extracted directly from the source spec files in Pristine, because the upstream generator currently drops `securitySchemes` and operation `security`. Generated SDK clients can then make scheme-scoped runtime choices without hardcoding provider auth rules into every wrapper.
 

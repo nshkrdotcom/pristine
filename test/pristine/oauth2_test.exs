@@ -182,4 +182,41 @@ defmodule Pristine.OAuth2Test do
                context: oauth_context()
              )
   end
+
+  test "puts GET token requests in the query string without a request body" do
+    expect(Pristine.TransportMock, :send, fn %Request{} = request, %Context{} ->
+      assert request.method == :get
+      assert request.body == nil
+      refute Map.has_key?(request.headers, "authorization")
+      refute Map.has_key?(request.headers, "content-type")
+
+      uri = URI.parse(request.url)
+
+      assert uri.path == "/v1/oauth/token"
+
+      assert URI.decode_query(uri.query) == %{
+               "client_id" => "public-client",
+               "code" => "auth-code",
+               "grant_type" => "authorization_code"
+             }
+
+      {:ok,
+       %Response{
+         status: 200,
+         headers: %{"content-type" => "application/json"},
+         body: ~s({"access_token":"secret_get","token_type":"bearer"})
+       }}
+    end)
+
+    assert {:ok, %Pristine.OAuth2.Token{access_token: "secret_get"}} =
+             OAuth2.exchange_code(
+               provider(
+                 client_auth_method: :none,
+                 token_method: :get
+               ),
+               "auth-code",
+               client_id: "public-client",
+               context: oauth_context()
+             )
+  end
 end

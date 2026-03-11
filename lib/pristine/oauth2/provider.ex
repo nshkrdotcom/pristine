@@ -6,6 +6,8 @@ defmodule Pristine.OAuth2.Provider do
   alias Pristine.Manifest
   alias Pristine.OAuth2.Error
 
+  @flow_preference ["authorizationCode", "clientCredentials", "password", "refreshToken"]
+
   defstruct name: nil,
             flow: :authorization_code,
             site: nil,
@@ -47,26 +49,26 @@ defmodule Pristine.OAuth2.Provider do
 
     case Map.get(manifest.security_schemes, key) do
       %{"type" => "oauth2", "flows" => flows} = scheme when is_map(flows) ->
-        {flow_name, flow} = Enum.at(flows, 0)
-
-        {:ok,
-         %__MODULE__{
-           name: key,
-           flow: normalize_flow(flow_name),
-           site: manifest.base_url,
-           authorize_url: flow["authorizationUrl"],
-           token_url: flow["tokenUrl"],
-           revocation_url: scheme["x-pristine-revocation-url"],
-           introspection_url: scheme["x-pristine-introspection-url"],
-           scopes: flow["scopes"] || %{},
-           default_scopes: normalize_scopes(scheme["x-pristine-default-scopes"]),
-           client_auth_method:
-             normalize_client_auth_method(scheme["x-pristine-client-auth-method"]),
-           token_method: normalize_token_method(scheme["x-pristine-token-method"]),
-           token_content_type:
-             scheme["x-pristine-token-content-type"] || "application/x-www-form-urlencoded",
-           metadata: Map.drop(scheme, ["type", "flows"])
-         }}
+        with {:ok, {flow_name, flow}} <- select_flow(key, scheme, flows) do
+          {:ok,
+           %__MODULE__{
+             name: key,
+             flow: normalize_flow(flow_name),
+             site: manifest.base_url,
+             authorize_url: flow["authorizationUrl"],
+             token_url: flow["tokenUrl"],
+             revocation_url: scheme["x-pristine-revocation-url"],
+             introspection_url: scheme["x-pristine-introspection-url"],
+             scopes: flow["scopes"] || %{},
+             default_scopes: normalize_scopes(scheme["x-pristine-default-scopes"]),
+             client_auth_method:
+               normalize_client_auth_method(scheme["x-pristine-client-auth-method"]),
+             token_method: normalize_token_method(scheme["x-pristine-token-method"]),
+             token_content_type:
+               scheme["x-pristine-token-content-type"] || "application/x-www-form-urlencoded",
+             metadata: Map.drop(scheme, ["type", "flows"])
+           }}
+        end
 
       nil ->
         {:error, Error.new(:unknown_security_scheme, message: "unknown oauth2 scheme #{key}")}
@@ -102,4 +104,35 @@ defmodule Pristine.OAuth2.Provider do
 
   defp normalize_scopes(scopes) when is_list(scopes), do: Enum.map(scopes, &to_string/1)
   defp normalize_scopes(_scopes), do: []
+
+  defp select_flow(key, scheme, flows) do
+    preferred = scheme["x-pristine-flow"]
+
+    case select_flow_entry(preferred, flows) || select_flow_entry(@flow_preference, flows) do
+      nil ->
+        {:error, Error.new(:invalid_provider, message: "oauth2 scheme #{key} has no usable flow")}
+
+      entry ->
+        {:ok, entry}
+    end
+  end
+
+  defp select_flow_entry(flow_name, flows) when is_binary(flow_name) do
+    case Map.get(flows, flow_name) do
+      flow when is_map(flow) -> {flow_name, flow}
+      _other -> nil
+    end
+  end
+
+  defp select_flow_entry(nil, _flows), do: nil
+
+  defp select_flow_entry(flow_names, flows) when is_list(flow_names) do
+    Enum.find_value(flow_names, &select_flow_entry(&1, flows)) ||
+      flows
+      |> Enum.sort_by(fn {flow_name, _flow} -> flow_name end)
+      |> Enum.find_value(fn
+        {flow_name, flow} when is_map(flow) -> {flow_name, flow}
+        _other -> nil
+      end)
+  end
 end
