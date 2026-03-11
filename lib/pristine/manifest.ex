@@ -10,6 +10,8 @@ defmodule Pristine.Manifest do
             version: nil,
             base_url: nil,
             auth: nil,
+            security_schemes: %{},
+            security: nil,
             defaults: %{},
             error_types: %{},
             resources: %{},
@@ -25,6 +27,8 @@ defmodule Pristine.Manifest do
           version: String.t(),
           base_url: String.t() | nil,
           auth: map() | nil,
+          security_schemes: map(),
+          security: [map()] | nil,
           defaults: map(),
           error_types: map(),
           resources: map(),
@@ -69,6 +73,8 @@ defmodule Pristine.Manifest do
          version: fields.version,
          base_url: fields.base_url,
          auth: fields.auth,
+         security_schemes: fields.security_schemes,
+         security: fields.security,
          defaults: fields.defaults,
          error_types: fields.error_types,
          resources: fields.resources,
@@ -90,6 +96,8 @@ defmodule Pristine.Manifest do
       version: normalize_value(validated, :version),
       base_url: normalize_value(validated, :base_url),
       auth: normalize_deep_map(validated, :auth),
+      security_schemes: normalize_optional_map(validated, :security_schemes),
+      security: normalize_security_requirements(validated, :security),
       defaults: normalize_optional_map(validated, :defaults),
       error_types: normalize_optional_map(validated, :error_types),
       resources: normalize_optional_map(validated, :resources),
@@ -191,6 +199,7 @@ defmodule Pristine.Manifest do
            body_type: normalize_optional(endpoint, :body_type),
            content_type: normalize_value(endpoint, :content_type),
            auth: normalize_optional(endpoint, :auth),
+           security: normalize_security_requirements(endpoint, :security),
            circuit_breaker: normalize_optional(endpoint, :circuit_breaker),
            rate_limit: normalize_optional(endpoint, :rate_limit),
            idempotency: normalize_boolean(endpoint, :idempotency, false),
@@ -399,6 +408,31 @@ defmodule Pristine.Manifest do
       value -> [to_string(value)]
     end
   end
+
+  defp normalize_security_requirements(map, key) when is_map(map) do
+    case normalize_value(map, key) do
+      nil ->
+        nil
+
+      requirements when is_list(requirements) ->
+        Enum.map(requirements, &normalize_security_requirement/1)
+
+      _other ->
+        nil
+    end
+  end
+
+  defp normalize_security_requirement(requirement) when is_map(requirement) do
+    Enum.reduce(requirement, %{}, fn {scheme, scopes}, acc ->
+      Map.put(acc, normalize_key(scheme), normalize_security_scopes(scopes))
+    end)
+  end
+
+  defp normalize_security_requirement(_requirement), do: %{}
+
+  defp normalize_security_scopes(nil), do: []
+  defp normalize_security_scopes(scopes) when is_list(scopes), do: Enum.map(scopes, &to_string/1)
+  defp normalize_security_scopes(scope), do: [to_string(scope)]
 
   defp normalize_list(map, key) when is_map(map) do
     case normalize_value(map, key) do

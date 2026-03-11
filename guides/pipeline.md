@@ -183,6 +183,32 @@ context = %Context{
 
 Each module's `headers/1` callback is called, and results are merged.
 
+When endpoint security metadata is present, auth resolution becomes:
+
+1. request-level `auth` override
+2. endpoint `security`
+3. manifest `security`
+4. legacy endpoint `auth`
+5. legacy context `auth`
+
+Scheme-scoped clients can therefore opt into different auth adapters per security scheme:
+
+```elixir
+context = Pristine.context(
+  auth: %{
+    "bearerAuth" => [
+      Pristine.Adapters.Auth.OAuth2.new(
+        token_source: {MyApp.TokenSource, account_id: "acct_123"}
+      )
+    ],
+    "basicAuth" => [],
+    "default" => [Pristine.Adapters.Auth.Bearer.new("static-fallback")]
+  }
+)
+```
+
+An endpoint with `security: []` is explicitly unauthenticated and will not inherit any manifest or context auth.
+
 ### Body Encoding
 
 **JSON (default):**

@@ -64,7 +64,10 @@ defmodule Pristine.Core.Pipeline do
   @spec execute(Manifest.t(), String.t() | atom(), term(), Context.t(), keyword()) ::
           {:ok, term()} | {:error, term()}
   def execute(%Manifest{} = manifest, endpoint_id, payload, %Context{} = context, opts \\ []) do
-    endpoint = Manifest.fetch_endpoint!(manifest, endpoint_id)
+    endpoint =
+      manifest
+      |> Manifest.fetch_endpoint!(endpoint_id)
+      |> hydrate_endpoint_security(manifest.security)
 
     serializer = context.serializer || raise ArgumentError, "serializer is required"
     transport = context.transport || raise ArgumentError, "transport is required"
@@ -319,7 +322,10 @@ defmodule Pristine.Core.Pipeline do
         %Context{} = context,
         opts \\ []
       ) do
-    endpoint = Manifest.fetch_endpoint!(manifest, endpoint_id)
+    endpoint =
+      manifest
+      |> Manifest.fetch_endpoint!(endpoint_id)
+      |> hydrate_endpoint_security(manifest.security)
 
     serializer = context.serializer || raise ArgumentError, "serializer is required"
 
@@ -543,7 +549,8 @@ defmodule Pristine.Core.Pipeline do
     RequestPath.validate!(path)
     RequestPath.validate_path_params!(path_params)
 
-    auth_modules = resolve_auth(context.auth, endpoint.auth, Keyword.fetch(opts, :auth))
+    auth_modules =
+      resolve_auth(context.auth, endpoint.security, endpoint.auth, Keyword.fetch(opts, :auth))
 
     package_version =
       context.package_version ||
@@ -1033,14 +1040,86 @@ defmodule Pristine.Core.Pipeline do
     end
   end
 
-  defp resolve_auth(auth, key, :error), do: resolve_auth(auth, key)
-  defp resolve_auth(_auth, _key, {:ok, override}), do: normalize_auth_override!(override)
+  defp resolve_auth(auth, security, key, :error), do: resolve_auth(auth, security, key)
 
-  defp resolve_auth(auth, nil) when is_list(auth), do: auth
-  defp resolve_auth(auth, nil) when is_map(auth), do: Map.get(auth, "default", [])
-  defp resolve_auth(auth, key) when is_map(auth), do: Map.get(auth, to_string(key), [])
-  defp resolve_auth(auth, _key) when is_list(auth), do: auth
-  defp resolve_auth(_auth, _key), do: []
+  defp resolve_auth(_auth, _security, _key, {:ok, override}),
+    do: normalize_auth_override!(override)
+
+  defp resolve_auth(_auth, [], _key), do: []
+
+  defp resolve_auth(auth, security, _key) when is_list(security) do
+    resolve_security_auth(auth, security)
+  end
+
+  defp resolve_auth(auth, nil, nil) when is_list(auth), do: auth
+  defp resolve_auth(auth, nil, nil) when is_map(auth), do: Map.get(auth, "default", [])
+  defp resolve_auth(auth, nil, key) when is_map(auth), do: Map.get(auth, to_string(key), [])
+  defp resolve_auth(auth, nil, _key) when is_list(auth), do: auth
+  defp resolve_auth(_auth, nil, _key), do: []
+
+  defp resolve_security_auth(auth, security) do
+    case Enum.find_value(security, fn requirement ->
+           case resolve_requirement_set(auth, requirement) do
+             {:ok, modules} -> modules
+             :error -> false
+           end
+         end) do
+      nil ->
+        raise ArgumentError,
+              "no configured auth satisfies security requirements: #{inspect(security)}"
+
+      modules ->
+        modules
+    end
+  end
+
+  defp resolve_requirement_set(_auth, requirement)
+       when is_map(requirement) and map_size(requirement) == 0,
+       do: {:ok, []}
+
+  defp resolve_requirement_set(auth, requirement) when is_map(requirement) do
+    Enum.reduce_while(requirement, {:ok, []}, fn {scheme, _scopes}, {:ok, acc} ->
+      case scheme_auth_modules(auth, scheme) do
+        [] -> {:halt, :error}
+        modules -> {:cont, {:ok, acc ++ modules}}
+      end
+    end)
+  end
+
+  defp resolve_requirement_set(_auth, _requirement), do: :error
+
+  defp scheme_auth_modules(auth, _scheme) when is_list(auth), do: auth
+
+  defp scheme_auth_modules(auth, scheme) when is_map(auth) do
+    key = to_string(scheme)
+
+    case Map.fetch(auth, key) do
+      {:ok, modules} ->
+        normalize_configured_auth_modules!(modules)
+
+      :error ->
+        auth
+        |> Map.get("default", [])
+        |> normalize_configured_auth_modules!()
+    end
+  end
+
+  defp scheme_auth_modules(_auth, _scheme), do: []
+
+  defp normalize_configured_auth_modules!(nil), do: []
+  defp normalize_configured_auth_modules!(false), do: []
+
+  defp normalize_configured_auth_modules!(modules) do
+    normalize_auth_override!(modules)
+  end
+
+  defp hydrate_endpoint_security(endpoint, nil), do: endpoint
+
+  defp hydrate_endpoint_security(%{security: nil} = endpoint, manifest_security) do
+    %{endpoint | security: manifest_security}
+  end
+
+  defp hydrate_endpoint_security(endpoint, _manifest_security), do: endpoint
 
   defp normalize_auth_override!(nil), do: []
   defp normalize_auth_override!(false), do: []

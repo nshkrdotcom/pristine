@@ -33,6 +33,8 @@ Pristine supports two manifest file formats:
   "endpoints": "[array] (required)",
   "types": "{object} (required)",
   "auth": "{object} (optional)",
+  "security_schemes": "{object} (optional)",
+  "security": "[array] (optional)",
   "defaults": "{object} (optional)",
   "retry_policies": "{object} (optional)",
   "rate_limits": "{object} (optional)",
@@ -55,6 +57,8 @@ Pristine supports two manifest file formats:
 |-------|------|-------------|
 | `base_url` | string | Default base URL for all endpoints |
 | `auth` | object | Default authentication configuration |
+| `security_schemes` | object | OpenAPI-style named security schemes |
+| `security` | array | OpenAPI-style default security requirements |
 | `defaults` | object | Default values (timeout, headers, etc.) |
 | `retry_policies` | object | Named retry policy definitions |
 | `rate_limits` | object | Named rate limit configurations |
@@ -113,6 +117,55 @@ Each endpoint defines an API operation:
 | Field | Type | Description |
 |-------|------|-------------|
 | `auth` | object | Override authentication for this endpoint |
+| `security` | array | OpenAPI-style security requirement sets for this endpoint |
+
+### Security Metadata
+
+Pristine now supports both the legacy `auth` fields and native OpenAPI-style security fields.
+
+```json
+{
+  "security_schemes": {
+    "bearerAuth": {
+      "type": "http",
+      "scheme": "bearer"
+    },
+    "notionOauth": {
+      "type": "oauth2",
+      "flows": {
+        "authorizationCode": {
+          "authorizationUrl": "https://api.notion.com/v1/oauth/authorize",
+          "tokenUrl": "https://api.notion.com/v1/oauth/token",
+          "scopes": {
+            "workspace.read": "Read workspace metadata"
+          }
+        }
+      },
+      "x-pristine-client-auth-method": "basic",
+      "x-pristine-token-content-type": "application/json"
+    }
+  },
+  "security": [
+    {"bearerAuth": []}
+  ],
+  "endpoints": [
+    {
+      "id": "oauth_token",
+      "method": "POST",
+      "path": "/v1/oauth/token",
+      "security": [
+        {"notionOauth": ["workspace.read"]}
+      ]
+    }
+  ]
+}
+```
+
+Semantics:
+
+- `endpoint.security == nil`: inherit manifest security or legacy auth behavior
+- `endpoint.security == []`: explicitly unauthenticated
+- a non-empty list uses OpenAPI OR semantics, and Pristine picks the first satisfiable requirement set
 
 #### Resilience
 

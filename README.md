@@ -25,6 +25,7 @@ Pristine separates domain logic from infrastructure through a clean ports and ad
 - **Manifest-Driven** — Declarative API definitions in JSON, YAML, or Elixir
 - **Code Generation** — Generate type modules, resource modules, and clients from manifests
 - **Type Safety** — Sinter schema validation for requests and responses
+- **Optional OAuth2 Control Plane** — Authorization URL generation, PKCE, token exchange, refresh, revoke, and introspect helpers without routing normal API traffic through Tesla
 - **Resilience Built-In** — Retry policies, circuit breakers, and rate limiting
 - **Streaming Support** — First-class SSE (Server-Sent Events) handling
 - **Observable** — Telemetry events throughout the request lifecycle
@@ -37,10 +38,13 @@ Add Pristine to your dependencies:
 ```elixir
 def deps do
   [
-    {:pristine, "~> 0.1.0"}
+    {:pristine, "~> 0.1.0"},
+    {:oauth2, "~> 2.1"} # Only if you want Pristine.OAuth2 helpers
   ]
 end
 ```
+
+`oauth2` stays optional. Pristine's normal runtime and generated SDK execution path do not depend on Tesla or the `oauth2` request client.
 
 ## Quick Start
 
@@ -173,6 +177,54 @@ context = Pristine.context(
 {:ok, result} = Pristine.execute(manifest, :get_user, %{}, context,
   path_params: %{"id" => "123"}
 )
+```
+
+## Security Metadata And OAuth2
+
+Pristine manifests and OpenAPI-generated request maps now carry native security metadata:
+
+- manifest-level `security_schemes`
+- manifest-level `security`
+- endpoint-level `security`
+
+At runtime the pipeline resolves auth in this order:
+
+1. request-level `auth` override
+2. endpoint `security`
+3. manifest `security`
+4. legacy endpoint `auth`
+5. legacy context `auth`
+
+`endpoint.security == []` explicitly disables inherited auth.
+
+For OAuth2 control-plane work, use `Pristine.OAuth2` with a normal Pristine `Context`:
+
+```elixir
+provider =
+  Pristine.OAuth2.Provider.new(
+    name: "notion",
+    site: "https://api.notion.com",
+    authorize_url: "/v1/oauth/authorize",
+    token_url: "/v1/oauth/token",
+    client_auth_method: :basic,
+    token_content_type: "application/json"
+  )
+
+{:ok, request} =
+  Pristine.OAuth2.authorization_request(provider,
+    client_id: "...",
+    redirect_uri: "https://example.com/callback",
+    generate_state: true,
+    pkce: true
+  )
+
+{:ok, token} =
+  Pristine.OAuth2.exchange_code(provider, "code-from-callback",
+    client_id: "...",
+    client_secret: "...",
+    redirect_uri: "https://example.com/callback",
+    context: context
+  )
 ```
 
 ## OpenAPI Runtime Contract

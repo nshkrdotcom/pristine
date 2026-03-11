@@ -145,6 +145,85 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
              )
   end
 
+  test "resolves scheme-scoped auth from endpoint security metadata" do
+    manifest = runtime_manifest(security: [%{bearerAuth: []}])
+    payload = %{"prompt" => "hi"}
+
+    context =
+      runtime_context(
+        auth: %{
+          "bearerAuth" => [Pristine.Adapters.Auth.Bearer.new("scheme-token")],
+          "basicAuth" => [Pristine.Adapters.Auth.Basic.new("client-id", "client-secret")]
+        }
+      )
+
+    expect_runtime_success(payload, fn %Request{headers: headers}, _context ->
+      assert headers["Authorization"] == "Bearer scheme-token"
+      {:ok, %Response{status: 200, body: "{\"ok\":true}"}}
+    end)
+
+    assert {:ok, %{"ok" => true}} = Pipeline.execute(manifest, "ping", payload, context)
+  end
+
+  test "request-level auth overrides still win over security metadata" do
+    manifest = runtime_manifest(security: [%{bearerAuth: []}])
+    payload = %{"prompt" => "hi"}
+
+    context =
+      runtime_context(
+        auth: %{
+          "bearerAuth" => [Pristine.Adapters.Auth.Bearer.new("scheme-token")]
+        }
+      )
+
+    expect_runtime_success(payload, fn %Request{headers: headers}, _context ->
+      assert headers["Authorization"] == "Bearer override-token"
+      {:ok, %Response{status: 200, body: "{\"ok\":true}"}}
+    end)
+
+    assert {:ok, %{"ok" => true}} =
+             Pipeline.execute(manifest, "ping", payload, context, auth: "override-token")
+  end
+
+  test "endpoint security empty list disables inherited manifest security" do
+    manifest =
+      runtime_manifest(
+        [security: []],
+        %{
+          security: [%{bearerAuth: []}]
+        }
+      )
+
+    payload = %{"prompt" => "hi"}
+    context = runtime_context(auth: [Pristine.Adapters.Auth.Bearer.new("default-token")])
+
+    expect_runtime_success(payload, fn %Request{headers: headers}, _context ->
+      refute Map.has_key?(headers, "Authorization")
+      {:ok, %Response{status: 200, body: "{\"ok\":true}"}}
+    end)
+
+    assert {:ok, %{"ok" => true}} = Pipeline.execute(manifest, "ping", payload, context)
+  end
+
+  test "falls back to legacy endpoint auth lookup when no security metadata is present" do
+    manifest = runtime_manifest(auth: "basicAuth")
+    payload = %{"prompt" => "hi"}
+
+    context =
+      runtime_context(
+        auth: %{
+          "basicAuth" => [Pristine.Adapters.Auth.Basic.new("client-id", "client-secret")]
+        }
+      )
+
+    expect_runtime_success(payload, fn %Request{headers: headers}, _context ->
+      assert headers["Authorization"] == "Basic #{Base.encode64("client-id:client-secret")}"
+      {:ok, %Response{status: 200, body: "{\"ok\":true}"}}
+    end)
+
+    assert {:ok, %{"ok" => true}} = Pipeline.execute(manifest, "ping", payload, context)
+  end
+
   test "rejects raw path traversal in path params before transport" do
     manifest = runtime_manifest(path: "/items/{id}")
     payload = %{"prompt" => "hi"}
@@ -395,24 +474,26 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     assert %DateTime{} = response.profile.created_at
   end
 
-  defp runtime_manifest(overrides \\ []) do
-    manifest = %{
-      name: "demo",
-      version: "0.1.0",
-      endpoints: [
-        %{
-          id: "ping",
-          method: "POST",
-          path: "/ping",
-          request: "PingRequest",
-          response: "PingResponse"
+  defp runtime_manifest(overrides \\ [], manifest_overrides \\ %{}) do
+    manifest =
+      %{
+        name: "demo",
+        version: "0.1.0",
+        endpoints: [
+          %{
+            id: "ping",
+            method: "POST",
+            path: "/ping",
+            request: "PingRequest",
+            response: "PingResponse"
+          }
+        ],
+        types: %{
+          "PingRequest" => %{fields: %{prompt: %{type: "string", required: true}}},
+          "PingResponse" => %{fields: %{ok: %{type: "boolean", required: true}}}
         }
-      ],
-      types: %{
-        "PingRequest" => %{fields: %{prompt: %{type: "string", required: true}}},
-        "PingResponse" => %{fields: %{ok: %{type: "boolean", required: true}}}
       }
-    }
+      |> Map.merge(manifest_overrides)
 
     endpoint_overrides = Enum.into(overrides, %{})
 
@@ -427,7 +508,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     loaded
   end
 
-  defp openapi_manifest(overrides \\ []) do
+  defp openapi_manifest(overrides) do
     endpoint =
       %{
         id: "ping",

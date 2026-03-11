@@ -19,6 +19,7 @@ defmodule Pristine.OpenAPI.Client do
           required(:body) => term(),
           required(:form_data) => term(),
           optional(:auth) => term(),
+          optional(:security) => [map()] | nil,
           optional(:request) => [{String.t(), response_type()}],
           optional(:response) => [{integer() | :default, response_type()}]
         }
