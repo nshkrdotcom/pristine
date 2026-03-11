@@ -75,7 +75,7 @@ defmodule Pristine.MixProject do
       {:mox, "~> 1.1", only: :test},
       {:plug, "~> 1.15"},
       {:plug_cowboy, "~> 2.7", only: [:dev, :test]},
-      {:bandit, "~> 1.0", only: :test},
+      {:bandit, "~> 1.0"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40.0", only: :dev, runtime: false}
@@ -150,6 +150,17 @@ defmodule Pristine.MixProject do
           Pristine.Codegen.Elixir,
           Pristine.Codegen.Type,
           Pristine.Codegen.Resource
+        ],
+        OAuth2: [
+          Pristine.OAuth2,
+          Pristine.OAuth2.AuthorizationRequest,
+          Pristine.OAuth2.Browser,
+          Pristine.OAuth2.CallbackServer,
+          Pristine.OAuth2.Error,
+          Pristine.OAuth2.Interactive,
+          Pristine.OAuth2.PKCE,
+          Pristine.OAuth2.Provider,
+          Pristine.OAuth2.Token
         ],
         Streaming: [
           Pristine.Streaming.Event,

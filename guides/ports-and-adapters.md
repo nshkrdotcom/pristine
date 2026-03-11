@@ -220,6 +220,28 @@ Pristine.Adapters.TokenSource.Static
 
 Useful for tests, simple clients, and explicit token lifecycle management.
 
+## OAuth2 Interactive Helpers
+
+These helpers sit alongside the transport-independent OAuth2 control plane:
+
+```elixir
+Pristine.OAuth2.Browser
+Pristine.OAuth2.CallbackServer
+Pristine.OAuth2.Interactive
+```
+
+Use `Pristine.OAuth2.Interactive.authorize/2` when you want Pristine to:
+
+- build the authorization request through `Pristine.OAuth2`
+- print and optionally open the authorization URL
+- capture the first terminal callback on an exact loopback redirect URI
+- fall back to manual paste-back of the full redirect URL or raw code
+- exchange the authorization code through the normal Pristine transport boundary
+
+`Pristine.OAuth2.CallbackServer` only supports exact `http` loopback redirect
+URIs with literal loopback IPs such as `127.0.0.1` or `::1`. It does not choose
+a random port for you.
+
 ## Resilience Ports
 
 ### Retry (`Pristine.Ports.Retry`)
