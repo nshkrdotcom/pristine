@@ -40,6 +40,21 @@ defmodule Pristine.Adapters.TokenSource.FileTest do
     assert {:error, {:invalid_token_json, %Jason.DecodeError{}}} = TokenFile.fetch(path: path)
   end
 
+  test "returns a structured error for malformed token data", %{tmp_dir: tmp_dir} do
+    path = Path.join(tmp_dir, "invalid-structure.json")
+
+    File.write!(
+      path,
+      Jason.encode!(%{
+        "access_token" => 123,
+        "other_params" => %{}
+      })
+    )
+
+    assert {:error, {:invalid_token_data, {:access_token, :expected_string_or_nil}}} =
+             TokenFile.fetch(path: path)
+  end
+
   test "forces 0600 permissions on persisted files", %{tmp_dir: tmp_dir} do
     path = Path.join(tmp_dir, "secure.json")
 
@@ -86,5 +101,12 @@ defmodule Pristine.Adapters.TokenSource.FileTest do
              )
 
     assert File.exists?(path)
+  end
+
+  test "rejects invalid token structs on write", %{tmp_dir: tmp_dir} do
+    path = Path.join(tmp_dir, "invalid-token.json")
+
+    assert {:error, {:invalid_token_data, {:access_token, :expected_string_or_nil}}} =
+             TokenFile.put(%Token{access_token: 123}, path: path)
   end
 end
