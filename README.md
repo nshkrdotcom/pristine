@@ -152,7 +152,7 @@ Pristine implements a hexagonal (ports and adapters) architecture:
 | **Rate Limit** | BackoffWindow, Noop |
 | **Telemetry** | Foundation, Raw, Reporter, Noop |
 | **Compression** | Gzip |
-| **TokenSource** | File, Static |
+| **TokenSource** | File, Refreshable, Static |
 | **Streaming** | SSE |
 
 ## Runtime Execution
@@ -267,6 +267,39 @@ token_path = Path.expand("~/.config/example/oauth/token.json")
 The stored envelope stays generic and round-trips `access_token`,
 `refresh_token`, `expires_at`, `token_type`, and any provider metadata inside
 `other_params`.
+
+If a provider returns real expiry metadata such as `expires_at` or
+`expires_in`, wrap the durable source with
+`Pristine.Adapters.TokenSource.Refreshable` to refresh and persist replacements
+through the same storage boundary:
+
+```elixir
+oauth_context = Pristine.context(
+  transport: Pristine.Adapters.Transport.Finch,
+  transport_opts: [finch: MyApp.Finch],
+  serializer: Pristine.Adapters.Serializer.JSON
+)
+
+context = Pristine.context(
+  auth: %{
+    "bearerAuth" => [
+      Pristine.Adapters.Auth.OAuth2.new(
+        token_source:
+          {Pristine.Adapters.TokenSource.Refreshable,
+           inner_source: {Pristine.Adapters.TokenSource.File, path: token_path},
+           provider: provider,
+           context: oauth_context,
+           client_id: System.fetch_env!("OAUTH_CLIENT_ID"),
+           client_secret: System.fetch_env!("OAUTH_CLIENT_SECRET"),
+           refresh_skew_seconds: 60}
+      )
+    ]
+  }
+)
+```
+
+`Refreshable` only refreshes when the token already carries real expiry data. It
+does not invent expiry policy for providers that omit `expires_at`.
 
 If your manifest already defines an OAuth2 security scheme, build the provider from that metadata instead of duplicating it in code:
 

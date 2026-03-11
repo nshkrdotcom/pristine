@@ -233,6 +233,39 @@ context = Pristine.context(
 The file format is JSON and keeps provider-returned metadata in
 `token.other_params`.
 
+If the provider also returns expiry metadata, you can layer
+`Pristine.Adapters.TokenSource.Refreshable` on top of that durable source so
+refreshes are persisted back through the same boundary:
+
+```elixir
+oauth_context = Pristine.context(
+  transport: Pristine.Adapters.Transport.Finch,
+  transport_opts: [finch: MyApp.Finch],
+  serializer: Pristine.Adapters.Serializer.JSON
+)
+
+context = Pristine.context(
+  auth: %{
+    "bearerAuth" => [
+      Pristine.Adapters.Auth.OAuth2.new(
+        token_source:
+          {Pristine.Adapters.TokenSource.Refreshable,
+           inner_source: {Pristine.Adapters.TokenSource.File, path: token_path},
+           provider: provider,
+           context: oauth_context,
+           client_id: System.fetch_env!("OAUTH_CLIENT_ID"),
+           client_secret: System.fetch_env!("OAUTH_CLIENT_SECRET"),
+           refresh_skew_seconds: 60}
+      )
+    ]
+  }
+)
+```
+
+`Refreshable` only acts on tokens that already include `expires_at`. For
+providers that do not expose expiry metadata, keep refresh explicit instead of
+inventing pre-expiry policy.
+
 ### Retry Policies
 
 Define retry policies in your manifest:
