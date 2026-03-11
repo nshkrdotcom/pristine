@@ -135,6 +135,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert get_self_request.body == %{}
     assert get_self_request.form_data == %{}
     assert get_self_request.auth == "secret-token"
+    assert get_self_request.security == [%{"bearerAuth" => []}]
 
     assert {:ok, list_users_request} =
              apply(users_module, :get_users, [%{start_cursor: "cursor-1", page_size: 50}, []])
@@ -169,6 +170,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert token_request.form_data == %{}
     assert token_request.auth == %{client_id: "client-id", client_secret: "client-secret"}
     assert token_request.request == [{"application/json", :map}]
+    assert token_request.security == [%{"basicAuth" => []}]
 
     assert {:ok, upload_request} =
              apply(file_uploads_module, :upload_file, [
@@ -194,6 +196,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     assert upload_request.auth == "secret-token"
     assert upload_request.request == [{"multipart/form-data", :map}]
+    assert upload_request.security == [%{"bearerAuth" => []}]
   end
 
   test "accepts supplemental OpenAPI fragments through the bridge profile" do

@@ -168,6 +168,62 @@ defmodule Pristine.ManifestTest do
     assert endpoint.headers["X-Endpoint"] == "1"
   end
 
+  test "loads top-level and endpoint security metadata while preserving auth fields" do
+    input = %{
+      name: "demo",
+      version: "0.1.0",
+      auth: %{type: "bearer"},
+      security_schemes: %{
+        bearerAuth: %{
+          type: "http",
+          scheme: "bearer"
+        },
+        notionOauth: %{
+          type: "oauth2",
+          flows: %{
+            authorizationCode: %{
+              authorizationUrl: "https://api.notion.com/v1/oauth/authorize",
+              tokenUrl: "https://api.notion.com/v1/oauth/token",
+              scopes: %{"workspace.read" => "Read workspace"}
+            }
+          }
+        }
+      },
+      security: [
+        %{bearerAuth: []}
+      ],
+      endpoints: [
+        %{
+          id: "list_users",
+          method: "GET",
+          path: "/v1/users",
+          security: [%{bearerAuth: []}]
+        },
+        %{
+          id: "oauth_token",
+          method: "POST",
+          path: "/v1/oauth/token",
+          auth: "basicAuth",
+          security: [%{notionOauth: ["workspace.read"]}]
+        }
+      ],
+      types: %{}
+    }
+
+    assert {:ok, manifest} = Manifest.load(input)
+
+    assert manifest.auth == %{"type" => "bearer"}
+    assert manifest.security == [%{"bearerAuth" => []}]
+    assert manifest.security_schemes["bearerAuth"]["scheme"] == "bearer"
+
+    assert manifest.security_schemes["notionOauth"]["flows"]["authorizationCode"]["tokenUrl"] ==
+             "https://api.notion.com/v1/oauth/token"
+
+    assert manifest.endpoints["list_users"].security == [%{"bearerAuth" => []}]
+    assert manifest.endpoints["oauth_token"].auth == "basicAuth"
+    assert manifest.endpoints["oauth_token"].security == [%{"notionOauth" => ["workspace.read"]}]
+  end
+
   test "preserves alias array item definitions" do
     input = %{
       name: "demo",

@@ -47,6 +47,7 @@ defmodule Pristine.MixProject do
     [
       {:jason, "~> 1.4"},
       {:yaml_elixir, "~> 2.12"},
+      {:oauth2, "~> 2.1", optional: true},
       {:telemetry, "~> 1.2"},
       {:finch, "~> 0.18"},
       local_or_github(:sinter, "../sinter", "nshkrdotcom/sinter"),

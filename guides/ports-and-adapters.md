@@ -9,7 +9,8 @@ Pristine implements a hexagonal architecture where **ports** define interface co
 | Transport | HTTP request/response | Finch |
 | StreamTransport | Streaming responses | FinchStream |
 | Serializer | Payload encoding | JSON |
-| Auth | Authentication | Bearer, APIKey |
+| Auth | Authentication | Bearer, APIKey, OAuth2 |
+| TokenSource | OAuth2 token retrieval | Static |
 | Retry | Retry logic | Foundation, Noop |
 | CircuitBreaker | Failure isolation | Foundation, Noop |
 | RateLimit | Request throttling | BackoffWindow, Noop |
@@ -177,6 +178,47 @@ context = %Context{
   ]
 }
 ```
+
+#### OAuth2 Adapter
+
+```elixir
+Pristine.Adapters.Auth.OAuth2
+```
+
+This adapter reads the current access token from a token source and emits a bearer header:
+
+```elixir
+token = %Pristine.OAuth2.Token{access_token: "secret_..."}
+
+context = %Context{
+  auth: %{
+    "bearerAuth" => [
+      Pristine.Adapters.Auth.OAuth2.new(
+        token_source: {Pristine.Adapters.TokenSource.Static, token: token}
+      )
+    ],
+    "basicAuth" => []
+  }
+}
+```
+
+### TokenSource (`Pristine.Ports.TokenSource`)
+
+```elixir
+@callback fetch(keyword()) ::
+  {:ok, Pristine.OAuth2.Token.t()} | :error | {:error, term()}
+
+@callback put(Pristine.OAuth2.Token.t(), keyword()) ::
+  :ok | {:error, term()}
+```
+
+#### Static Token Source
+
+```elixir
+Pristine.Adapters.TokenSource.Static
+```
+
+Useful for tests, simple clients, and explicit token lifecycle management.
 
 ## Resilience Ports
 

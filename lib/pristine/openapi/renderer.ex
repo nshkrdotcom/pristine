@@ -93,6 +93,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
           quote(do: {:body, partition.body}),
           quote(do: {:form_data, partition.form_data}),
           quote(do: {:auth, partition.auth}),
+          render_security_info(state, operation),
           OperationRenderer.render_call_request_info(
             state,
             request_body,
@@ -200,6 +201,21 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     end
 
     defp request_field_names(_state, _type), do: MapSet.new()
+
+    defp render_security_info(state, %Operation{request_method: method, request_path: path}) do
+      case security_for_operation(state, method, path) do
+        nil -> nil
+        security -> quote(do: {:security, unquote(Macro.escape(security))})
+      end
+    end
+
+    defp security_for_operation(state, method, path) do
+      state
+      |> config()
+      |> Keyword.get(:security_metadata, %{})
+      |> Map.get(:operations, %{})
+      |> Map.get({method, path})
+    end
 
     defp render_response_info(_state, []), do: nil
 

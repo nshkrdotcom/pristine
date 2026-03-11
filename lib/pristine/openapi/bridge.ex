@@ -7,6 +7,7 @@ defmodule Pristine.OpenAPI.Bridge do
   """
 
   alias Pristine.OpenAPI.Profile
+  alias Pristine.OpenAPI.Security
 
   @type run_option :: Pristine.OpenAPI.Profile.option()
 
@@ -14,6 +15,15 @@ defmodule Pristine.OpenAPI.Bridge do
   def run(profile, spec_files, opts \\ [])
       when is_atom(profile) and is_list(spec_files) and is_list(opts) do
     ensure_generator_available!()
+    supplemental_files = Keyword.get(opts, :supplemental_files, [])
+
+    opts =
+      Keyword.put_new(
+        opts,
+        :security_metadata,
+        Security.read(spec_files ++ supplemental_files)
+      )
+
     Profile.install(profile, opts)
     apply(OpenAPI, :run, [Atom.to_string(profile), spec_files])
   end

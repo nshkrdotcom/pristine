@@ -152,6 +152,8 @@ When you generate from OpenAPI through the bridge, schema modules should expose 
 
 That contract lets the generic pipeline validate direct refs such as `{MySDK.PageObjectResponse, :t}` and, when `typed_responses: true` is enabled by the generated SDK, materialize successful responses without bespoke runtime code in each SDK.
 
+OpenAPI-generated operation request maps also preserve effective security metadata. That metadata is extracted directly from the source spec files in Pristine, because the upstream generator currently drops `securitySchemes` and operation `security`. Generated SDK clients can then make scheme-scoped runtime choices without hardcoding provider auth rules into every wrapper.
+
 ### Union Types
 
 **Manifest:**

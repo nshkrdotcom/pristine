@@ -17,6 +17,7 @@ defmodule Pristine.OpenAPI.Profile do
           | {:error_type, module() | {module(), atom()}}
           | {:processor, module()}
           | {:renderer, module()}
+          | {:security_metadata, map()}
           | {:supplemental_files, [String.t()]}
           | {:profile_overrides, keyword()}
 
@@ -36,6 +37,8 @@ defmodule Pristine.OpenAPI.Profile do
         default_client: Keyword.get(opts, :default_client, Pristine.OpenAPI.Client),
         location: output_dir,
         operation_use: Keyword.get(opts, :operation_use, Pristine.OpenAPI.Operation),
+        security_metadata:
+          Keyword.get(opts, :security_metadata, %{operations: %{}, security_schemes: %{}}),
         types: [
           error: Keyword.get(opts, :error_type, Pristine.Error)
         ]
