@@ -241,9 +241,6 @@ defmodule Pristine.OAuth2 do
 
   defp encode_request_body(_content_type, params, _context) when params == %{}, do: {:ok, nil}
 
-  defp encode_request_body(_content_type, params, _context) when not is_map(params),
-    do: {:ok, params}
-
   defp encode_request_body("application/json", params, %Context{serializer: serializer}) do
     serializer = serializer || Pristine.Adapters.Serializer.JSON
 

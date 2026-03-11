@@ -243,10 +243,9 @@ defmodule Pristine.MixProject do
 
   defp dialyzer do
     [
-      plt_add_apps: [:mix, :ex_unit],
+      plt_add_apps: [:mix, :ex_unit, :oapi_generator],
       plt_core_path: "priv/plts",
-      plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
-      ignore_warnings: ".dialyzer_ignore.exs"
+      plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
     ]
   end
 end

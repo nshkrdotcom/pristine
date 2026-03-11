@@ -70,7 +70,7 @@ defmodule Pristine.OpenAPI.Runtime do
   end
 
   def resolve_schema(ref, type_schemas) when is_atom(ref) do
-    case Map.get(type_schemas || %{}, normalize_key(ref)) do
+    case Map.get(type_schemas || %{}, Atom.to_string(ref)) do
       nil -> resolve_type_spec(ref, type_schemas, true)
       schema -> resolve_type_spec(schema, type_schemas, true)
     end
@@ -91,7 +91,7 @@ defmodule Pristine.OpenAPI.Runtime do
   end
 
   def materialize(ref, data, type_schemas) when is_atom(ref) do
-    case Map.get(type_schemas || %{}, normalize_key(ref)) do
+    case Map.get(type_schemas || %{}, Atom.to_string(ref)) do
       nil -> materialize_spec(ref, data, type_schemas)
       schema -> materialize_spec(schema, data, type_schemas)
     end
@@ -383,74 +383,39 @@ defmodule Pristine.OpenAPI.Runtime do
   defp wrap_resolved_schema(%Schema{} = schema, false), do: {:object, schema}
   defp wrap_resolved_schema(other, _top_level?), do: other
 
-  defp to_runtime_type(type) do
-    case type do
-      {module, type_name}
-      when is_atom(module) and is_atom(type_name) and module not in @non_module_ref_heads ->
-        wrap_resolved_schema(resolve_type_spec({module, type_name}, %{}, true), false)
-
-      [inner] ->
-        {:array, to_runtime_type(inner)}
-
-      {:array, inner} ->
-        {:array, to_runtime_type(inner)}
-
-      {:union, types} ->
-        {:union, Enum.map(types, &to_runtime_type/1)}
-
-      {:nullable, inner} ->
-        {:nullable, to_runtime_type(inner)}
-
-      {:tuple, types} ->
-        {:tuple, Enum.map(types, &to_runtime_type/1)}
-
-      {:map, key_type, value_type} ->
-        {:map, to_runtime_type(key_type), to_runtime_type(value_type)}
-
-      {:enum, literals} when is_list(literals) ->
-        {:union, Enum.map(literals, &{:literal, &1})}
-
-      {:const, literal} ->
-        {:literal, literal}
-
-      {:string, "date"} ->
-        :date
-
-      {:string, "date-time"} ->
-        :datetime
-
-      {:string, "time"} ->
-        :string
-
-      {:string, "uuid"} ->
-        :uuid
-
-      {:string, _format} ->
-        :string
-
-      {:integer, _format} ->
-        :integer
-
-      {:number, _format} ->
-        {:union, [:integer, :float]}
-
-      {:boolean, _format} ->
-        :boolean
-
-      :number ->
-        {:union, [:integer, :float]}
-
-      :unknown ->
-        :any
-
-      other ->
-        other
-    end
+  defp to_runtime_type({module, type_name})
+       when is_atom(module) and is_atom(type_name) and module not in @non_module_ref_heads do
+    {module, type_name}
+    |> resolve_type_spec(%{}, true)
+    |> wrap_resolved_schema(false)
   end
 
-  defp normalize_key(key) when is_atom(key), do: Atom.to_string(key)
-  defp normalize_key(key) when is_binary(key), do: key
-  defp normalize_key(key), do: to_string(key)
+  defp to_runtime_type([inner]), do: {:array, to_runtime_type(inner)}
+  defp to_runtime_type({:array, inner}), do: {:array, to_runtime_type(inner)}
+  defp to_runtime_type({:union, types}), do: {:union, Enum.map(types, &to_runtime_type/1)}
+  defp to_runtime_type({:nullable, inner}), do: {:nullable, to_runtime_type(inner)}
+  defp to_runtime_type({:tuple, types}), do: {:tuple, Enum.map(types, &to_runtime_type/1)}
+
+  defp to_runtime_type({:map, key_type, value_type}) do
+    {:map, to_runtime_type(key_type), to_runtime_type(value_type)}
+  end
+
+  defp to_runtime_type({:enum, literals}) when is_list(literals) do
+    {:union, Enum.map(literals, &{:literal, &1})}
+  end
+
+  defp to_runtime_type({:const, literal}), do: {:literal, literal}
+  defp to_runtime_type({:string, "date"}), do: :date
+  defp to_runtime_type({:string, "date-time"}), do: :datetime
+  defp to_runtime_type({:string, "time"}), do: :string
+  defp to_runtime_type({:string, "uuid"}), do: :uuid
+  defp to_runtime_type({:string, _format}), do: :string
+  defp to_runtime_type({:integer, _format}), do: :integer
+  defp to_runtime_type({:number, _format}), do: {:union, [:integer, :float]}
+  defp to_runtime_type({:boolean, _format}), do: :boolean
+  defp to_runtime_type(:number), do: {:union, [:integer, :float]}
+  defp to_runtime_type(:unknown), do: :any
+  defp to_runtime_type(other), do: other
 
   defp invoke_module_decode(module, type, data) do
     ensure_module_loaded(module)

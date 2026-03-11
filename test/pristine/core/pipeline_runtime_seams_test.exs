@@ -2,6 +2,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
   use ExUnit.Case, async: true
   import Mox
 
+  alias Pristine.Adapters.Auth.{Basic, Bearer}
   alias Pristine.Core.{Context, Pipeline, Request, Response}
   alias Pristine.Manifest
 
@@ -90,6 +91,8 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
   end
 
   defmodule OpenAPILiteralFlag do
+    alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
+
     def __openapi_fields__(:t) do
       [
         %{
@@ -104,11 +107,11 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     end
 
     def __schema__(:t) do
-      Pristine.OpenAPI.Runtime.build_schema(__openapi_fields__(:t))
+      OpenAPIRuntime.build_schema(__openapi_fields__(:t))
     end
 
     def decode(data, type \\ :t) do
-      Pristine.OpenAPI.Runtime.decode_module_type(__MODULE__, type, data)
+      OpenAPIRuntime.decode_module_type(__MODULE__, type, data)
     end
   end
 
@@ -116,7 +119,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     manifest = runtime_manifest()
     payload = %{"prompt" => "hi"}
 
-    context = runtime_context(auth: [Pristine.Adapters.Auth.Bearer.new("default-token")])
+    context = runtime_context(auth: [Bearer.new("default-token")])
 
     expect_runtime_success(payload, fn %Request{headers: headers}, _context ->
       assert headers["Authorization"] == "Bearer override-token"
@@ -131,7 +134,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     manifest = runtime_manifest()
     payload = %{"prompt" => "hi"}
 
-    context = runtime_context(auth: [Pristine.Adapters.Auth.Bearer.new("default-token")])
+    context = runtime_context(auth: [Bearer.new("default-token")])
     expected = "Basic " <> Base.encode64("client-id:client-secret")
 
     expect_runtime_success(payload, fn %Request{headers: headers}, _context ->
@@ -152,8 +155,8 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     context =
       runtime_context(
         auth: %{
-          "bearerAuth" => [Pristine.Adapters.Auth.Bearer.new("scheme-token")],
-          "basicAuth" => [Pristine.Adapters.Auth.Basic.new("client-id", "client-secret")]
+          "bearerAuth" => [Bearer.new("scheme-token")],
+          "basicAuth" => [Basic.new("client-id", "client-secret")]
         }
       )
 
@@ -172,7 +175,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     context =
       runtime_context(
         auth: %{
-          "bearerAuth" => [Pristine.Adapters.Auth.Bearer.new("scheme-token")]
+          "bearerAuth" => [Bearer.new("scheme-token")]
         }
       )
 
@@ -195,7 +198,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
       )
 
     payload = %{"prompt" => "hi"}
-    context = runtime_context(auth: [Pristine.Adapters.Auth.Bearer.new("default-token")])
+    context = runtime_context(auth: [Bearer.new("default-token")])
 
     expect_runtime_success(payload, fn %Request{headers: headers}, _context ->
       refute Map.has_key?(headers, "Authorization")
@@ -212,7 +215,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     context =
       runtime_context(
         auth: %{
-          "basicAuth" => [Pristine.Adapters.Auth.Basic.new("client-id", "client-secret")]
+          "basicAuth" => [Basic.new("client-id", "client-secret")]
         }
       )
 
@@ -263,7 +266,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
 
     context =
       runtime_context(
-        auth: [Pristine.Adapters.Auth.Bearer.new("secret-token")],
+        auth: [Bearer.new("secret-token")],
         logger: logger,
         log_level: :debug,
         dump_headers?: true
