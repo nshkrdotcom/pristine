@@ -181,6 +181,32 @@ context = Pristine.context(
 )
 ```
 
+For interactive authorization-code flows, reuse `Pristine.OAuth2.Interactive`
+so Pristine owns the browser handling, loopback callback capture, and manual
+paste-back path:
+
+```elixir
+provider =
+  Pristine.OAuth2.Provider.new(
+    name: "example",
+    site: "https://api.example.com",
+    authorize_url: "/oauth/authorize",
+    token_url: "/oauth/token"
+  )
+
+{:ok, token} =
+  Pristine.OAuth2.Interactive.authorize(provider,
+    client_id: "...",
+    client_secret: "...",
+    redirect_uri: "http://127.0.0.1:40071/callback",
+    context: context
+  )
+```
+
+Loopback callback capture is exact-URI only and requires a literal loopback IP
+such as `127.0.0.1` or `::1`. If the redirect URI is not a supported loopback
+URI, Pristine falls back to manual paste-back.
+
 ### Retry Policies
 
 Define retry policies in your manifest:

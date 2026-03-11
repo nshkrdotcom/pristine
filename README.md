@@ -227,6 +227,25 @@ provider =
   )
 ```
 
+For interactive terminal onboarding, use the reusable `Pristine.OAuth2`
+helpers instead of rebuilding browser launch, callback capture, and manual
+paste-back yourself:
+
+```elixir
+{:ok, token} =
+  Pristine.OAuth2.Interactive.authorize(provider,
+    client_id: "...",
+    client_secret: "...",
+    redirect_uri: "http://127.0.0.1:40071/callback",
+    context: context
+  )
+```
+
+`Pristine.OAuth2.Browser` opens the authorization URL on a best-effort basis.
+`Pristine.OAuth2.CallbackServer` only binds exact literal-loopback `http`
+redirect URIs such as `http://127.0.0.1:40071/callback`. Manual paste-back of
+the full redirect URL or raw code is always available.
+
 If your manifest already defines an OAuth2 security scheme, build the provider from that metadata instead of duplicating it in code:
 
 ```elixir

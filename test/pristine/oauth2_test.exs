@@ -219,4 +219,39 @@ defmodule Pristine.OAuth2Test do
                context: oauth_context()
              )
   end
+
+  test "preserves provider-specific token metadata in other_params" do
+    expect(Pristine.TransportMock, :send, fn %Request{}, %Context{} ->
+      {:ok,
+       %Response{
+         status: 200,
+         headers: %{"content-type" => "application/json"},
+         body:
+           Jason.encode!(%{
+             "access_token" => "secret_123",
+             "bot_id" => "bot-123",
+             "owner" => %{"type" => "workspace", "workspace" => true},
+             "refresh_token" => "refresh_123",
+             "token_type" => "bearer",
+             "workspace_id" => "workspace-123",
+             "workspace_name" => "Example Workspace"
+           })
+       }}
+    end)
+
+    assert {:ok, %Pristine.OAuth2.Token{} = token} =
+             OAuth2.exchange_code(provider(), "auth-code",
+               client_id: "client-id",
+               client_secret: "client-secret",
+               redirect_uri: "https://example.com/callback",
+               context: oauth_context()
+             )
+
+    assert token.other_params == %{
+             "bot_id" => "bot-123",
+             "owner" => %{"type" => "workspace", "workspace" => true},
+             "workspace_id" => "workspace-123",
+             "workspace_name" => "Example Workspace"
+           }
+  end
 end
