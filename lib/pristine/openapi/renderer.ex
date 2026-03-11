@@ -12,6 +12,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
 
     alias OpenAPI.Processor.Operation
     alias OpenAPI.Processor.Operation.Param
+    alias OpenAPI.Processor.Schema, as: ProcessedSchema
     alias OpenAPI.Renderer.Operation, as: OperationRenderer
     alias OpenAPI.Renderer.State
     alias OpenAPI.Renderer.Util
@@ -113,6 +114,30 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
           })
         end
       end
+    end
+
+    @impl OpenAPI.Renderer
+    def render_schema_field_function(state, schemas) do
+      default = OpenAPI.Renderer.Schema.render_field_function(state, schemas)
+
+      runtime_helpers =
+        if schemas == [] do
+          []
+        else
+          default_type =
+            schemas
+            |> Enum.map(& &1.type_name)
+            |> Enum.sort()
+            |> then(fn [first | _] = types -> Enum.find(types, first, &(&1 == :t)) end)
+
+          [
+            render_openapi_field_function(state, schemas, default_type),
+            render_schema_function(schemas, default_type),
+            render_decode_function(default_type)
+          ]
+        end
+
+      Util.clean_list([default, runtime_helpers])
     end
 
     defp request_partition_spec(state, operation) do
@@ -250,6 +275,80 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
 
     defp render_configured_type(_state, module) when is_atom(module) do
       quote(do: unquote(module).t())
+    end
+
+    defp render_openapi_field_function(state, schemas, default_type) do
+      typespec =
+        quote do
+          @doc false
+          @spec __openapi_fields__(atom) :: [map()]
+        end
+
+      header =
+        quote do
+          def __openapi_fields__(type \\ unquote(default_type))
+        end
+
+      clauses =
+        Enum.map(schemas, fn %ProcessedSchema{fields: fields, type_name: type_name} ->
+          openapi_fields =
+            fields
+            |> Enum.reject(& &1.private)
+            |> Enum.sort_by(& &1.name)
+            |> Enum.map(fn field ->
+              %{
+                default: field.default,
+                name: field.name,
+                nullable: field.nullable,
+                required: field.required,
+                type: Util.to_readable_type(state, field.type)
+              }
+            end)
+
+          quote do
+            def __openapi_fields__(unquote(type_name)) do
+              unquote(Macro.escape(openapi_fields))
+            end
+          end
+        end)
+
+      Util.clean_list([typespec, header, clauses])
+    end
+
+    defp render_schema_function(schemas, default_type) do
+      typespec =
+        quote do
+          @doc false
+          @spec __schema__(atom) :: Sinter.Schema.t()
+        end
+
+      header =
+        quote do
+          def __schema__(type \\ unquote(default_type))
+        end
+
+      clauses =
+        Enum.map(schemas, fn %ProcessedSchema{type_name: type_name} ->
+          quote do
+            def __schema__(unquote(type_name)) do
+              Pristine.OpenAPI.Runtime.build_schema(__openapi_fields__(unquote(type_name)))
+            end
+          end
+        end)
+
+      Util.clean_list([typespec, header, clauses])
+    end
+
+    defp render_decode_function(default_type) do
+      quote do
+        @doc false
+        @spec decode(term(), atom) :: {:ok, term()} | {:error, term()}
+        def decode(data, type \\ unquote(default_type))
+
+        def decode(data, type) do
+          Pristine.OpenAPI.Runtime.decode_module_type(__MODULE__, type, data)
+        end
+      end
     end
 
     defp config(%State{profile: profile}) do

@@ -79,6 +79,8 @@ Pipeline.execute(manifest, endpoint_id, payload, context, opts)
 5. **Transport** - Send HTTP request
 6. **Response Processing** - Decompress, decode, validate
 
+The same pipeline is also responsible for OpenAPI runtime wiring. If an endpoint carries direct refs such as `{MySDK.User, :t}`, the pipeline resolves those refs through generated `__schema__/1` helpers and can optionally materialize successful responses through `decode/1,2`.
+
 ### Context (`Pristine.Core.Context`)
 
 The context carries all runtime configuration:
@@ -106,6 +108,8 @@ The context carries all runtime configuration:
   retry_policies: %{}
 }
 ```
+
+`type_schemas` now covers both manifest-compiled schemas and any direct OpenAPI refs resolved at runtime. That keeps the boundary generic: generated SDKs can opt into typed responses without copying runtime schema logic into each package.
 
 ### Request/Response (`Pristine.Core.Request`, `Pristine.Core.Response`)
 
