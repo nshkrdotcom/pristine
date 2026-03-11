@@ -124,8 +124,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     assert decoded_partial_user.__struct__ == partial_user_module
 
-    assert {:ok, get_self_request} =
-             apply(users_module, :get_self, [%{auth: "secret-token"}, []])
+    assert {:ok, get_self_request} = users_module.get_self(%{auth: "secret-token"}, [])
 
     assert get_self_request.method == :get
     assert get_self_request.url == "/v1/users/me"
@@ -138,7 +137,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert get_self_request.security == [%{"bearerAuth" => []}]
 
     assert {:ok, list_users_request} =
-             apply(users_module, :get_users, [%{start_cursor: "cursor-1", page_size: 50}, []])
+             users_module.get_users(%{start_cursor: "cursor-1", page_size: 50}, [])
 
     assert list_users_request.method == :get
     assert list_users_request.url == "/v1/users"
@@ -148,14 +147,14 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert list_users_request.form_data == %{}
 
     assert {:ok, token_request} =
-             apply(oauth_module, :create_a_token, [
+             oauth_module.create_a_token(
                %{
                  grant_type: "refresh_token",
                  refresh_token: "refresh-token",
                  auth: %{client_id: "client-id", client_secret: "client-secret"}
                },
                []
-             ])
+             )
 
     assert token_request.method == :post
     assert token_request.url == "/v1/oauth/token"
@@ -173,7 +172,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert token_request.security == [%{"basicAuth" => []}]
 
     assert {:ok, upload_request} =
-             apply(file_uploads_module, :upload_file, [
+             file_uploads_module.upload_file(
                %{
                  file_upload_id: "file-upload-id",
                  file: %{filename: "report.pdf", data: "bytes"},
@@ -181,7 +180,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
                  auth: "secret-token"
                },
                []
-             ])
+             )
 
     assert upload_request.method == :post
     assert upload_request.url == "/v1/file_uploads/file-upload-id/send"
@@ -232,7 +231,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     users_module = Module.concat([base_module, Users])
 
-    assert {:ok, alias_request} = apply(users_module, :get_self_alias, [%{}, []])
+    assert {:ok, alias_request} = users_module.get_self_alias(%{}, [])
     assert alias_request.url == "/v1/users/me/alias"
     assert alias_request.method == :get
   end

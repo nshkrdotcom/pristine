@@ -25,7 +25,7 @@ defmodule Pristine.OpenAPI.Bridge do
       )
 
     Profile.install(profile, opts)
-    apply(OpenAPI, :run, [Atom.to_string(profile), spec_files])
+    OpenAPI.run(Atom.to_string(profile), spec_files)
   end
 
   @spec generated_sources(map()) :: %{String.t() => String.t()}

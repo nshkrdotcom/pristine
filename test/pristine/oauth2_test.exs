@@ -4,6 +4,7 @@ defmodule Pristine.OAuth2Test do
 
   alias Pristine.Core.{Context, Request, Response}
   alias Pristine.OAuth2
+  alias Pristine.OAuth2.PKCE
 
   setup :set_mox_from_context
   setup :verify_on_exit!
@@ -63,7 +64,7 @@ defmodule Pristine.OAuth2Test do
 
   test "shapes explicit authorize URLs without hidden generated state" do
     verifier = "verifier-123"
-    challenge = Pristine.OAuth2.PKCE.challenge(verifier, :plain)
+    challenge = PKCE.challenge(verifier, :plain)
 
     assert {:ok, url} =
              OAuth2.authorize_url(provider(),

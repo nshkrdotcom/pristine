@@ -35,47 +35,63 @@ defmodule Pristine.OpenAPI.Security do
   end
 
   defp decode_file(path) do
-    case Path.extname(path) do
-      ext when ext in [".yaml", ".yml"] ->
-        YamlElixir.read_from_file!(path)
-
-      ".json" ->
-        path |> File.read!() |> Jason.decode!()
-
-      _other ->
-        path
-        |> File.read!()
-        |> then(fn contents ->
-          case Jason.decode(contents) do
-            {:ok, decoded} -> decoded
-            {:error, _reason} -> YamlElixir.read_from_file!(path)
-          end
-        end)
-    end
+    path
+    |> Path.extname()
+    |> decode_file_by_extension(path)
   end
 
   defp normalize_operations(paths, root_security) when is_map(paths) do
-    Enum.reduce(paths, %{}, fn {path, item}, acc ->
-      Enum.reduce(@http_methods, acc, fn method, op_acc ->
-        case Map.get(item, method) do
-          operation when is_map(operation) ->
-            effective_security =
-              if Map.has_key?(operation, "security") do
-                normalize_security(operation["security"])
-              else
-                root_security
-              end
-
-            Map.put(op_acc, {String.to_atom(method), path}, effective_security)
-
-          _other ->
-            op_acc
-        end
-      end)
+    Enum.reduce(paths, %{}, fn path_entry, acc ->
+      normalize_path_operations(path_entry, acc, root_security)
     end)
   end
 
   defp normalize_operations(_paths, _root_security), do: %{}
+
+  defp decode_file_by_extension(ext, path) when ext in [".yaml", ".yml"] do
+    YamlElixir.read_from_file!(path)
+  end
+
+  defp decode_file_by_extension(".json", path) do
+    path |> File.read!() |> Jason.decode!()
+  end
+
+  defp decode_file_by_extension(_ext, path) do
+    path
+    |> File.read!()
+    |> decode_file_contents(path)
+  end
+
+  defp decode_file_contents(contents, path) do
+    case Jason.decode(contents) do
+      {:ok, decoded} -> decoded
+      {:error, _reason} -> YamlElixir.read_from_file!(path)
+    end
+  end
+
+  defp normalize_path_operations({path, item}, acc, root_security) do
+    Enum.reduce(@http_methods, acc, fn method, operation_acc ->
+      put_operation_security(operation_acc, item, method, path, root_security)
+    end)
+  end
+
+  defp put_operation_security(acc, item, method, path, root_security) do
+    case Map.get(item, method) do
+      operation when is_map(operation) ->
+        Map.put(acc, {String.to_atom(method), path}, operation_security(operation, root_security))
+
+      _other ->
+        acc
+    end
+  end
+
+  defp operation_security(operation, root_security) do
+    if Map.has_key?(operation, "security") do
+      normalize_security(operation["security"])
+    else
+      root_security
+    end
+  end
 
   defp normalize_security_schemes(schemes) when is_map(schemes) do
     Enum.reduce(schemes, %{}, fn {name, scheme}, acc ->

@@ -19,15 +19,14 @@ defmodule Pristine.OAuth2.Backend.OAuth2Lib do
   @spec new_client(atom(), keyword()) :: {:ok, map()} | {:error, atom()}
   def new_client(strategy, opts) do
     with_available(fn ->
-      {:ok,
-       apply(client_module(), :new, [Keyword.put(opts, :strategy, strategy_module(strategy))])}
+      {:ok, client_module().new(Keyword.put(opts, :strategy, strategy_module(strategy)))}
     end)
   end
 
   @spec authorize_url(map(), keyword()) :: {:ok, String.t()} | {:error, atom()}
   def authorize_url(client, params) do
     with_available(fn ->
-      {_client, url} = apply(client_module(), :authorize_url, [client, params])
+      {_client, url} = client_module().authorize_url(client, params)
       {:ok, url}
     end)
   end
@@ -36,14 +35,14 @@ defmodule Pristine.OAuth2.Backend.OAuth2Lib do
           {:ok, map()} | {:error, atom()}
   def prepare_token_request(client, strategy, params, headers) do
     with_available(fn ->
-      {:ok, apply(strategy_module(strategy), :get_token, [client, params, headers])}
+      {:ok, strategy_module(strategy).get_token(client, params, headers)}
     end)
   end
 
   @spec access_token(map() | String.t()) :: {:ok, map()} | {:error, atom()}
   def access_token(response_body) do
     with_available(fn ->
-      {:ok, apply(access_token_module(), :new, [response_body])}
+      {:ok, access_token_module().new(response_body)}
     end)
   end
 

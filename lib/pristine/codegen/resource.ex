@@ -291,16 +291,13 @@ defmodule Pristine.Codegen.Resource do
     returns = render_returns(mode)
 
     param_section =
-      if param_lines != [] or optional_lines != [] do
-        [
-          "## Parameters",
-          Enum.join(param_lines, "\n"),
-          if(optional_lines == [], do: nil, else: "  * `opts` - Optional parameters:"),
-          if(optional_lines == [], do: nil, else: Enum.join(optional_lines, "\n"))
-        ]
-      else
-        []
-      end
+      [
+        "## Parameters",
+        Enum.join(param_lines, "\n"),
+        "  * `opts` - Optional parameters:",
+        Enum.join(optional_lines, "\n")
+      ]
+      |> Enum.reject(&(&1 == ""))
 
     doc_body =
       [

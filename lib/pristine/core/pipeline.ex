@@ -8,21 +8,23 @@ defmodule Pristine.Core.Pipeline do
 
   require Logger
 
+  alias Pristine.Adapters.Auth.{Basic, Bearer}
+
   alias Pristine.Core.{
     Context,
     Headers,
     HTTPMethod,
     PoolRouting,
-    RequestPath,
     Request,
+    RequestPath,
     Response,
     StreamResponse,
     TelemetryHeaders,
     Url
   }
 
-  alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
   alias Pristine.Manifest
+  alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
 
   @retry_policy_key_aliases %{
     "backoff" => :backoff,
@@ -1058,12 +1060,7 @@ defmodule Pristine.Core.Pipeline do
   defp resolve_auth(_auth, nil, _key), do: []
 
   defp resolve_security_auth(auth, security) do
-    case Enum.find_value(security, fn requirement ->
-           case resolve_requirement_set(auth, requirement) do
-             {:ok, modules} -> modules
-             :error -> false
-           end
-         end) do
+    case find_matching_security_modules(auth, security) do
       nil ->
         raise ArgumentError,
               "no configured auth satisfies security requirements: #{inspect(security)}"
@@ -1071,6 +1068,15 @@ defmodule Pristine.Core.Pipeline do
       modules ->
         modules
     end
+  end
+
+  defp find_matching_security_modules(auth, security) do
+    Enum.find_value(security, fn requirement ->
+      case resolve_requirement_set(auth, requirement) do
+        {:ok, modules} -> modules
+        :error -> nil
+      end
+    end)
   end
 
   defp resolve_requirement_set(_auth, requirement)
@@ -1139,7 +1145,7 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp normalize_auth_override!(override) when is_binary(override) do
-    [Pristine.Adapters.Auth.Bearer.new(override)]
+    [Bearer.new(override)]
   end
 
   defp normalize_auth_override!(override) when is_map(override) do
@@ -1151,7 +1157,7 @@ defmodule Pristine.Core.Pipeline do
     cond do
       Map.has_key?(normalized, "client_id") and Map.has_key?(normalized, "client_secret") ->
         [
-          Pristine.Adapters.Auth.Basic.new(
+          Basic.new(
             normalized["client_id"],
             normalized["client_secret"]
           )
@@ -1159,7 +1165,7 @@ defmodule Pristine.Core.Pipeline do
 
       Map.has_key?(normalized, "username") and Map.has_key?(normalized, "password") ->
         [
-          Pristine.Adapters.Auth.Basic.new(
+          Basic.new(
             normalized["username"],
             normalized["password"]
           )
@@ -1327,8 +1333,6 @@ defmodule Pristine.Core.Pipeline do
   rescue
     _ -> :ok
   end
-
-  defp maybe_log(_context, _level, _message, _metadata), do: :ok
 
   defp logger_configured?(%Context{logger: logger}), do: is_function(logger, 3)
 
@@ -1505,39 +1509,33 @@ defmodule Pristine.Core.Pipeline do
        ) do
     case decode_body(serializer, body, opts) do
       {:ok, decoded} ->
-        unwrapped = unwrap_response(decoded, endpoint)
-
-        case validate_response_schema(unwrapped, response_schema, opts) do
-          {:ok, validated} ->
-            {:ok, maybe_materialize_response(validated, endpoint.response, context, opts)}
-
-          {:error, reason} ->
-            if error_module?(context) do
-              {:error, validation_error(context, reason, unwrapped)}
-            else
-              {:error, reason}
-            end
-        end
+        decoded
+        |> unwrap_response(endpoint)
+        |> validate_success_payload(response_schema, endpoint, context, opts)
 
       {:error, _} when body in [nil, ""] ->
-        case validate_response_schema(%{}, response_schema, opts) do
-          {:ok, validated} ->
-            {:ok, maybe_materialize_response(validated, endpoint.response, context, opts)}
-
-          {:error, reason} ->
-            if error_module?(context) do
-              {:error, validation_error(context, reason, %{})}
-            else
-              {:error, reason}
-            end
-        end
+        validate_success_payload(%{}, response_schema, endpoint, context, opts)
 
       {:error, reason} ->
-        if error_module?(context) do
-          {:error, validation_error(context, reason, body)}
-        else
-          {:error, reason}
-        end
+        success_validation_error(context, reason, body)
+    end
+  end
+
+  defp validate_success_payload(payload, response_schema, endpoint, context, opts) do
+    case validate_response_schema(payload, response_schema, opts) do
+      {:ok, validated} ->
+        {:ok, maybe_materialize_response(validated, endpoint.response, context, opts)}
+
+      {:error, reason} ->
+        success_validation_error(context, reason, payload)
+    end
+  end
+
+  defp success_validation_error(context, reason, payload) do
+    if error_module?(context) do
+      {:error, validation_error(context, reason, payload)}
+    else
+      {:error, reason}
     end
   end
 

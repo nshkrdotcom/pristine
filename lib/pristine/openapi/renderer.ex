@@ -14,8 +14,10 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     alias OpenAPI.Processor.Operation.Param
     alias OpenAPI.Processor.Schema, as: ProcessedSchema
     alias OpenAPI.Renderer.Operation, as: OperationRenderer
+    alias OpenAPI.Renderer.Schema, as: SchemaRenderer
     alias OpenAPI.Renderer.State
     alias OpenAPI.Renderer.Util
+    alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
 
     @multipart_content_type "multipart/form-data"
 
@@ -119,7 +121,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
 
     @impl OpenAPI.Renderer
     def render_schema_field_function(state, schemas) do
-      default = OpenAPI.Renderer.Schema.render_field_function(state, schemas)
+      default = SchemaRenderer.render_field_function(state, schemas)
 
       runtime_helpers =
         if schemas == [] do
@@ -243,8 +245,9 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
 
       {success, error} =
         responses
-        |> Enum.reject(fn {_status, schemas} -> map_size(schemas) == 0 end)
-        |> Enum.reject(fn {status, _schemas} -> status >= 300 and status < 400 end)
+        |> Enum.reject(fn {status, schemas} ->
+          map_size(schemas) == 0 or (status >= 300 and status < 400)
+        end)
         |> Enum.split_with(fn {status, _schemas} -> status < 300 end)
 
       ok =
@@ -332,6 +335,8 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     end
 
     defp render_schema_function(schemas, default_type) do
+      runtime_module = OpenAPIRuntime
+
       typespec =
         quote do
           @doc false
@@ -347,7 +352,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
         Enum.map(schemas, fn %ProcessedSchema{type_name: type_name} ->
           quote do
             def __schema__(unquote(type_name)) do
-              Pristine.OpenAPI.Runtime.build_schema(__openapi_fields__(unquote(type_name)))
+              unquote(runtime_module).build_schema(__openapi_fields__(unquote(type_name)))
             end
           end
         end)
@@ -356,13 +361,15 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     end
 
     defp render_decode_function(default_type) do
+      runtime_module = OpenAPIRuntime
+
       quote do
         @doc false
         @spec decode(term(), atom) :: {:ok, term()} | {:error, term()}
         def decode(data, type \\ unquote(default_type))
 
         def decode(data, type) do
-          Pristine.OpenAPI.Runtime.decode_module_type(__MODULE__, type, data)
+          unquote(runtime_module).decode_module_type(__MODULE__, type, data)
         end
       end
     end
