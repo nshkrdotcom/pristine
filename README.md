@@ -152,6 +152,7 @@ Pristine implements a hexagonal (ports and adapters) architecture:
 | **Rate Limit** | BackoffWindow, Noop |
 | **Telemetry** | Foundation, Raw, Reporter, Noop |
 | **Compression** | Gzip |
+| **TokenSource** | File, Static |
 | **Streaming** | SSE |
 
 ## Runtime Execution
@@ -246,6 +247,26 @@ paste-back yourself:
 `Pristine.OAuth2.CallbackServer` only binds exact literal-loopback `http`
 redirect URIs such as `http://127.0.0.1:40071/callback`. Manual paste-back of
 the full redirect URL or raw code is always available.
+
+Persist tokens generically with the file-backed token source when a caller
+wants JSON storage outside of any provider-specific SDK:
+
+```elixir
+token_path = Path.expand("~/.config/example/oauth/token.json")
+
+:ok =
+  Pristine.Adapters.TokenSource.File.put(token,
+    path: token_path,
+    create_dirs?: true
+  )
+
+{:ok, persisted_token} =
+  Pristine.Adapters.TokenSource.File.fetch(path: token_path)
+```
+
+The stored envelope stays generic and round-trips `access_token`,
+`refresh_token`, `expires_at`, `token_type`, and any provider metadata inside
+`other_params`.
 
 If your manifest already defines an OAuth2 security scheme, build the provider from that metadata instead of duplicating it in code:
 

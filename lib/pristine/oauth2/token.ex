@@ -19,12 +19,28 @@ defmodule Pristine.OAuth2.Token do
 
   @spec from_backend_token(map()) :: t()
   def from_backend_token(token) when is_map(token) do
+    from_map(token)
+  end
+
+  @spec to_map(t()) :: map()
+  def to_map(%__MODULE__{} = token) do
+    %{
+      "access_token" => token.access_token,
+      "refresh_token" => token.refresh_token,
+      "expires_at" => token.expires_at,
+      "token_type" => token.token_type,
+      "other_params" => normalize_other_params(token.other_params)
+    }
+  end
+
+  @spec from_map(map()) :: t()
+  def from_map(token) when is_map(token) do
     %__MODULE__{
-      access_token: Map.get(token, :access_token),
-      refresh_token: Map.get(token, :refresh_token),
-      expires_at: Map.get(token, :expires_at),
-      token_type: Map.get(token, :token_type, "Bearer"),
-      other_params: Map.get(token, :other_params, %{})
+      access_token: fetch_value(token, :access_token),
+      refresh_token: fetch_value(token, :refresh_token),
+      expires_at: fetch_value(token, :expires_at),
+      token_type: normalize_token_type(fetch_value(token, :token_type)),
+      other_params: normalize_other_params(fetch_value(token, :other_params))
     }
   end
 
@@ -36,4 +52,22 @@ defmodule Pristine.OAuth2.Token do
   def expired?(%__MODULE__{} = token) do
     expires?(token) and System.system_time(:second) > token.expires_at
   end
+
+  defp fetch_value(map, key) when is_map(map) do
+    string_key = Atom.to_string(key)
+
+    cond do
+      Map.has_key?(map, key) -> Map.get(map, key)
+      Map.has_key?(map, string_key) -> Map.get(map, string_key)
+      true -> nil
+    end
+  end
+
+  defp normalize_other_params(%{} = other_params), do: other_params
+  defp normalize_other_params(_other), do: %{}
+
+  defp normalize_token_type(token_type) when is_binary(token_type) and token_type != "",
+    do: token_type
+
+  defp normalize_token_type(_token_type), do: "Bearer"
 end
