@@ -257,6 +257,8 @@ For OpenAPI-generated modules, Pristine looks for `__schema__/1` during validati
 
 Default success handling still returns maps. If you pass `typed_responses: true`, the pipeline validates first and then materializes successful responses through the generated schema module when one is available.
 
+Direct refs are expected to point at loaded modules that implement that runtime contract. If a module is missing or does not expose the required helpers, the pipeline raises immediately instead of silently bypassing validation.
+
 ## Resilience Stack
 
 ### Order of Operations

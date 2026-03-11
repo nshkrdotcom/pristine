@@ -9,6 +9,16 @@ defmodule Pristine.Core.PipelineStreamTest do
   setup :set_mox_from_context
   setup :verify_on_exit!
 
+  defmodule OpenAPIStreamRequest do
+    def __schema__(type \\ :t)
+
+    def __schema__(:t) do
+      Sinter.Schema.define([
+        {:prompt, :string, required: true}
+      ])
+    end
+  end
+
   describe "execute_stream/5" do
     test "executes streaming endpoint and returns StreamResponse" do
       manifest = build_manifest()
@@ -89,6 +99,37 @@ defmodule Pristine.Core.PipelineStreamTest do
       assert_raise ArgumentError, ~r/stream_transport is required/, fn ->
         Pipeline.execute_stream(manifest, "sample_stream", %{}, context)
       end
+    end
+
+    test "validates streaming request payloads from direct OpenAPI refs" do
+      manifest =
+        %Manifest{
+          name: "stream-openapi",
+          version: "1.0.0",
+          endpoints: %{
+            "sample_stream" =>
+              struct(Manifest.Endpoint, %{
+                id: "sample_stream",
+                method: "POST",
+                path: "/sample_stream",
+                request: {OpenAPIStreamRequest, :t}
+              })
+          },
+          types: %{}
+        }
+
+      expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas -> :ok end)
+
+      context =
+        %Context{
+          base_url: "https://example.com",
+          stream_transport: Pristine.StreamTransportMock,
+          serializer: Pristine.Adapters.Serializer.JSON,
+          telemetry: Pristine.TelemetryMock
+        }
+
+      assert {:error, [%Sinter.Error{code: :required, path: ["prompt"]}]} =
+               Pipeline.execute_stream(manifest, "sample_stream", %{}, context)
     end
   end
 

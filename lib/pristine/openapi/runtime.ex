@@ -128,7 +128,11 @@ defmodule Pristine.OpenAPI.Runtime do
       Enum.reduce(fields, %{}, fn field, acc ->
         case Map.fetch(validated, field.name) do
           {:ok, value} ->
-            Map.put(acc, field.name, materialize_openapi_value(field.type, value))
+            Map.put(
+              acc,
+              String.to_atom(field.name),
+              materialize_openapi_value(field.type, value)
+            )
 
           :error ->
             acc
@@ -136,7 +140,7 @@ defmodule Pristine.OpenAPI.Runtime do
       end)
 
     if function_exported?(module, :__struct__, 0) do
-      struct(module, Enum.map(values, fn {key, value} -> {String.to_atom(key), value} end))
+      struct(module, values)
     else
       values
     end
@@ -306,7 +310,7 @@ defmodule Pristine.OpenAPI.Runtime do
 
   defp resolve_type_spec({module, type}, _type_schemas, top_level?)
        when is_atom(module) and is_atom(type) and module not in @non_module_ref_heads do
-    ensure_module_loaded(module)
+    ensure_module_loaded!(module)
 
     resolved =
       cond do
@@ -317,7 +321,8 @@ defmodule Pristine.OpenAPI.Runtime do
           module.schema()
 
         true ->
-          nil
+          raise ArgumentError,
+                "cannot resolve OpenAPI runtime schema ref #{inspect({module, type})}: expected #{inspect(module)} to export __schema__/1 or schema/0"
       end
 
     wrap_resolved_schema(resolved, top_level?)
@@ -418,7 +423,7 @@ defmodule Pristine.OpenAPI.Runtime do
   defp to_runtime_type(other), do: other
 
   defp invoke_module_decode(module, type, data) do
-    ensure_module_loaded(module)
+    ensure_module_loaded!(module)
 
     cond do
       function_exported?(module, :decode, 2) ->
@@ -428,12 +433,24 @@ defmodule Pristine.OpenAPI.Runtime do
         module.decode(data)
 
       true ->
-        decode_module_type(module, type, data)
+        if function_exported?(module, :__schema__, 1) or
+             (function_exported?(module, :schema, 0) and type == :t) do
+          decode_module_type(module, type, data)
+        else
+          raise ArgumentError,
+                "cannot decode OpenAPI runtime ref #{inspect({module, type})}: expected #{inspect(module)} to export decode/2, decode/1, __schema__/1, or schema/0"
+        end
     end
   end
 
-  defp ensure_module_loaded(module) when is_atom(module) do
-    Code.ensure_loaded(module)
-    :ok
+  defp ensure_module_loaded!(module) when is_atom(module) do
+    case Code.ensure_loaded(module) do
+      {:module, _loaded} ->
+        :ok
+
+      {:error, _reason} ->
+        raise ArgumentError,
+              "cannot resolve OpenAPI runtime schema ref: module #{inspect(module)} is not available"
+    end
   end
 end

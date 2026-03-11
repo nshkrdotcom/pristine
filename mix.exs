@@ -67,7 +67,7 @@ defmodule Pristine.MixProject do
         :oapi_generator,
         "../../aj-foster/open-api-generator",
         "aj-foster/open-api-generator",
-        only: [:dev, :test],
+        optional: true,
         runtime: false
       ),
       {:nx, "~> 0.9"},

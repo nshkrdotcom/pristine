@@ -97,6 +97,28 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "def __schema__(type \\\\ :t)"))
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "def decode(data, type \\\\ :t)"))
 
+    assert Enum.any?(
+             Map.values(sources),
+             &String.contains?(&1, "alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime")
+           )
+
+    assert Enum.any?(Map.values(sources), &String.contains?(&1, "OpenAPIRuntime.build_schema"))
+
+    assert Enum.any?(
+             Map.values(sources),
+             &String.contains?(&1, "OpenAPIRuntime.decode_module_type")
+           )
+
+    refute Enum.any?(
+             Map.values(sources),
+             &String.contains?(&1, "Pristine.OpenAPI.Runtime.build_schema")
+           )
+
+    refute Enum.any?(
+             Map.values(sources),
+             &String.contains?(&1, "Pristine.OpenAPI.Runtime.decode_module_type")
+           )
+
     compile_generated_sources!(sources)
 
     users_module = Module.concat([base_module, Users])

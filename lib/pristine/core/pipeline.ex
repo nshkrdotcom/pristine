@@ -336,7 +336,7 @@ defmodule Pristine.Core.Pipeline do
 
     telemetry = context.telemetry || Pristine.Adapters.Telemetry.Noop
 
-    request_schema = Map.get(context.type_schemas, endpoint.request)
+    request_schema = OpenAPIRuntime.resolve_schema(endpoint.request, context.type_schemas)
 
     telemetry_metadata = build_telemetry_metadata(context, endpoint, opts)
 
@@ -1770,6 +1770,7 @@ defmodule Pristine.Core.Pipeline do
   defp validate_response_schema(data, nil, _opts), do: {:ok, data}
 
   defp validate_response_schema(data, %Sinter.Schema{} = schema, opts) do
+    opts = Keyword.put(opts, :path, normalize_validation_path(Keyword.get(opts, :path, [])))
     Sinter.Validator.validate(schema, data, opts)
   end
 

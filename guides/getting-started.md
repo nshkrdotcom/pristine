@@ -10,6 +10,7 @@ Add Pristine to your dependencies in `mix.exs`:
 def deps do
   [
     {:pristine, "~> 0.1.0"},
+    {:oauth2, "~> 2.1"}, # Optional: only needed for Pristine.OAuth2 helpers
     # Required dependencies
     {:finch, "~> 0.18"},
     {:jason, "~> 1.4"},
@@ -23,6 +24,8 @@ Then fetch dependencies:
 ```bash
 mix deps.get
 ```
+
+`oauth2` is optional. Normal request execution and generated SDK clients continue to use Pristine's transport boundary directly.
 
 ## Quick Start
 
@@ -127,6 +130,8 @@ context = Pristine.context(
 {:ok, result} = Pristine.execute(manifest, :get_user, %{}, context, path_params: %{"id" => "123"})
 ```
 
+If you are using OpenAPI-generated schema refs in the manifest or generated client, pass `typed_responses: true` per call when you want successful responses materialized through the generated `decode/1,2` helpers instead of returning validated maps.
+
 ## Configuration
 
 ### Adapters
@@ -158,6 +163,21 @@ context = Pristine.context(
 
   # Observability
   telemetry: Pristine.Adapters.Telemetry.Foundation
+)
+```
+
+If your API uses OpenAPI-style `security` metadata, `auth` can also be a map keyed by security-scheme name:
+
+```elixir
+context = Pristine.context(
+  auth: %{
+    "bearerAuth" => [
+      Pristine.Adapters.Auth.OAuth2.new(
+        token_source: {MyApp.TokenSource, account_id: "acct_123"}
+      )
+    ],
+    "basicAuth" => []
+  }
 )
 ```
 

@@ -227,6 +227,20 @@ provider =
   )
 ```
 
+If your manifest already defines an OAuth2 security scheme, build the provider from that metadata instead of duplicating it in code:
+
+```elixir
+provider = Pristine.OAuth2.Provider.from_manifest!(manifest, :notionOauth)
+```
+
+Supported scheme extensions include:
+
+- `x-pristine-flow` to select a specific flow when the scheme defines more than one
+- `x-pristine-client-auth-method` for `:basic`, `:request_body`, or `:none`
+- `x-pristine-token-method` for `:post` or `:get`
+- `x-pristine-token-content-type` for JSON vs form-encoded token/control requests
+- `x-pristine-revocation-url`, `x-pristine-introspection-url`, and `x-pristine-default-scopes`
+
 ## OpenAPI Runtime Contract
 
 Pristine also supports OpenAPI-generated schema refs directly at runtime. Endpoint `request` and `response` entries can point at:
@@ -240,7 +254,7 @@ Generated OpenAPI schema modules are expected to expose runtime helpers:
 - `__schema__/1` for validation
 - `decode/1` or `decode/2` for materialization
 
-When an SDK opts into `typed_responses: true`, successful responses are materialized through those helpers. Default runtime behavior stays compatibility-friendly: validated maps when schema refs are present, or raw decoded maps when the SDK chooses not to wire typed refs into the manifest.
+When an SDK opts into `typed_responses: true`, successful responses are materialized through those helpers. Default runtime behavior stays compatibility-friendly: validated maps when schema refs are present, or raw decoded maps when the SDK chooses not to wire typed refs into the manifest. Broken direct refs now fail fast instead of silently skipping validation.
 
 ## Streaming Support
 

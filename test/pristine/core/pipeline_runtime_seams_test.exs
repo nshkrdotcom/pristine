@@ -359,6 +359,18 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
              Pipeline.execute(manifest, "ping", %{"count" => 2}, context)
   end
 
+  test "fails fast when a direct OpenAPI schema ref points at an unavailable module" do
+    missing_module = Module.concat(__MODULE__, MissingOpenAPIType)
+    manifest = openapi_manifest(response: {missing_module, :t})
+    context = runtime_context(serializer: Pristine.Adapters.Serializer.JSON)
+
+    assert_raise ArgumentError,
+                 ~r/module #{Regex.escape(inspect(missing_module))} is not available/,
+                 fn ->
+                   Pipeline.execute(manifest, "ping", %{"prompt" => "hi"}, context)
+                 end
+  end
+
   test "validates success responses from direct OpenAPI schema refs" do
     manifest = openapi_manifest(response: {OpenAPIResponse, :t})
     context = runtime_context(serializer: Pristine.Adapters.Serializer.JSON)
@@ -434,7 +446,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
   end
 
   test "builds schemas for generated literal boolean OpenAPI fields" do
-    assert {:ok, %{"type" => "workspace", "workspace" => true}} =
+    assert {:ok, %{type: "workspace", workspace: true}} =
              OpenAPILiteralFlag.decode(%{"type" => "workspace", "workspace" => true})
   end
 
@@ -475,6 +487,40 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     assert %OpenAPIProfile{} = response.profile
     assert response.profile.city == "Honolulu"
     assert %DateTime{} = response.profile.created_at
+  end
+
+  test "materializes typed OpenAPI map responses when opted in" do
+    manifest = openapi_manifest(response: {OpenAPILiteralFlag, :t})
+    context = runtime_context(serializer: Pristine.Adapters.Serializer.JSON)
+
+    expect(Pristine.RateLimitMock, :within_limit, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.CircuitBreakerMock, :call, fn "ping", fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TransportMock, :send, fn %Request{}, _context ->
+      {:ok,
+       %Response{
+         status: 200,
+         body: ~s({"type":"workspace","workspace":true})
+       }}
+    end)
+
+    expect(Pristine.RetryMock, :with_retry, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas ->
+      :ok
+    end)
+
+    assert {:ok, %{type: "workspace", workspace: true}} =
+             Pipeline.execute(manifest, "ping", %{"prompt" => "hi"}, context,
+               typed_responses: true
+             )
   end
 
   defp runtime_manifest(overrides \\ [], manifest_overrides \\ %{}) do

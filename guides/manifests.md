@@ -167,6 +167,24 @@ Semantics:
 - `endpoint.security == []`: explicitly unauthenticated
 - a non-empty list uses OpenAPI OR semantics, and Pristine picks the first satisfiable requirement set
 
+OAuth2-specific vendor extensions supported inside `security_schemes.<name>`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `x-pristine-flow` | string | Explicitly choose an OAuth2 flow when the scheme defines multiple flows |
+| `x-pristine-client-auth-method` | string | Client auth mode: `"basic"`, `"request_body"`, or `"none"` |
+| `x-pristine-token-method` | string | HTTP method for token/control requests: `"post"` or `"get"` |
+| `x-pristine-token-content-type` | string | Request encoding for token/control requests |
+| `x-pristine-default-scopes` | array | Default scopes used when callers omit `:scopes` |
+| `x-pristine-revocation-url` | string | Revocation endpoint path or URL |
+| `x-pristine-introspection-url` | string | Introspection endpoint path or URL |
+
+You can turn a manifest scheme into a runtime provider directly:
+
+```elixir
+provider = Pristine.OAuth2.Provider.from_manifest!(manifest, :notionOauth)
+```
+
 #### Resilience
 
 | Field | Type | Description |
