@@ -198,6 +198,7 @@ defmodule Pristine.MixProject do
           Pristine.Adapters.Auth.OAuth2
         ],
         "Token Sources": [
+          Pristine.Adapters.TokenSource.File,
           Pristine.Adapters.TokenSource.Static
         ],
         "Resilience Adapters": [

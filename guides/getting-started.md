@@ -207,6 +207,32 @@ Loopback callback capture is exact-URI only and requires a literal loopback IP
 such as `127.0.0.1` or `::1`. If the redirect URI is not a supported loopback
 URI, Pristine falls back to manual paste-back.
 
+If you want durable token storage without introducing provider-specific policy
+into your app code, use `Pristine.Adapters.TokenSource.File`:
+
+```elixir
+token_path = Path.expand("~/.config/example/oauth/token.json")
+
+:ok =
+  Pristine.Adapters.TokenSource.File.put(token,
+    path: token_path,
+    create_dirs?: true
+  )
+
+context = Pristine.context(
+  auth: %{
+    "bearerAuth" => [
+      Pristine.Adapters.Auth.OAuth2.new(
+        token_source: {Pristine.Adapters.TokenSource.File, path: token_path}
+      )
+    ]
+  }
+)
+```
+
+The file format is JSON and keeps provider-returned metadata in
+`token.other_params`.
+
 ### Retry Policies
 
 Define retry policies in your manifest:

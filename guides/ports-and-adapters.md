@@ -10,7 +10,7 @@ Pristine implements a hexagonal architecture where **ports** define interface co
 | StreamTransport | Streaming responses | FinchStream |
 | Serializer | Payload encoding | JSON |
 | Auth | Authentication | Bearer, APIKey, OAuth2 |
-| TokenSource | OAuth2 token retrieval | Static |
+| TokenSource | OAuth2 token retrieval | File, Static |
 | Retry | Retry logic | Foundation, Noop |
 | CircuitBreaker | Failure isolation | Foundation, Noop |
 | RateLimit | Request throttling | BackoffWindow, Noop |
@@ -219,6 +219,34 @@ Pristine.Adapters.TokenSource.Static
 ```
 
 Useful for tests, simple clients, and explicit token lifecycle management.
+
+#### File Token Source
+
+```elixir
+Pristine.Adapters.TokenSource.File
+```
+
+Stores the generic `Pristine.OAuth2.Token` envelope as JSON on disk.
+
+```elixir
+token_path = Path.expand("~/.config/example/oauth/token.json")
+
+:ok =
+  Pristine.Adapters.TokenSource.File.put(token,
+    path: token_path,
+    create_dirs?: true
+  )
+
+{:ok, loaded_token} =
+  Pristine.Adapters.TokenSource.File.fetch(path: token_path)
+```
+
+Behavior:
+- returns `:error` when the file is missing
+- returns structured errors for malformed JSON or filesystem failures
+- writes atomically
+- forces `0600` permissions
+- preserves provider-specific metadata in `other_params`
 
 ## OAuth2 Interactive Helpers
 
