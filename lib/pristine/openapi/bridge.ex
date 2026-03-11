@@ -30,9 +30,16 @@ defmodule Pristine.OpenAPI.Bridge do
 
   @spec generated_sources(map()) :: %{String.t() => String.t()}
   def generated_sources(%{files: files}) when is_list(files) do
-    Map.new(files, fn %{location: location, contents: contents} ->
-      {location, IO.iodata_to_binary(contents)}
+    files
+    |> Enum.flat_map(fn
+      %{location: location, contents: contents}
+      when is_binary(location) and not is_nil(contents) and contents != "" ->
+        [{location, IO.iodata_to_binary(contents)}]
+
+      _other ->
+        []
     end)
+    |> Map.new()
   end
 
   defp ensure_generator_available! do
