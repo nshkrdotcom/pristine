@@ -14,13 +14,13 @@ defmodule Pristine.OAuth2Test do
       Pristine.OAuth2.Provider,
       Keyword.merge(
         [
-          name: "notion",
+          name: "example",
           flow: :authorization_code,
-          site: "https://api.notion.com",
-          authorize_url: "/v1/oauth/authorize",
-          token_url: "/v1/oauth/token",
-          revocation_url: "/v1/oauth/revoke",
-          introspection_url: "/v1/oauth/introspect",
+          site: "https://api.example.com",
+          authorize_url: "/oauth/authorize",
+          token_url: "/oauth/token",
+          revocation_url: "/oauth/revoke",
+          introspection_url: "/oauth/introspect",
           scopes: %{"workspace.read" => "Read workspace"},
           default_scopes: ["workspace.read"],
           client_auth_method: :basic,
@@ -46,14 +46,14 @@ defmodule Pristine.OAuth2Test do
                redirect_uri: "https://example.com/callback",
                generate_state: true,
                pkce: true,
-               params: [owner: "user"]
+               params: [audience: "api"]
              )
 
     assert is_binary(request.url)
     assert request.url =~ "client_id=client-id"
     assert request.url =~ "redirect_uri=https%3A%2F%2Fexample.com%2Fcallback"
     assert request.url =~ "scope=workspace.read"
-    assert request.url =~ "owner=user"
+    assert request.url =~ "audience=api"
     assert request.url =~ "code_challenge="
     assert request.url =~ "code_challenge_method=S256"
     assert is_binary(request.state)
@@ -83,7 +83,7 @@ defmodule Pristine.OAuth2Test do
   test "exchanges an authorization code through Pristine transport for JSON token endpoints" do
     expect(Pristine.TransportMock, :send, fn %Request{} = request, %Context{} ->
       assert request.method == :post
-      assert request.url == "https://api.notion.com/v1/oauth/token"
+      assert request.url == "https://api.example.com/oauth/token"
 
       assert request.headers["authorization"] ==
                "Basic " <> Base.encode64("client-id:client-secret")
@@ -192,7 +192,7 @@ defmodule Pristine.OAuth2Test do
 
       uri = URI.parse(request.url)
 
-      assert uri.path == "/v1/oauth/token"
+      assert uri.path == "/oauth/token"
 
       assert URI.decode_query(uri.query) == %{
                "client_id" => "public-client",

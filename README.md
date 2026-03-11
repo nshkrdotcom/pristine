@@ -202,10 +202,10 @@ For OAuth2 control-plane work, use `Pristine.OAuth2` with a normal Pristine `Con
 ```elixir
 provider =
   Pristine.OAuth2.Provider.new(
-    name: "notion",
-    site: "https://api.notion.com",
-    authorize_url: "/v1/oauth/authorize",
-    token_url: "/v1/oauth/token",
+    name: "example",
+    site: "https://api.example.com",
+    authorize_url: "/oauth/authorize",
+    token_url: "/oauth/token",
     client_auth_method: :basic,
     token_content_type: "application/json"
   )
@@ -215,7 +215,8 @@ provider =
     client_id: "...",
     redirect_uri: "https://example.com/callback",
     generate_state: true,
-    pkce: true
+    pkce: true,
+    params: [audience: "api"]
   )
 
 {:ok, token} =

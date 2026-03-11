@@ -194,7 +194,11 @@ defmodule Pristine.MixProject do
         "Auth Adapters": [
           Pristine.Adapters.Auth.Bearer,
           Pristine.Adapters.Auth.APIKey,
-          Pristine.Adapters.Auth.APIKeyAlias
+          Pristine.Adapters.Auth.APIKeyAlias,
+          Pristine.Adapters.Auth.OAuth2
+        ],
+        "Token Sources": [
+          Pristine.Adapters.TokenSource.Static
         ],
         "Resilience Adapters": [
           Pristine.Adapters.Retry.Foundation,
