@@ -45,11 +45,11 @@ defmodule Pristine.OAuth2.InteractiveTest do
       Pristine.OAuth2.Provider,
       Keyword.merge(
         [
-          name: "notion",
+          name: "example",
           flow: :authorization_code,
-          site: "https://api.notion.com",
-          authorize_url: "/v1/oauth/authorize",
-          token_url: "/v1/oauth/token",
+          site: "https://api.example.com",
+          authorize_url: "/oauth/authorize",
+          token_url: "/oauth/token",
           client_auth_method: :basic,
           token_method: :post,
           token_content_type: "application/json"
@@ -222,7 +222,7 @@ defmodule Pristine.OAuth2.InteractiveTest do
              )
 
     assert_receive {:browser_open, url}
-    assert url =~ "https://api.notion.com/v1/oauth/authorize"
+    assert url =~ "https://api.example.com/oauth/authorize"
 
     {_input, written} = StringIO.contents(output)
     assert written =~ "Browser open failed:"
