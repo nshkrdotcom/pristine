@@ -17,12 +17,12 @@ defmodule Pristine.OpenAPI.Mapper do
   def to_ir(generator_state, opts \\ []) when is_map(generator_state) and is_list(opts) do
     source_contexts = normalize_source_contexts(Keyword.get(opts, :source_contexts, %{}))
 
-    %IR{
+    struct(IR,
       operations: map_operations(Map.get(generator_state, :operations, []), source_contexts),
       schemas: map_schemas(Map.get(generator_state, :schemas, %{})),
       security_schemes: map_security_schemes(generator_state),
       source_contexts: map_source_contexts(source_contexts)
-    }
+    )
   end
 
   @spec normalize_source_contexts(term()) :: %{optional({atom(), String.t()}) => term()}
@@ -60,7 +60,7 @@ defmodule Pristine.OpenAPI.Mapper do
     path = Map.get(operation, :request_path)
     source_context = Map.get(source_contexts, {method, path})
 
-    %Operation{
+    struct(Operation,
       module_name: Map.get(operation, :module_name),
       function_name: Map.get(operation, :function_name),
       method: method,
@@ -79,7 +79,7 @@ defmodule Pristine.OpenAPI.Mapper do
       extensions: normalize_map(Map.get(operation, :extensions, %{})),
       source_context: map_source_context({method, path}, source_context),
       code_samples: map_code_samples(source_context)
-    }
+    )
   end
 
   defp map_param(param) do
@@ -125,7 +125,7 @@ defmodule Pristine.OpenAPI.Mapper do
   end
 
   defp map_schema(ref, schema) do
-    %Schema{
+    struct(Schema,
       ref: ref,
       module_name: Map.get(schema, :module_name),
       type_name: Map.get(schema, :type_name),
@@ -139,11 +139,11 @@ defmodule Pristine.OpenAPI.Mapper do
       output_format: Map.get(schema, :output_format),
       contexts: Map.get(schema, :context, []),
       fields: Enum.map(Map.get(schema, :fields, []), &map_field/1)
-    }
+    )
   end
 
   defp map_field(field) do
-    %Field{
+    struct(Field,
       name: Map.get(field, :name),
       type: Map.get(field, :type),
       description: Map.get(field, :description),
@@ -157,7 +157,7 @@ defmodule Pristine.OpenAPI.Mapper do
       examples: normalize_value(Map.get(field, :examples)),
       external_docs: normalize_external_docs(Map.get(field, :external_docs)),
       extensions: normalize_map(Map.get(field, :extensions, %{}))
-    }
+    )
   end
 
   defp map_security_schemes(generator_state) do
@@ -170,23 +170,23 @@ defmodule Pristine.OpenAPI.Mapper do
   end
 
   defp map_security_scheme(name, scheme) when is_map(scheme) do
-    %SecurityScheme{
+    struct(SecurityScheme,
       name: name,
       type: Map.get(scheme, "type") || Map.get(scheme, :type),
       scheme: Map.get(scheme, "scheme") || Map.get(scheme, :scheme),
       description: Map.get(scheme, "description") || Map.get(scheme, :description),
       details: normalize_map(scheme)
-    }
+    )
   end
 
   defp map_security_scheme(name, scheme) do
-    %SecurityScheme{
+    struct(SecurityScheme,
       name: name,
       type: nil,
       scheme: nil,
       description: nil,
       details: normalize_value(scheme)
-    }
+    )
   end
 
   defp map_source_contexts(source_contexts) do
@@ -200,10 +200,12 @@ defmodule Pristine.OpenAPI.Mapper do
 
   defp map_source_context(_key, nil), do: nil
 
-  defp map_source_context({_method, _path}, %SourceContext{} = source_context), do: source_context
+  defp map_source_context({_method, _path}, source_context)
+       when is_struct(source_context, SourceContext),
+       do: source_context
 
   defp map_source_context({method, path}, context) when is_map(context) do
-    %SourceContext{
+    struct(SourceContext,
       method: method,
       path: path,
       title: Map.get(context, :title) || Map.get(context, "title"),
@@ -214,11 +216,11 @@ defmodule Pristine.OpenAPI.Mapper do
           Map.get(context, "source_url"),
       code_samples: map_code_samples(context),
       metadata: normalize_source_context_metadata(context)
-    }
+    )
   end
 
   defp map_source_context({method, path}, context) do
-    %SourceContext{
+    struct(SourceContext,
       method: method,
       path: path,
       title: nil,
@@ -227,7 +229,7 @@ defmodule Pristine.OpenAPI.Mapper do
       url: nil,
       code_samples: [],
       metadata: %{}
-    }
+    )
   end
 
   defp normalize_source_context_metadata(context) do
@@ -239,7 +241,9 @@ defmodule Pristine.OpenAPI.Mapper do
 
   defp map_code_samples(nil), do: []
 
-  defp map_code_samples(%SourceContext{code_samples: code_samples}), do: code_samples
+  defp map_code_samples(source_context)
+       when is_struct(source_context, SourceContext),
+       do: Map.get(source_context, :code_samples, [])
 
   defp map_code_samples(context) when is_map(context) do
     context
@@ -255,10 +259,12 @@ defmodule Pristine.OpenAPI.Mapper do
 
   defp normalize_code_samples(_code_samples), do: []
 
-  defp normalize_code_sample(%CodeSample{} = code_sample), do: code_sample
+  defp normalize_code_sample(code_sample)
+       when is_struct(code_sample, CodeSample),
+       do: code_sample
 
   defp normalize_code_sample(code_sample) when is_map(code_sample) do
-    %CodeSample{
+    struct(CodeSample,
       language:
         Map.get(code_sample, :language) || Map.get(code_sample, "language") ||
           Map.get(code_sample, :lang) || Map.get(code_sample, "lang"),
@@ -271,11 +277,11 @@ defmodule Pristine.OpenAPI.Mapper do
         |> Map.drop([:language, "language", :lang, "lang", :label, "label", :source, "source"])
         |> Map.drop([:content, "content"])
         |> normalize_map()
-    }
+    )
   end
 
   defp normalize_code_sample(code_sample) do
-    %CodeSample{language: nil, label: nil, source: inspect(code_sample), metadata: %{}}
+    struct(CodeSample, language: nil, label: nil, source: inspect(code_sample), metadata: %{})
   end
 
   defp normalize_external_docs(nil), do: nil
