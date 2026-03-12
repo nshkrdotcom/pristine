@@ -20,6 +20,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     alias OpenAPI.Renderer.Util
     alias Pristine.OpenAPI.DocComposer
     alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
+    alias Pristine.OpenAPI.SchemaMaterialization
 
     @multipart_content_type "multipart/form-data"
     @nested_module_alias_rewrites [
@@ -160,6 +161,58 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
           })
         end
       end
+    end
+
+    @impl OpenAPI.Renderer
+    def render_schema(state, %File{module: module, operations: operations, schemas: schemas}) do
+      %State{implementation: implementation} = state
+
+      structured_schemas =
+        schemas
+        |> Enum.filter(&(&1.output_format == :struct))
+        |> merge_schema_groups(state)
+
+      runtime_schemas =
+        schemas
+        |> Enum.filter(fn
+          %ProcessedSchema{output_format: :struct} ->
+            true
+
+          %ProcessedSchema{output_format: :typed_map} = schema ->
+            SchemaMaterialization.materialized_typed_map?(schema, module, state.schemas)
+
+          _other ->
+            false
+        end)
+        |> merge_schema_groups(state)
+
+      types =
+        cond do
+          runtime_schemas == [] ->
+            []
+
+          operations == [] ->
+            implementation.render_schema_types(state, runtime_schemas)
+
+          true ->
+            implementation.render_schema_types(state, structured_schemas)
+        end
+
+      struct =
+        if structured_schemas == [] do
+          []
+        else
+          implementation.render_schema_struct(state, structured_schemas)
+        end
+
+      runtime_helpers =
+        if runtime_schemas == [] do
+          []
+        else
+          implementation.render_schema_field_function(state, runtime_schemas)
+        end
+
+      Util.clean_list([types, struct, runtime_helpers])
     end
 
     @impl OpenAPI.Renderer
@@ -420,6 +473,18 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
       end
     end
 
+    defp merge_schema_groups(schemas, state) do
+      schemas
+      |> Enum.group_by(&{&1.module_name, &1.type_name})
+      |> Enum.map(fn {_module_and_type, grouped} ->
+        grouped
+        |> Enum.sort_by(&ProcessedSchema.stable_sort_key(&1, state.schemas))
+        |> Enum.reduce(&ProcessedSchema.merge/2)
+      end)
+      |> List.flatten()
+      |> Enum.sort_by(& &1.type_name)
+    end
+
     @doc false
     def rewrite_nested_module_aliases(nil), do: nil
 
@@ -517,7 +582,15 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
       else
         insertion_index = nested_module_alias_source_insertion_index(lines)
         {prefix, suffix} = Enum.split(lines, insertion_index)
-        Enum.join(prefix ++ alias_lines ++ [""] ++ suffix, "\n")
+
+        separator =
+          case suffix do
+            ["" | _rest] -> []
+            [] -> []
+            _other -> [""]
+          end
+
+        Enum.join(prefix ++ alias_lines ++ separator ++ suffix, "\n")
       end
     end
 

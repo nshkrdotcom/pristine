@@ -2,6 +2,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
   use ExUnit.Case, async: true
 
   alias Pristine.OpenAPI.Bridge
+  alias Pristine.OpenAPI.NamedTypedMapFixture
   alias Pristine.OpenAPI.Result
 
   @notion_reference_root "/home/home/p/g/n/jido_brainstorm/nshkrdotcom/notion_docs/reference"
@@ -472,6 +473,30 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     assert {:ok, request_with_fallback} = with_fallback.operation_module.list_widgets(%{}, [])
     assert request_with_fallback.security == [%{"bearerAuth" => []}]
+  end
+
+  test "compiles named typed-map modules referenced from public operation types" do
+    fixture = NamedTypedMapFixture.run_bridge!(:bridge)
+    on_exit(fn -> NamedTypedMapFixture.cleanup(fixture) end)
+
+    compile_generated_sources!(fixture.sources)
+
+    oauth_module = Module.concat([fixture.base_module, OAuth])
+    user_module = Module.concat([fixture.base_module, User])
+    workspace_module = Module.concat([fixture.base_module, Workspace])
+    oauth_source = NamedTypedMapFixture.source!(fixture, "/o_auth.ex")
+    user_source = NamedTypedMapFixture.source!(fixture, "/user.ex")
+    workspace_source = NamedTypedMapFixture.source!(fixture, "/workspace.ex")
+
+    assert Code.ensure_loaded?(oauth_module)
+    assert Code.ensure_loaded?(user_module)
+    assert Code.ensure_loaded?(workspace_module)
+    assert function_exported?(user_module, :__schema__, 1)
+    assert function_exported?(workspace_module, :__schema__, 1)
+    assert oauth_source =~ "#{inspect(user_module)}.t()"
+    assert oauth_source =~ "#{inspect(workspace_module)}.t()"
+    assert user_source =~ "@type t :: %{"
+    assert workspace_source =~ "@type t :: %{"
   end
 
   defp compile_generated_sources!(sources) do

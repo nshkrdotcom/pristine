@@ -320,21 +320,23 @@ defmodule Pristine.Adapters.Future.Polling do
 
       case normalize_decode_result(decoded_result) do
         {:ok, decoded} ->
-          if status >= 200 and status < 300 do
-            {:ok, decoded}
-          else
-            {:error, {:http_error, status, decoded, headers}}
-          end
+          wrap_retrieve_result(status, {:ok, decoded}, decoded, headers)
 
         {:error, _reason} = error ->
-          if status >= 200 and status < 300 do
-            error
-          else
-            {:error, {:http_error, status, response_body, headers}}
-          end
+          wrap_retrieve_result(status, error, response_body, headers)
       end
     end
   end
+
+  defp wrap_retrieve_result(status, result, error_body, headers) do
+    if successful_status?(status) do
+      result
+    else
+      {:error, {:http_error, status, error_body, headers}}
+    end
+  end
+
+  defp successful_status?(status), do: status >= 200 and status < 300
 
   defp build_request(context, endpoint, body, attempt, state) do
     auth_modules = resolve_auth(context.auth)
