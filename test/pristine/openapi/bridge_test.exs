@@ -2,6 +2,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
   use ExUnit.Case, async: true
 
   alias Pristine.OpenAPI.Bridge
+  alias Pristine.OpenAPI.Result
 
   @notion_reference_root "/home/home/p/g/n/jido_brainstorm/nshkrdotcom/notion_docs/reference"
   @proof_pages [
@@ -70,6 +71,12 @@ defmodule Pristine.OpenAPI.BridgeTest do
         base_module: base_module,
         output_dir: output_dir
       )
+
+    assert %Result{} = state
+    assert Bridge.generator_state(state).operations == state.operations
+    assert state.source_contexts == %{}
+    assert Enum.any?(state.docs_manifest["operations"], &(&1["path"] == "/v1/users/me"))
+    assert Enum.any?(state.docs_manifest["modules"], &String.ends_with?(&1["module"], ".Users"))
 
     assert Enum.sort(Enum.map(state.operations, & &1.function_name)) == [
              :create_a_token,
@@ -324,6 +331,149 @@ defmodule Pristine.OpenAPI.BridgeTest do
     end
   end
 
+  test "passes source contexts through the canonical result and shared docs seam" do
+    tmp_dir = tmp_dir!("source-contexts")
+    output_dir = Path.join(tmp_dir, "generated")
+    profile = unique_profile(:source_contexts)
+    base_module = unique_base_module(:source_contexts)
+
+    on_exit(fn ->
+      Application.delete_env(:oapi_generator, profile)
+      File.rm_rf!(tmp_dir)
+    end)
+
+    spec_file =
+      extract_openapi_fixture!(Path.join(@notion_reference_root, "get-self.md"), tmp_dir)
+
+    state =
+      Bridge.run(profile, [spec_file],
+        base_module: base_module,
+        output_dir: output_dir,
+        source_contexts: %{
+          {:get, "/v1/users/me"} => %{
+            title: "Get Self reference",
+            description: "Reference page for retrieving the current user.",
+            url: "https://docs.example.com/get-self"
+          }
+        }
+      )
+
+    assert %Pristine.OpenAPI.IR.SourceContext{title: "Get Self reference"} =
+             state.source_contexts[{:get, "/v1/users/me"}]
+
+    [operation_entry] =
+      Enum.filter(state.docs_manifest["operations"], &(&1["path"] == "/v1/users/me"))
+
+    assert operation_entry["doc"] =~ "## Source Context"
+    assert operation_entry["doc"] =~ "Get Self reference"
+
+    users_source =
+      Enum.find_value(Bridge.generated_sources(state), fn {path, source} ->
+        if String.ends_with?(path, "/users.ex"), do: source
+      end)
+
+    assert users_source =~ "## Operations"
+    assert users_source =~ "Get Self reference"
+  end
+
+  test "uses preserved security metadata on the normal path and exposes richer openapi fields" do
+    tmp_dir = tmp_dir!("rich-metadata")
+    output_dir = Path.join(tmp_dir, "generated")
+    profile = unique_profile(:rich_metadata)
+    base_module = unique_base_module(:rich_metadata)
+
+    on_exit(fn ->
+      Application.delete_env(:oapi_generator, profile)
+      File.rm_rf!(tmp_dir)
+    end)
+
+    spec_file = write_review_spec!(tmp_dir, include_security?: true)
+
+    state =
+      Bridge.run(profile, [spec_file],
+        base_module: base_module,
+        output_dir: output_dir,
+        source_contexts: %{
+          {:get, "/widgets"} => %{
+            title: "Widgets reference",
+            description: "Reference page for widgets.",
+            url: "https://docs.example.com/widgets"
+          }
+        }
+      )
+
+    assert Application.get_env(:oapi_generator, profile)[:output][:security_metadata] == nil
+
+    sources = Bridge.generated_sources(state)
+    compile_generated_sources!(sources)
+
+    widgets_module = Module.concat([base_module, Widgets])
+    widget_schema_module = widget_schema_module(state, base_module)
+
+    assert {:ok, request} = widgets_module.list_widgets(%{}, [])
+    assert request.security == [%{"bearerAuth" => []}]
+
+    [field] = widget_schema_module.__openapi_fields__(:t)
+
+    assert field.description == "Widget name"
+    assert field.default == "demo"
+    assert field.required == true
+    assert field.nullable == false
+    assert field.deprecated == true
+    assert field.read_only == true
+    assert field.write_only == false
+    assert field.example == "Demo"
+    assert field.examples == ["Demo", "Alternate"]
+
+    assert field.external_docs == %{
+             description: "Field docs",
+             url: "https://example.com/widgets#name"
+           }
+
+    assert field.extensions == %{"x-extra" => "field"}
+
+    [operation_entry] = state.docs_manifest["operations"]
+    assert operation_entry["doc"] =~ "## Source Context"
+
+    widgets_source =
+      Enum.find_value(sources, fn {path, source} ->
+        if String.ends_with?(path, "/widgets.ex"), do: source
+      end)
+
+    assert widgets_source =~ "## Operations"
+    assert widgets_source =~ "Widgets reference"
+  end
+
+  test "uses explicit security metadata only as a fallback path" do
+    tmp_dir = tmp_dir!("security-fallback")
+    spec_file = write_review_spec!(tmp_dir, include_security?: false)
+
+    without_fallback =
+      generate_review_modules!(spec_file,
+        label: :security_without_fallback,
+        tmp_dir: tmp_dir
+      )
+
+    assert {:ok, request_without_fallback} =
+             without_fallback.operation_module.list_widgets(%{}, [])
+
+    assert Map.get(request_without_fallback, :security) == nil
+
+    with_fallback =
+      generate_review_modules!(spec_file,
+        label: :security_with_fallback,
+        tmp_dir: tmp_dir,
+        security_metadata: %{
+          operations: %{{:get, "/widgets"} => [%{"bearerAuth" => []}]},
+          security_schemes: %{"bearerAuth" => %{"scheme" => "bearer", "type" => "http"}},
+          security: nil
+        }
+      )
+
+    assert {:ok, request_with_fallback} = with_fallback.operation_module.list_widgets(%{}, [])
+    assert request_with_fallback.security == [%{"bearerAuth" => []}]
+  end
+
   defp compile_generated_sources!(sources) do
     sources
     |> Enum.sort_by(fn {_path, source} ->
@@ -351,6 +501,76 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     File.write!(target_path, yaml)
     target_path
+  end
+
+  defp write_review_spec!(tmp_dir, opts) do
+    path = Path.join(tmp_dir, "review-proof.yaml")
+
+    security_block =
+      if Keyword.get(opts, :include_security?, true) do
+        [
+          "      security:\n",
+          "        - bearerAuth: []\n"
+        ]
+      else
+        []
+      end
+
+    File.write!(
+      path,
+      [
+        "openapi: 3.1.0\n",
+        "info:\n",
+        "  title: Bridge review proof\n",
+        "  version: 1.0.0\n",
+        "components:\n",
+        "  securitySchemes:\n",
+        "    bearerAuth:\n",
+        "      type: http\n",
+        "      scheme: bearer\n",
+        "  schemas:\n",
+        "    Widget:\n",
+        "      title: Widget\n",
+        "      description: Widget schema.\n",
+        "      type: object\n",
+        "      properties:\n",
+        "        name:\n",
+        "          type: string\n",
+        "          description: Widget name\n",
+        "          default: demo\n",
+        "          deprecated: true\n",
+        "          readOnly: true\n",
+        "          writeOnly: false\n",
+        "          example: Demo\n",
+        "          examples:\n",
+        "            - Demo\n",
+        "            - Alternate\n",
+        "          externalDocs:\n",
+        "            description: Field docs\n",
+        "            url: https://example.com/widgets#name\n",
+        "          x-extra: field\n",
+        "      required:\n",
+        "        - name\n",
+        "paths:\n",
+        "  /widgets:\n",
+        "    get:\n",
+        "      tags:\n",
+        "        - Widgets\n",
+        "      summary: List widgets\n",
+        "      description: Returns every widget.\n",
+        "      operationId: list-widgets\n",
+        security_block,
+        "      responses:\n",
+        "        '200':\n",
+        "          description: Widget list\n",
+        "          content:\n",
+        "            application/json:\n",
+        "              schema:\n",
+        "                $ref: '#/components/schemas/Widget'\n"
+      ]
+    )
+
+    path
   end
 
   defp write_supplemental_spec!(tmp_dir, opts \\ []) do
@@ -393,6 +613,45 @@ defmodule Pristine.OpenAPI.BridgeTest do
     )
 
     path
+  end
+
+  defp widget_schema_module(state, base_module) do
+    state
+    |> Map.fetch!(:schemas)
+    |> Map.values()
+    |> Enum.find(&(&1.module_name == Widget))
+    |> then(&Module.concat([base_module, &1.module_name]))
+  end
+
+  defp generate_review_modules!(spec_file, opts) do
+    label = Keyword.fetch!(opts, :label)
+    tmp_dir = Keyword.fetch!(opts, :tmp_dir)
+    output_dir = Path.join(tmp_dir, "#{label}-generated")
+    profile = unique_profile(label)
+    base_module = unique_base_module(label)
+
+    on_exit(fn ->
+      Application.delete_env(:oapi_generator, profile)
+      File.rm_rf!(output_dir)
+    end)
+
+    state =
+      Bridge.run(
+        profile,
+        [spec_file],
+        [
+          base_module: base_module,
+          output_dir: output_dir
+        ] ++ Keyword.take(opts, [:security_metadata])
+      )
+
+    compile_generated_sources!(Bridge.generated_sources(state))
+
+    %{
+      state: state,
+      operation_module: Module.concat([base_module, Widgets]),
+      schema_module: widget_schema_module(state, base_module)
+    }
   end
 
   defp tmp_dir!(label) do

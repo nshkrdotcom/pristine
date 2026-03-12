@@ -1,9 +1,13 @@
 defmodule Pristine.OpenAPI.RendererTest do
   use ExUnit.Case, async: true
 
+  alias OpenAPI.Processor.Operation
+  alias OpenAPI.Processor.Operation.Param
   alias OpenAPI.Processor.Schema
+  alias OpenAPI.Spec.ExternalDocumentation
   alias OpenAPI.Renderer.File
   alias OpenAPI.Renderer.State
+  alias Pristine.OpenAPI.DocComposer
   alias Pristine.OpenAPI.Renderer, as: OpenAPIRenderer
 
   test "rewrites nested pristine module references to local aliases in rendered source" do
@@ -75,5 +79,95 @@ defmodule Pristine.OpenAPI.RendererTest do
       end)
 
     assert Task.await(task, 100) == []
+  end
+
+  test "renders operation docs through the shared composer" do
+    profile = :"renderer_doc_#{System.unique_integer([:positive])}"
+    source_contexts = %{{:get, "/widgets"} => %{title: "Widgets reference"}}
+
+    on_exit(fn -> Application.delete_env(:oapi_generator, profile) end)
+
+    Application.put_env(:oapi_generator, profile, output: [source_contexts: source_contexts])
+
+    state = %State{profile: profile}
+
+    operation = %Operation{
+      function_name: :list_widgets,
+      module_name: Widgets,
+      request_body: [],
+      request_body_docs: nil,
+      request_header_parameters: [],
+      request_method: :get,
+      request_path: "/widgets",
+      request_path_parameters: [],
+      request_query_parameters: [
+        %Param{name: "cursor", description: "Pagination cursor", required: false}
+      ],
+      response_docs: [
+        %{status: 200, description: "Widget list", content_types: ["application/json"]}
+      ],
+      responses: [],
+      security: [%{"bearerAuth" => []}],
+      summary: "List widgets",
+      description: "Returns every widget.",
+      external_docs: %ExternalDocumentation{
+        description: "API docs",
+        url: "https://example.com/widgets"
+      },
+      tags: ["Widgets"],
+      deprecated: false,
+      docstring: "",
+      extensions: %{}
+    }
+
+    expected =
+      quote do
+        @doc unquote(DocComposer.operation_doc(operation, source_contexts: source_contexts))
+      end
+
+    assert Macro.to_string(OpenAPIRenderer.render_operation_doc(state, operation)) ==
+             Macro.to_string(expected)
+  end
+
+  test "renders module docs through the shared composer" do
+    profile = :"renderer_moduledoc_#{System.unique_integer([:positive])}"
+
+    on_exit(fn -> Application.delete_env(:oapi_generator, profile) end)
+
+    Application.put_env(:oapi_generator, profile, output: [source_contexts: %{}])
+
+    state = %State{profile: profile}
+
+    operation = %Operation{
+      function_name: :list_widgets,
+      module_name: Widgets,
+      request_body: [],
+      request_body_docs: nil,
+      request_header_parameters: [],
+      request_method: :get,
+      request_path: "/widgets",
+      request_path_parameters: [],
+      request_query_parameters: [],
+      response_docs: [],
+      responses: [],
+      security: [%{"bearerAuth" => []}],
+      summary: "List widgets",
+      description: "Returns every widget.",
+      external_docs: nil,
+      tags: ["Widgets"],
+      deprecated: false,
+      docstring: "",
+      extensions: %{}
+    }
+
+    file = %File{module: Widgets, operations: [operation], schemas: []}
+
+    expected =
+      quote do
+        @moduledoc unquote(DocComposer.module_doc(file, source_contexts: %{}))
+      end
+
+    assert Macro.to_string(OpenAPIRenderer.render_moduledoc(state, file)) ==
+             Macro.to_string(expected)
   end
 end

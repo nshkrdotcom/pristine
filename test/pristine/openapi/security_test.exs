@@ -5,7 +5,7 @@ defmodule Pristine.OpenAPI.SecurityTest do
 
   @reference_dir "/home/home/p/g/n/jido_brainstorm/nshkrdotcom/notion_sdk/priv/upstream/reference"
 
-  test "extracts security schemes and effective operation security from source specs" do
+  test "extracts security schemes and effective operation security for explicit fallback use" do
     metadata =
       Security.read([
         Path.join(@reference_dir, "get-self.yaml"),

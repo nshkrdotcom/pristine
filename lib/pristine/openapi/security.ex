@@ -1,5 +1,12 @@
 defmodule Pristine.OpenAPI.Security do
-  @moduledoc false
+  @moduledoc """
+  Fallback-only reader for security metadata from OpenAPI source files.
+
+  The normal generation path should use preserved operation and spec metadata
+  coming back from `oapi_generator`. This module remains available for explicit
+  bridge/profile fallback cases where callers need to inject security metadata
+  manually.
+  """
 
   @http_methods ~w(get put post delete options head patch trace)
 

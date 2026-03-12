@@ -1,0 +1,176 @@
+defmodule Pristine.OpenAPI.Docs do
+  @moduledoc """
+  Builds a JSON-ready docs manifest for OpenAPI bridge results.
+  """
+
+  alias Pristine.OpenAPI.DocComposer
+  alias Pristine.OpenAPI.IR
+  alias Pristine.OpenAPI.IR.CodeSample
+  alias Pristine.OpenAPI.IR.Operation
+  alias Pristine.OpenAPI.IR.Schema
+  alias Pristine.OpenAPI.IR.SecurityScheme
+  alias Pristine.OpenAPI.IR.SourceContext
+
+  @spec build(map(), IR.t()) :: map()
+  def build(generator_state, %IR{} = ir) when is_map(generator_state) do
+    profile = generator_state |> Map.get(:call, %{}) |> Map.get(:profile)
+    base_module = profile_base_module(profile)
+
+    manifest = %{
+      profile: profile && Atom.to_string(profile),
+      generated_files:
+        generator_state
+        |> Map.get(:files, [])
+        |> Enum.map(&Map.get(&1, :location))
+        |> Enum.reject(&is_nil/1)
+        |> Enum.sort(),
+      operations: Enum.map(ir.operations, &operation_entry(&1, base_module)),
+      modules:
+        generator_state
+        |> Map.get(:files, [])
+        |> Enum.sort_by(fn file -> full_module_name(Map.get(file, :module), base_module) end)
+        |> Enum.map(&module_entry(&1, base_module, ir.source_contexts)),
+      schemas: Enum.map(ir.schemas, &schema_entry(&1, base_module)),
+      security_schemes:
+        ir.security_schemes
+        |> Enum.map(fn {name, scheme} -> {name, security_scheme_entry(scheme)} end)
+        |> Map.new(),
+      source_contexts:
+        ir.source_contexts
+        |> Map.values()
+        |> Enum.sort_by(fn source_context -> {source_context.method, source_context.path} end)
+        |> Enum.map(&source_context_entry/1)
+    }
+
+    stringify_keys(manifest)
+  end
+
+  defp operation_entry(%Operation{} = operation, base_module) do
+    composed = DocComposer.operation(operation, source_context: operation.source_context)
+
+    Map.merge(composed, %{
+      module: full_module_name(operation.module_name, base_module),
+      function: Atom.to_string(operation.function_name),
+      method: Atom.to_string(operation.method),
+      path: operation.path,
+      tags: operation.tags,
+      security: operation.security,
+      request_body: composed.request_body,
+      query_params: Enum.map(operation.query_params, &param_entry/1),
+      responses: composed.responses,
+      external_docs: composed.external_docs,
+      source_context: source_context_entry(operation.source_context),
+      code_samples: Enum.map(operation.code_samples, &code_sample_entry/1),
+      extensions: operation.extensions
+    })
+  end
+
+  defp module_entry(file, base_module, source_contexts) do
+    composed = DocComposer.module(file, source_contexts: source_contexts)
+
+    %{
+      module: full_module_name(Map.get(file, :module), base_module),
+      doc: composed.doc,
+      operations:
+        Map.get(file, :operations, [])
+        |> Enum.map(&Atom.to_string(Map.get(&1, :function_name))),
+      schema_types:
+        Map.get(file, :schemas, [])
+        |> Enum.map(fn schema -> Atom.to_string(Map.get(schema, :type_name)) end)
+    }
+  end
+
+  defp schema_entry(%Schema{} = schema, base_module) do
+    composed = DocComposer.schema(schema)
+
+    Map.merge(composed, %{
+      module: full_module_name(schema.module_name, base_module),
+      type: Atom.to_string(schema.type_name),
+      ref: inspect(schema.ref),
+      output_format: schema.output_format && Atom.to_string(schema.output_format),
+      contexts: Enum.map(schema.contexts, &inspect/1),
+      deprecated: schema.deprecated,
+      example: schema.example,
+      examples: schema.examples,
+      external_docs: schema.external_docs,
+      extensions: schema.extensions,
+      fields: composed.fields
+    })
+  end
+
+  defp security_scheme_entry(%SecurityScheme{} = scheme) do
+    %{
+      name: scheme.name,
+      type: scheme.type,
+      scheme: scheme.scheme,
+      description: scheme.description,
+      details: scheme.details
+    }
+  end
+
+  defp source_context_entry(nil), do: nil
+
+  defp source_context_entry(%SourceContext{} = source_context) do
+    %{
+      method: Atom.to_string(source_context.method),
+      path: source_context.path,
+      title: source_context.title,
+      summary: source_context.summary,
+      description: source_context.description,
+      url: source_context.url,
+      code_samples: Enum.map(source_context.code_samples, &code_sample_entry/1),
+      metadata: source_context.metadata
+    }
+  end
+
+  defp param_entry(param) do
+    %{
+      name: param.name,
+      location: param.location && Atom.to_string(param.location),
+      description: param.description,
+      required: param.required,
+      deprecated: param.deprecated,
+      example: param.example,
+      examples: param.examples,
+      style: param.style && Atom.to_string(param.style),
+      explode: param.explode,
+      value_type: DocComposer.json_friendly_type(param.value_type),
+      extensions: param.extensions
+    }
+  end
+
+  defp code_sample_entry(%CodeSample{} = code_sample) do
+    %{
+      language: code_sample.language,
+      label: code_sample.label,
+      source: code_sample.source,
+      metadata: code_sample.metadata
+    }
+  end
+
+  defp profile_base_module(nil), do: nil
+
+  defp profile_base_module(profile) do
+    Application.get_env(:oapi_generator, profile, [])
+    |> Keyword.get(:output, [])
+    |> Keyword.get(:base_module)
+  end
+
+  defp full_module_name(nil, _base_module), do: nil
+  defp full_module_name(module, nil), do: inspect(module)
+
+  defp full_module_name(module, base_module) do
+    module
+    |> then(&Module.concat([base_module, &1]))
+    |> inspect()
+  end
+
+  defp stringify_keys(%_{} = struct), do: struct |> Map.from_struct() |> stringify_keys()
+
+  defp stringify_keys(map) when is_map(map) do
+    Enum.into(map, %{}, fn {key, value} -> {to_string(key), stringify_keys(value)} end)
+  end
+
+  defp stringify_keys(list) when is_list(list), do: Enum.map(list, &stringify_keys/1)
+  defp stringify_keys(value), do: value
+end

@@ -146,13 +146,25 @@ end
 When you generate from OpenAPI through the bridge, schema modules should expose a small runtime contract in addition to typespecs:
 
 - `__fields__/1` for readable field metadata
-- `__openapi_fields__/1` for runtime field descriptors
+- `__openapi_fields__/1` for richer runtime field descriptors
 - `__schema__/1` for validation-ready `Sinter.Schema` values
 - `decode/1,2` for struct or map materialization
 
 That contract lets the generic pipeline validate direct refs such as `{MySDK.PageObjectResponse, :t}` and, when `typed_responses: true` is enabled by the generated SDK, materialize successful responses without bespoke runtime code in each SDK. Missing helpers are treated as a programming error and fail fast.
 
-OpenAPI-generated operation request maps also preserve effective security metadata. That metadata is extracted directly from the source spec files in Pristine, because the upstream generator currently drops `securitySchemes` and operation `security`. Generated SDK clients can then make scheme-scoped runtime choices without hardcoding provider auth rules into every wrapper.
+`Pristine.OpenAPI.Bridge.run/3` returns `%Pristine.OpenAPI.Result{}`. The
+canonical result preserves top-level `files`, `operations`, and `schemas`, and
+adds:
+
+- `generator_state` for explicit access to the raw upstream state
+- `ir` for the canonical OpenAPI docs IR
+- `source_contexts` for provider-neutral source metadata keyed by `{method, path}`
+- `docs_manifest` for the JSON-ready docs artifact produced by `Pristine.OpenAPI.Docs`
+
+OpenAPI-generated operation request maps preserve effective security metadata
+through the normal generator path now that upstream operation metadata carries
+`security`. `Pristine.OpenAPI.Security.read/1` remains available only as an
+explicit fallback for callers that need to inject security metadata manually.
 
 ### Union Types
 

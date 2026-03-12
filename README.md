@@ -198,6 +198,17 @@ At runtime the pipeline resolves auth in this order:
 
 `endpoint.security == []` explicitly disables inherited auth.
 
+OpenAPI-generated operation request maps preserve effective security metadata
+through the normal generator path. `Pristine.OpenAPI.Security.read/1` remains
+available only as an explicit fallback when a caller needs to inject security
+metadata manually.
+
+`Pristine.OpenAPI.Bridge.run/3` returns a canonical
+`%Pristine.OpenAPI.Result{}`. The legacy top-level `files`, `operations`, and
+`schemas` fields remain in place, and the result also exposes `ir`,
+`source_contexts`, `generator_state`, and a JSON-ready `docs_manifest` built by
+`Pristine.OpenAPI.Docs`.
+
 For OAuth2 control-plane work, use `Pristine.OAuth2` with a normal Pristine `Context`:
 
 ```elixir
