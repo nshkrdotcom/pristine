@@ -43,7 +43,11 @@ defmodule Pristine.OAuth2.Interactive do
   end
 
   defp authorization_request_opts(opts) do
-    Keyword.put_new(opts, :generate_state, true)
+    if manual_only_flow?(opts) do
+      opts
+    else
+      Keyword.put_new(opts, :generate_state, true)
+    end
   end
 
   defp authorization_callback(
@@ -81,8 +85,8 @@ defmodule Pristine.OAuth2.Interactive do
     end
   end
 
-  defp manual_callback(_provider, _request, redirect_uri, input, output) do
-    write_line(output, "Paste the full redirect URL or the raw authorization code.")
+  defp manual_callback(_provider, request, redirect_uri, input, output) do
+    write_manual_prompt(output, request.state)
     prompt(output, "> ")
 
     case IO.gets(input, "") do
@@ -139,7 +143,7 @@ defmodule Pristine.OAuth2.Interactive do
     write_line(output, "Open this URL to authorize:")
     write_line(output, url)
 
-    if is_binary(note) and note != "" do
+    if is_binary(note) do
       write_line(output, note)
     end
 
@@ -266,12 +270,21 @@ defmodule Pristine.OAuth2.Interactive do
   defp timeout_ms(opts), do: Keyword.get(opts, :timeout_ms, @default_timeout_ms)
   defp input(opts), do: Keyword.get(opts, :input, :stdio)
   defp output(opts), do: Keyword.get(opts, :output, :stdio)
+  defp manual_only_flow?(opts), do: Keyword.get(opts, :manual?, false)
 
   defp maybe_stop(_callback_server, nil), do: :ok
   defp maybe_stop(callback_server, server), do: callback_server.stop(server)
 
   defp prompt(output, text), do: IO.write(output, text)
   defp write_line(output, text), do: IO.puts(output, text)
+
+  defp write_manual_prompt(output, nil) do
+    write_line(output, "Paste the full redirect URL or the raw authorization code.")
+  end
+
+  defp write_manual_prompt(output, _expected_state) do
+    write_line(output, "Paste the full redirect URL.")
+  end
 
   defp decode_query(nil), do: %{}
   defp decode_query(value), do: URI.decode_query(value)

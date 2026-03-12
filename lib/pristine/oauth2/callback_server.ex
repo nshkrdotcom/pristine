@@ -97,7 +97,7 @@ defmodule Pristine.OAuth2.CallbackServer do
     plug_opts = [server: self(), redirect: redirect]
 
     bandit_opts = [
-      plug: {__MODULE__.Plug, plug_opts},
+      plug: {__MODULE__.CallbackPlug, plug_opts},
       ip: redirect.ip,
       port: redirect.port,
       startup_log: false,
@@ -272,7 +272,7 @@ defmodule Pristine.OAuth2.CallbackServer do
   defp callback_uri(redirect, query_string), do: redirect.redirect_uri <> "?" <> query_string
 
   defp normalize_redirect_uri_string(scheme, host, port, path) do
-    URI.to_string(%URI{scheme: scheme, host: host, port: port, path: path})
+    scheme <> "://" <> host <> ":" <> Integer.to_string(port) <> path
   end
 
   defp normalize_path(nil), do: "/"
@@ -320,7 +320,7 @@ defmodule Pristine.OAuth2.CallbackServer do
     :exit, _reason -> :ok
   end
 
-  defmodule Plug do
+  defmodule CallbackPlug do
     @moduledoc false
 
     import Plug.Conn

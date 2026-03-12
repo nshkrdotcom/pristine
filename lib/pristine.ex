@@ -5,6 +5,7 @@ defmodule Pristine do
 
   alias Pristine.Core.Context
   alias Pristine.Manifest
+  alias Pristine.Manifest.Endpoint
   alias Pristine.Runtime
 
   @doc """
@@ -38,5 +39,14 @@ defmodule Pristine do
           {:ok, term()} | {:error, term()}
   def execute(manifest, endpoint_id, payload, %Context{} = context, opts \\ []) do
     Runtime.execute(manifest, endpoint_id, payload, context, opts)
+  end
+
+  @doc """
+  Execute a direct endpoint definition without reconstructing a manifest.
+  """
+  @spec execute_endpoint(Endpoint.t(), term(), Context.t(), keyword()) ::
+          {:ok, term()} | {:error, term()}
+  def execute_endpoint(%Endpoint{} = endpoint, payload, %Context{} = context, opts \\ []) do
+    Runtime.execute_endpoint(endpoint, payload, context, opts)
   end
 end

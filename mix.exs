@@ -46,6 +46,7 @@ defmodule Pristine.MixProject do
   defp deps do
     [
       {:jason, "~> 1.4"},
+      {:nimble_options, "~> 1.1"},
       {:yaml_elixir, "~> 2.12"},
       {:oauth2, "~> 2.1", optional: true},
       {:telemetry, "~> 1.2"},
@@ -65,7 +66,7 @@ defmodule Pristine.MixProject do
       ),
       local_or_github(
         :oapi_generator,
-        "../../aj-foster/open-api-generator",
+        "../open-api-generator",
         "aj-foster/open-api-generator",
         optional: true,
         runtime: false

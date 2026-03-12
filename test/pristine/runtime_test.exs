@@ -3,6 +3,7 @@ defmodule Pristine.RuntimeTest do
   import Mox
 
   alias Pristine.Core.{Context, Request, Response}
+  alias Pristine.Manifest.Endpoint
   alias Pristine.Runtime
 
   setup :set_mox_from_context
@@ -101,5 +102,56 @@ defmodule Pristine.RuntimeTest do
     assert context.base_url == "https://api.example.com"
     assert context.retry_policies["default"]["max_attempts"] == 3
     assert Map.has_key?(context.type_schemas, "Health")
+  end
+
+  test "execute_endpoint/4 runs a direct endpoint without rebuilding a manifest" do
+    endpoint = %Endpoint{
+      id: "get_self",
+      method: "GET",
+      path: "/v1/users/me",
+      headers: %{"X-Endpoint" => "1"},
+      query: %{}
+    }
+
+    context = %Context{
+      base_url: "https://api.example.com",
+      transport: Pristine.TransportMock,
+      serializer: Pristine.SerializerMock,
+      retry: Pristine.RetryMock,
+      telemetry: Pristine.TelemetryMock,
+      circuit_breaker: Pristine.CircuitBreakerMock,
+      rate_limiter: Pristine.RateLimitMock
+    }
+
+    expect(Pristine.RateLimitMock, :within_limit, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.CircuitBreakerMock, :call, fn "get_self", fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TransportMock, :send, fn %Request{url: url, headers: headers},
+                                             runtime_context ->
+      assert url == "https://api.example.com/v1/users/me"
+      assert headers["X-Endpoint"] == "1"
+      assert runtime_context.base_url == "https://api.example.com"
+      {:ok, %Response{status: 200, body: "{\"ok\":true}"}}
+    end)
+
+    expect(Pristine.SerializerMock, :decode, fn "{\"ok\":true}", _schema, _opts ->
+      {:ok, %{"ok" => true}}
+    end)
+
+    expect(Pristine.RetryMock, :with_retry, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas ->
+      :ok
+    end)
+
+    assert {:ok, %{"ok" => true}} =
+             Runtime.execute_endpoint(endpoint, nil, context, body_type: "raw")
   end
 end

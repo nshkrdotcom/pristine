@@ -5,6 +5,7 @@ defmodule Pristine.Runtime do
 
   alias Pristine.Core.{Context, Pipeline, Types}
   alias Pristine.Manifest
+  alias Pristine.Manifest.Endpoint
 
   @spec build_context!(Manifest.t() | map(), keyword()) :: Context.t()
   def build_context!(manifest_input, opts \\ []) do
@@ -24,6 +25,14 @@ defmodule Pristine.Runtime do
          context <- prepare_context(manifest, context) do
       Pipeline.execute(manifest, endpoint_id, payload, context, opts)
     end
+  end
+
+  @spec execute_endpoint(Endpoint.t(), term(), Context.t(), keyword()) ::
+          {:ok, term()} | {:error, term()}
+  def execute_endpoint(%Endpoint{} = endpoint, payload, %Context{} = context, opts \\ []) do
+    security = Keyword.get(opts, :security)
+    execute_opts = Keyword.delete(opts, :security)
+    Pipeline.execute_endpoint(endpoint, security, payload, context, execute_opts)
   end
 
   @spec execute_stream(Manifest.t() | map(), String.t() | atom(), term(), Context.t(), keyword()) ::

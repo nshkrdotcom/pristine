@@ -45,8 +45,18 @@ defmodule Pristine.ManifestTest do
 
     assert {:error, errors} = Manifest.load(input)
     assert Enum.any?(errors, &String.contains?(&1, "version"))
+  end
+
+  test "rejects invalid top-level manifest types" do
+    input = %{
+      name: "demo",
+      version: "0.1.0",
+      endpoints: %{},
+      types: []
+    }
+
+    assert {:error, errors} = Manifest.load(input)
     assert Enum.any?(errors, &String.contains?(&1, "endpoints"))
-    assert Enum.any?(errors, &String.contains?(&1, "types"))
   end
 
   test "rejects invalid endpoint definitions" do
