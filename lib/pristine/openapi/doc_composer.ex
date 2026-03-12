@@ -598,19 +598,43 @@ defmodule Pristine.OpenAPI.DocComposer do
   defp schema_title(schema) do
     cond do
       present(Map.get(schema, :title)) ->
-        Map.get(schema, :title)
+        schema
+        |> Map.get(:title)
+        |> sanitize_schema_title()
 
       is_atom(Map.get(schema, :module_name)) and Map.get(schema, :type_name) in [nil, :t] ->
-        inspect(Map.get(schema, :module_name))
+        schema
+        |> Map.get(:module_name)
+        |> inspect()
+        |> sanitize_schema_title()
 
       is_atom(Map.get(schema, :module_name)) and is_atom(Map.get(schema, :type_name)) ->
-        "#{inspect(Map.get(schema, :module_name))}.#{Map.get(schema, :type_name)}"
+        schema
+        |> then(fn schema ->
+          "#{inspect(Map.get(schema, :module_name))}.#{Map.get(schema, :type_name)}"
+        end)
+        |> sanitize_schema_title()
 
       is_atom(Map.get(schema, :type_name)) ->
-        Atom.to_string(Map.get(schema, :type_name))
+        schema
+        |> Map.get(:type_name)
+        |> Atom.to_string()
+        |> sanitize_schema_title()
 
       true ->
         ""
+    end
+  end
+
+  defp sanitize_schema_title(title) when is_binary(title) do
+    if Regex.match?(~r/todo/i, title) do
+      title
+      |> String.replace(~r/todo/i, "To Do")
+      |> then(&Regex.replace(~r/([a-z])([A-Z])/, &1, "\\1 \\2"))
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+    else
+      title
     end
   end
 
@@ -619,14 +643,13 @@ defmodule Pristine.OpenAPI.DocComposer do
 
   defp render_security_requirement(requirement) when is_map(requirement) do
     requirement
-    |> Enum.map(fn {scheme, scopes} ->
+    |> Enum.map_join(" or ", fn {scheme, scopes} ->
       if scopes in [nil, []] do
         "`#{scheme}`"
       else
         "`#{scheme}` (#{Enum.join(scopes, ", ")})"
       end
     end)
-    |> Enum.join(" or ")
   end
 
   defp render_security_requirement(requirement), do: inspect(requirement)

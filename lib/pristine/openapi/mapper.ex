@@ -12,6 +12,7 @@ defmodule Pristine.OpenAPI.Mapper do
   alias Pristine.OpenAPI.IR.SourceContext
 
   @http_methods ~w(get put post delete options head patch trace)a
+  @http_method_names Map.new(@http_methods, &{Atom.to_string(&1), &1})
 
   @spec to_ir(map(), keyword()) :: IR.t()
   def to_ir(generator_state, opts \\ []) when is_map(generator_state) and is_list(opts) do
@@ -324,17 +325,7 @@ defmodule Pristine.OpenAPI.Mapper do
   defp normalize_method(method) when is_binary(method) do
     method
     |> String.downcase()
-    |> case do
-      "get" -> :get
-      "put" -> :put
-      "post" -> :post
-      "delete" -> :delete
-      "options" -> :options
-      "head" -> :head
-      "patch" -> :patch
-      "trace" -> :trace
-      _other -> nil
-    end
+    |> then(&Map.get(@http_method_names, &1))
   end
 
   defp normalize_method(_method), do: nil

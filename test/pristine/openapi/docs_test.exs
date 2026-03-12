@@ -11,7 +11,8 @@ defmodule Pristine.OpenAPI.DocsTest do
     manifest = Docs.build(generator_state, ir)
 
     [operation_entry] = manifest["operations"]
-    [module_entry] = manifest["modules"]
+    operation_module_entry = Enum.find(manifest["modules"], &(&1["module"] == "Widgets"))
+    schema_module_entry = Enum.find(manifest["modules"], &(&1["module"] == "Widget"))
     [schema_entry] = manifest["schemas"]
     [source_context_entry] = manifest["source_contexts"]
 
@@ -20,8 +21,13 @@ defmodule Pristine.OpenAPI.DocsTest do
                source_context: hd(ir.operations).source_context
              )
 
-    assert module_entry["doc"] ==
+    assert operation_module_entry["doc"] ==
              DocComposer.module_doc(hd(generator_state.files),
+               source_contexts: ir.source_contexts
+             )
+
+    assert schema_module_entry["doc"] ==
+             DocComposer.module_doc(Enum.at(generator_state.files, 1),
                source_contexts: ir.source_contexts
              )
 
@@ -46,7 +52,7 @@ defmodule Pristine.OpenAPI.DocsTest do
 
     assert source_context_entry["title"] == "Widgets reference"
     assert operation_entry["doc"] =~ "## Source Context"
-    assert module_entry["doc"] =~ "## Operations"
+    assert operation_module_entry["doc"] =~ "## Operations"
   end
 
   test "assigns unique stable labels to anonymous schemas with different field shapes" do
@@ -134,6 +140,19 @@ defmodule Pristine.OpenAPI.DocsTest do
     assert length(Enum.uniq(refs)) == 2
   end
 
+  test "excludes unrendered named typed-map files from docs modules and schemas" do
+    generator_state = phantom_named_typed_map_generator_state_fixture()
+    ir = Mapper.to_ir(generator_state)
+    manifest = Docs.build(generator_state, ir)
+
+    assert manifest["generated_files"] == ["lib/o_auth.ex"]
+    assert Enum.map(manifest["modules"], & &1["module"]) == ["OAuth"]
+
+    assert Enum.map(manifest["schemas"], &{&1["module"], &1["type"]}) == [
+             {"OAuth", "token_200_json_resp"}
+           ]
+  end
+
   defp generator_state_fixture do
     operation = %{
       module_name: Widgets,
@@ -197,6 +216,13 @@ defmodule Pristine.OpenAPI.DocsTest do
           contents: "defmodule Widgets do\nend\n",
           operations: [operation],
           schemas: []
+        },
+        %{
+          module: Widget,
+          location: "lib/widget.ex",
+          contents: "defmodule Widget do\nend\n",
+          operations: [],
+          schemas: [schema]
         }
       ],
       operations: [operation],
@@ -225,6 +251,116 @@ defmodule Pristine.OpenAPI.DocsTest do
           }
         ]
       }
+    }
+  end
+
+  defp phantom_named_typed_map_generator_state_fixture do
+    oauth_file = %{
+      module: OAuth,
+      location: "lib/o_auth.ex",
+      contents: "defmodule OAuth do\nend\n",
+      operations: [],
+      schemas: []
+    }
+
+    user_file = %{
+      module: User,
+      location: nil,
+      contents: nil,
+      operations: [],
+      schemas: []
+    }
+
+    workspace_file = %{
+      module: Workspace,
+      location: nil,
+      contents: "",
+      operations: [],
+      schemas: []
+    }
+
+    token_ref = {:ref, {"phantom.yaml", ["paths", "/oauth/token", "post", "responses", "200"]}}
+
+    user_ref =
+      {:ref, {"phantom.yaml", ["paths", "/oauth/token", "post", "responses", "200", "user"]}}
+
+    workspace_ref =
+      {:ref, {"phantom.yaml", ["paths", "/oauth/token", "post", "responses", "200", "workspace"]}}
+
+    %{
+      call: %{profile: :docs_phantom_fixture},
+      files: [oauth_file, user_file, workspace_file],
+      operations: [],
+      schemas: %{
+        token_ref => %{
+          ref: token_ref,
+          module_name: OAuth,
+          type_name: :token_200_json_resp,
+          title: "OAuth.token_200_json_resp",
+          description: nil,
+          deprecated: false,
+          example: nil,
+          examples: nil,
+          external_docs: nil,
+          extensions: %{},
+          output_format: :typed_map,
+          context: [{:response, OAuth, :token, 200, "application/json"}],
+          fields: [
+            %{
+              name: "owner",
+              type: {:union, [user_ref, workspace_ref]},
+              description: nil,
+              default: nil,
+              required: true,
+              nullable: false,
+              deprecated: false,
+              read_only: false,
+              write_only: false,
+              example: nil,
+              examples: nil,
+              external_docs: nil,
+              extensions: %{}
+            }
+          ]
+        },
+        user_ref => %{
+          ref: user_ref,
+          module_name: User,
+          type_name: :t,
+          title: "User",
+          description: nil,
+          deprecated: false,
+          example: nil,
+          examples: nil,
+          external_docs: nil,
+          extensions: %{},
+          output_format: :typed_map,
+          context: [{:field, token_ref, "owner"}],
+          fields: [
+            %{name: "type", type: {:const, "user"}, required: true, nullable: false},
+            %{name: "user", type: :string, required: true, nullable: false}
+          ]
+        },
+        workspace_ref => %{
+          ref: workspace_ref,
+          module_name: Workspace,
+          type_name: :t,
+          title: "Workspace",
+          description: nil,
+          deprecated: false,
+          example: nil,
+          examples: nil,
+          external_docs: nil,
+          extensions: %{},
+          output_format: :typed_map,
+          context: [{:field, token_ref, "owner"}],
+          fields: [
+            %{name: "type", type: {:const, "workspace"}, required: true, nullable: false},
+            %{name: "workspace", type: {:const, true}, required: true, nullable: false}
+          ]
+        }
+      },
+      spec: %{components: %{security_schemes: %{}}}
     }
   end
 end

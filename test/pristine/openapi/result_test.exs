@@ -20,8 +20,9 @@ defmodule Pristine.OpenAPI.ResultTest do
              result.source_contexts[{:get, "/widgets"}]
 
     assert [%{"path" => "/widgets"}] = result.docs_manifest["operations"]
-    assert [%{"module" => "Widgets"}] = result.docs_manifest["modules"]
-    assert [%{"type" => "t"}] = result.docs_manifest["schemas"]
+    assert Enum.any?(result.docs_manifest["modules"], &(&1["module"] == "Widgets"))
+    assert Enum.any?(result.docs_manifest["modules"], &(&1["module"] == "Widget"))
+    assert [%{"module" => "Widget", "type" => "t"}] = result.docs_manifest["schemas"]
   end
 
   test "ignores nil source contexts when building the canonical result" do
@@ -32,6 +33,17 @@ defmodule Pristine.OpenAPI.ResultTest do
 
     assert result.source_contexts == %{}
     assert result.docs_manifest["source_contexts"] == []
+  end
+
+  test "does not advertise modules or schemas for unrendered named typed-map files" do
+    result = Result.from_generator_state(phantom_named_typed_map_generator_state_fixture())
+
+    assert result.docs_manifest["generated_files"] == ["lib/o_auth.ex"]
+    assert Enum.map(result.docs_manifest["modules"], & &1["module"]) == ["OAuth"]
+
+    assert Enum.map(result.docs_manifest["schemas"], &{&1["module"], &1["type"]}) == [
+             {"OAuth", "token_200_json_resp"}
+           ]
   end
 
   defp generator_state_fixture do
@@ -47,6 +59,13 @@ defmodule Pristine.OpenAPI.ResultTest do
           contents: "defmodule Widgets do\nend\n",
           operations: [operation],
           schemas: []
+        },
+        %{
+          module: Widget,
+          location: "lib/widget.ex",
+          contents: "defmodule Widget do\nend\n",
+          operations: [],
+          schemas: [schema]
         }
       ],
       operations: [operation],
@@ -146,6 +165,116 @@ defmodule Pristine.OpenAPI.ResultTest do
           }
         ]
       }
+    }
+  end
+
+  defp phantom_named_typed_map_generator_state_fixture do
+    oauth_file = %{
+      module: OAuth,
+      location: "lib/o_auth.ex",
+      contents: "defmodule OAuth do\nend\n",
+      operations: [],
+      schemas: []
+    }
+
+    user_file = %{
+      module: User,
+      location: nil,
+      contents: nil,
+      operations: [],
+      schemas: []
+    }
+
+    workspace_file = %{
+      module: Workspace,
+      location: nil,
+      contents: "",
+      operations: [],
+      schemas: []
+    }
+
+    token_ref = {:ref, {"phantom.yaml", ["paths", "/oauth/token", "post", "responses", "200"]}}
+
+    user_ref =
+      {:ref, {"phantom.yaml", ["paths", "/oauth/token", "post", "responses", "200", "user"]}}
+
+    workspace_ref =
+      {:ref, {"phantom.yaml", ["paths", "/oauth/token", "post", "responses", "200", "workspace"]}}
+
+    %{
+      call: %{profile: :result_phantom_fixture},
+      files: [oauth_file, user_file, workspace_file],
+      operations: [],
+      schemas: %{
+        token_ref => %{
+          ref: token_ref,
+          module_name: OAuth,
+          type_name: :token_200_json_resp,
+          title: "OAuth.token_200_json_resp",
+          description: nil,
+          deprecated: false,
+          example: nil,
+          examples: nil,
+          external_docs: nil,
+          extensions: %{},
+          output_format: :typed_map,
+          context: [{:response, OAuth, :token, 200, "application/json"}],
+          fields: [
+            %{
+              name: "owner",
+              type: {:union, [user_ref, workspace_ref]},
+              description: nil,
+              default: nil,
+              required: true,
+              nullable: false,
+              deprecated: false,
+              read_only: false,
+              write_only: false,
+              example: nil,
+              examples: nil,
+              external_docs: nil,
+              extensions: %{}
+            }
+          ]
+        },
+        user_ref => %{
+          ref: user_ref,
+          module_name: User,
+          type_name: :t,
+          title: "User",
+          description: nil,
+          deprecated: false,
+          example: nil,
+          examples: nil,
+          external_docs: nil,
+          extensions: %{},
+          output_format: :typed_map,
+          context: [{:field, token_ref, "owner"}],
+          fields: [
+            %{name: "type", type: {:const, "user"}, required: true, nullable: false},
+            %{name: "user", type: :string, required: true, nullable: false}
+          ]
+        },
+        workspace_ref => %{
+          ref: workspace_ref,
+          module_name: Workspace,
+          type_name: :t,
+          title: "Workspace",
+          description: nil,
+          deprecated: false,
+          example: nil,
+          examples: nil,
+          external_docs: nil,
+          extensions: %{},
+          output_format: :typed_map,
+          context: [{:field, token_ref, "owner"}],
+          fields: [
+            %{name: "type", type: {:const, "workspace"}, required: true, nullable: false},
+            %{name: "workspace", type: {:const, true}, required: true, nullable: false}
+          ]
+        }
+      },
+      spec: %{components: %{security_schemes: %{}}}
     }
   end
 end

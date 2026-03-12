@@ -9,4 +9,6 @@ Mox.defmock(Pristine.CircuitBreakerMock, for: Pristine.Ports.CircuitBreaker)
 Mox.defmock(Pristine.RateLimitMock, for: Pristine.Ports.RateLimit)
 Mox.defmock(Pristine.FutureMock, for: Pristine.Ports.Future)
 
+Code.require_file("support/openapi_named_typed_map_fixture.exs", __DIR__)
+
 ExUnit.start()

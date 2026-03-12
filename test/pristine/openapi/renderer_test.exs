@@ -4,10 +4,11 @@ defmodule Pristine.OpenAPI.RendererTest do
   alias OpenAPI.Processor.Operation
   alias OpenAPI.Processor.Operation.Param
   alias OpenAPI.Processor.Schema
-  alias OpenAPI.Spec.ExternalDocumentation
   alias OpenAPI.Renderer.File
   alias OpenAPI.Renderer.State
+  alias OpenAPI.Spec.ExternalDocumentation
   alias Pristine.OpenAPI.DocComposer
+  alias Pristine.OpenAPI.NamedTypedMapFixture
   alias Pristine.OpenAPI.Renderer, as: OpenAPIRenderer
 
   test "rewrites nested pristine module references to local aliases in rendered source" do
@@ -53,6 +54,7 @@ defmodule Pristine.OpenAPI.RendererTest do
 
     assert source =~ "alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime"
     assert source =~ "OpenAPIRuntime.decode_module_type(__MODULE__, :t, data)"
+    refute source =~ "\n\n\n"
   end
 
   test "skips operation rendering for schema-only files with orphan typed maps" do
@@ -169,5 +171,18 @@ defmodule Pristine.OpenAPI.RendererTest do
 
     assert Macro.to_string(OpenAPIRenderer.render_moduledoc(state, file)) ==
              Macro.to_string(expected)
+  end
+
+  test "renders named typed-map modules when public operation types reference them" do
+    fixture = NamedTypedMapFixture.run_bridge!(:renderer)
+    on_exit(fn -> NamedTypedMapFixture.cleanup(fixture) end)
+
+    assert NamedTypedMapFixture.generated_path?(fixture, "/o_auth.ex")
+    assert NamedTypedMapFixture.generated_path?(fixture, "/user.ex")
+    assert NamedTypedMapFixture.generated_path?(fixture, "/workspace.ex")
+
+    assert NamedTypedMapFixture.source!(fixture, "/user.ex") =~ "@type t :: %{"
+
+    assert NamedTypedMapFixture.source!(fixture, "/workspace.ex") =~ "@type t :: %{"
   end
 end
