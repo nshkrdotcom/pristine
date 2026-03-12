@@ -24,7 +24,7 @@ defmodule Pristine.OpenAPI.DocComposer do
     sections =
       [
         operation_summary(operation, source_context),
-        present(Map.get(operation, :description) || source_context_description(source_context)),
+        present(Map.get(operation, :description)),
         render_source_context(source_context),
         render_query_params(query_params),
         render_request_body(request_body),
@@ -132,6 +132,10 @@ defmodule Pristine.OpenAPI.DocComposer do
     }
   end
 
+  def json_friendly_type(reference) when is_reference(reference) do
+    %{reference: inspect(reference)}
+  end
+
   def json_friendly_type({:union, types}) when is_list(types) do
     %{union: Enum.map(types, &json_friendly_type/1)}
   end
@@ -149,6 +153,7 @@ defmodule Pristine.OpenAPI.DocComposer do
   end
 
   def json_friendly_type(atom) when is_atom(atom), do: Atom.to_string(atom)
+  def json_friendly_type(tuple) when is_tuple(tuple), do: inspect(tuple)
   def json_friendly_type(map) when is_map(map), do: normalize_map(map)
   def json_friendly_type(value), do: value
 
@@ -449,6 +454,20 @@ defmodule Pristine.OpenAPI.DocComposer do
 
   defp normalize_request_body(request_body) when request_body in [nil, []], do: nil
 
+  defp normalize_request_body(request_body) when is_list(request_body) do
+    %{
+      description: nil,
+      required: request_body != [],
+      content_types:
+        request_body
+        |> Enum.map(fn
+          {content_type, _type} -> content_type
+          other -> inspect(other)
+        end)
+        |> Enum.uniq()
+    }
+  end
+
   defp normalize_request_body(request_body) do
     %{
       description: Map.get(request_body, :description),
@@ -474,13 +493,6 @@ defmodule Pristine.OpenAPI.DocComposer do
 
   defp source_context_summary(source_context),
     do: Map.get(source_context, :summary) || Map.get(source_context, :title)
-
-  defp source_context_description(nil), do: nil
-  defp source_context_description(%SourceContext{description: description}), do: description
-
-  defp source_context_description(source_context) do
-    Map.get(source_context, :description) || Map.get(source_context, "description")
-  end
 
   defp source_context_code_samples(nil), do: []
   defp source_context_code_samples(%SourceContext{code_samples: code_samples}), do: code_samples
