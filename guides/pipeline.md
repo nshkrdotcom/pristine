@@ -253,7 +253,11 @@ At execution time, endpoint `request` and `response` entries can resolve from mu
 - direct Sinter type specs
 - direct OpenAPI refs such as `{MySDK.User, :t}`
 
-For OpenAPI-generated modules, Pristine looks for `__schema__/1` during validation and `decode/1,2` during typed response materialization.
+For OpenAPI-generated modules, Pristine looks for `__schema__/1` during
+validation and `decode/1,2` during typed response materialization. Generated
+`__openapi_fields__/1` metadata now carries descriptions, defaults,
+nullability, deprecation flags, read/write markers, examples, external docs,
+and extensions in addition to type information.
 
 Default success handling still returns maps. If you pass `typed_responses: true`, the pipeline validates first and then materializes successful responses through the generated schema module when one is available.
 

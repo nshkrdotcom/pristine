@@ -18,6 +18,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     alias OpenAPI.Renderer.Schema, as: SchemaRenderer
     alias OpenAPI.Renderer.State
     alias OpenAPI.Renderer.Util
+    alias Pristine.OpenAPI.DocComposer
     alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
 
     @multipart_content_type "multipart/form-data"
@@ -45,10 +46,22 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     end
 
     @impl OpenAPI.Renderer
+    def render_moduledoc(state, file) do
+      moduledoc = DocComposer.module_doc(file, source_contexts: source_contexts(state))
+      quote do: @moduledoc(unquote(moduledoc))
+    end
+
+    @impl OpenAPI.Renderer
     def render_operations(_state, %File{operations: []}), do: []
 
     def render_operations(state, file) do
       OpenAPI.Renderer.render_operations(state, file)
+    end
+
+    @impl OpenAPI.Renderer
+    def render_operation_doc(state, operation) do
+      docstring = DocComposer.operation_doc(operation, source_contexts: source_contexts(state))
+      quote do: @doc(unquote(docstring))
     end
 
     @impl OpenAPI.Renderer
@@ -234,20 +247,35 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
 
     defp request_field_names(_state, _type), do: MapSet.new()
 
-    defp render_security_info(state, %Operation{request_method: method, request_path: path}) do
-      case security_for_operation(state, method, path) do
+    defp render_security_info(
+           state,
+           %Operation{request_method: method, request_path: path} = operation
+         ) do
+      security =
+        if is_nil(Map.get(operation, :security)) do
+          fallback_security_for_operation(state, method, path)
+        else
+          Map.get(operation, :security)
+        end
+        |> normalize_security_requirements()
+
+      case security do
         nil -> nil
         security -> quote(do: {:security, unquote(Macro.escape(security))})
       end
     end
 
-    defp security_for_operation(state, method, path) do
+    defp fallback_security_for_operation(state, method, path) do
       state
       |> config()
       |> Keyword.get(:security_metadata, %{})
       |> Map.get(:operations, %{})
       |> Map.get({method, path})
     end
+
+    defp normalize_security_requirements(nil), do: nil
+    defp normalize_security_requirements(security) when is_list(security), do: Enum.uniq(security)
+    defp normalize_security_requirements(security), do: security
 
     defp render_response_info(_state, []), do: nil
 
@@ -344,15 +372,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
             fields
             |> Enum.reject(& &1.private)
             |> Enum.sort_by(& &1.name)
-            |> Enum.map(fn field ->
-              %{
-                default: field.default,
-                name: field.name,
-                nullable: field.nullable,
-                required: field.required,
-                type: Util.to_readable_type(state, field.type)
-              }
-            end)
+            |> Enum.map(&DocComposer.field(&1, Util.to_readable_type(state, &1.type)))
 
           quote do
             def __openapi_fields__(unquote(type_name)) do
@@ -572,6 +592,10 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     defp config(%State{profile: profile}) do
       Application.get_env(:oapi_generator, profile, [])
       |> Keyword.get(:output, [])
+    end
+
+    defp source_contexts(state) do
+      config(state)[:source_contexts] || %{}
     end
   end
 else

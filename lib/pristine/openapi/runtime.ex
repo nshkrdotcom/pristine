@@ -26,10 +26,18 @@ defmodule Pristine.OpenAPI.Runtime do
 
   @type openapi_field :: %{
           required(:default) => term(),
+          optional(:description) => String.t() | nil,
+          optional(:deprecated) => boolean(),
+          optional(:example) => term(),
+          optional(:examples) => term(),
+          optional(:external_docs) => map() | nil,
+          optional(:extensions) => map(),
           required(:name) => String.t(),
           required(:nullable) => boolean(),
+          optional(:read_only) => boolean(),
           required(:required) => boolean(),
-          required(:type) => term()
+          required(:type) => term(),
+          optional(:write_only) => boolean()
         }
 
   @spec build_schema([openapi_field()]) :: Schema.t()
