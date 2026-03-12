@@ -49,6 +49,91 @@ defmodule Pristine.OpenAPI.DocsTest do
     assert module_entry["doc"] =~ "## Operations"
   end
 
+  test "assigns unique stable labels to anonymous schemas with different field shapes" do
+    ref_a = make_ref()
+    ref_b = make_ref()
+
+    schema_a = %Pristine.OpenAPI.IR.Schema{
+      ref: ref_a,
+      module_name: nil,
+      type_name: :map,
+      title: nil,
+      description: nil,
+      deprecated: false,
+      example: nil,
+      examples: nil,
+      external_docs: nil,
+      extensions: %{},
+      output_format: :typed_map,
+      contexts: [{:field, ref_a, "and"}],
+      fields: [
+        %Pristine.OpenAPI.IR.Field{
+          name: "and",
+          type: :string,
+          description: nil,
+          default: nil,
+          required: true,
+          nullable: false,
+          deprecated: false,
+          read_only: false,
+          write_only: false,
+          example: nil,
+          examples: nil,
+          external_docs: nil,
+          extensions: %{}
+        }
+      ]
+    }
+
+    schema_b = %Pristine.OpenAPI.IR.Schema{
+      ref: ref_b,
+      module_name: nil,
+      type_name: :map,
+      title: nil,
+      description: nil,
+      deprecated: false,
+      example: nil,
+      examples: nil,
+      external_docs: nil,
+      extensions: %{},
+      output_format: :typed_map,
+      contexts: [{:field, ref_b, "or"}],
+      fields: [
+        %Pristine.OpenAPI.IR.Field{
+          name: "or",
+          type: :string,
+          description: nil,
+          default: nil,
+          required: true,
+          nullable: false,
+          deprecated: false,
+          read_only: false,
+          write_only: false,
+          example: nil,
+          examples: nil,
+          external_docs: nil,
+          extensions: %{}
+        }
+      ]
+    }
+
+    manifest =
+      Docs.build(
+        %{call: %{profile: :docs_fixture}, files: [], operations: [], schemas: %{}, spec: %{}},
+        %Pristine.OpenAPI.IR{
+          operations: [],
+          schemas: [schema_a, schema_b],
+          security_schemes: %{},
+          source_contexts: %{}
+        }
+      )
+
+    refs = manifest["schemas"] |> Enum.map(& &1["ref"])
+
+    assert length(refs) == 2
+    assert length(Enum.uniq(refs)) == 2
+  end
+
   defp generator_state_fixture do
     operation = %{
       module_name: Widgets,

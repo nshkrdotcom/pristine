@@ -84,6 +84,7 @@ defmodule Pristine.OpenAPI.DocComposer do
     fields =
       schema
       |> Map.get(:fields, [])
+      |> Enum.sort_by(&Map.get(&1, :name))
       |> Enum.map(&field(&1, json_friendly_type(Map.get(&1, :type))))
 
     title = schema_title(schema)
@@ -132,9 +133,7 @@ defmodule Pristine.OpenAPI.DocComposer do
     }
   end
 
-  def json_friendly_type(reference) when is_reference(reference) do
-    %{reference: inspect(reference)}
-  end
+  def json_friendly_type(reference) when is_reference(reference), do: %{reference: reference}
 
   def json_friendly_type({:union, types}) when is_list(types) do
     %{union: Enum.map(types, &json_friendly_type/1)}
@@ -185,27 +184,48 @@ defmodule Pristine.OpenAPI.DocComposer do
   defp compose_schema_module_doc(file, schemas) do
     module = Map.get(file, :module)
 
-    schema_titles =
+    composed_schemas =
       schemas
-      |> Enum.map(&schema_title/1)
+      |> Enum.map(&schema/1)
+      |> Enum.sort_by(&schema_doc_sort_key/1)
+
+    schema_titles =
+      composed_schemas
+      |> Enum.map(& &1.title)
       |> Enum.uniq()
+      |> Enum.sort()
       |> Enum.map_join("\n", fn title -> "  * #{title}" end)
 
     base =
       "Provides struct and #{plural(schemas, "type")} for #{inspect(module)}"
 
-    if blank?(schema_titles) do
-      base
-    else
-      """
-      #{base}
+    cond do
+      composed_schemas != [] and length(Enum.uniq(Enum.map(composed_schemas, & &1.title))) == 1 ->
+        composed_schemas
+        |> Enum.max_by(&{length(&1.fields), String.length(&1.doc), &1.doc})
+        |> Map.fetch!(:doc)
 
-      ## Types
+      blank?(schema_titles) ->
+        base
 
-      #{schema_titles}
-      """
-      |> String.trim()
+      true ->
+        """
+        #{base}
+
+        ## Types
+
+        #{schema_titles}
+        """
+        |> String.trim()
     end
+  end
+
+  defp schema_doc_sort_key(composed_schema) do
+    {
+      composed_schema.title,
+      composed_schema.description,
+      Enum.map(composed_schema.fields, & &1.name)
+    }
   end
 
   defp render_query_params([]), do: nil

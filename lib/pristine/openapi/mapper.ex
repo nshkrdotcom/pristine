@@ -297,8 +297,14 @@ defmodule Pristine.OpenAPI.Mapper do
   defp normalize_map(other), do: normalize_value(other)
 
   defp normalize_value(%_{} = struct), do: struct |> Map.from_struct() |> normalize_map()
-  defp normalize_value(reference) when is_reference(reference), do: inspect(reference)
-  defp normalize_value(tuple) when is_tuple(tuple), do: inspect(tuple)
+  defp normalize_value(reference) when is_reference(reference), do: %{reference: reference}
+
+  defp normalize_value(tuple) when is_tuple(tuple) do
+    tuple
+    |> Tuple.to_list()
+    |> Enum.map(&normalize_value/1)
+  end
+
   defp normalize_value(map) when is_map(map), do: normalize_map(map)
   defp normalize_value(list) when is_list(list), do: Enum.map(list, &normalize_value/1)
   defp normalize_value(value), do: value
