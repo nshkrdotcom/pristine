@@ -24,6 +24,16 @@ defmodule Pristine.OpenAPI.ResultTest do
     assert [%{"type" => "t"}] = result.docs_manifest["schemas"]
   end
 
+  test "ignores nil source contexts when building the canonical result" do
+    result =
+      Result.from_generator_state(generator_state_fixture(),
+        source_contexts: %{{:get, "/widgets"} => nil}
+      )
+
+    assert result.source_contexts == %{}
+    assert result.docs_manifest["source_contexts"] == []
+  end
+
   defp generator_state_fixture do
     operation = operation_fixture()
     schema = schema_fixture()

@@ -190,7 +190,12 @@ defmodule Pristine.OpenAPI.Mapper do
   end
 
   defp map_source_contexts(source_contexts) do
-    Map.new(source_contexts, fn {key, context} -> {key, map_source_context(key, context)} end)
+    Enum.reduce(source_contexts, %{}, fn {key, context}, acc ->
+      case map_source_context(key, context) do
+        nil -> acc
+        mapped_context -> Map.put(acc, key, mapped_context)
+      end
+    end)
   end
 
   defp map_source_context(_key, nil), do: nil
