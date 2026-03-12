@@ -4,7 +4,6 @@ defmodule Pristine.Manifest do
   """
 
   alias Pristine.Manifest.{Endpoint, Loader, Schema}
-  alias Sinter.{Error, Validator}
 
   defstruct name: nil,
             version: nil,
@@ -42,14 +41,12 @@ defmodule Pristine.Manifest do
 
   @spec load(map()) :: {:ok, t()} | {:error, [String.t()]}
   def load(input) when is_map(input) do
-    schema = Schema.schema()
-
-    case Validator.validate(schema, input, coerce: true) do
+    case Schema.validate(input) do
       {:ok, validated} ->
         build_manifest(validated, input)
 
-      {:error, errors} ->
-        {:error, Enum.map(errors, &format_error/1) ++ contract_errors(input)}
+      {:error, error} ->
+        {:error, [format_error(error)] ++ contract_errors(input)}
     end
   end
 
@@ -571,16 +568,7 @@ defmodule Pristine.Manifest do
     Regex.match?(~r/(^|\/):[A-Za-z0-9_]+/, to_string(path))
   end
 
-  defp format_error(%Error{} = error) do
-    path = error.path |> List.wrap() |> Enum.map_join(".", &to_string/1)
-
-    if path == "" do
-      error.message
-    else
-      "#{path} #{error.message}"
-    end
-  end
-
+  defp format_error(%_{} = error) when is_exception(error), do: Exception.message(error)
   defp format_error(error), do: to_string(error)
 
   defp maybe_add_contract_error(errors, true, message), do: errors ++ [message]

@@ -111,7 +111,7 @@ defmodule Pristine.OAuth2.InteractiveTest do
 
     {_input, written} = StringIO.contents(output)
     assert written =~ "Open this URL to authorize:"
-    assert written =~ "Paste the full redirect URL or the raw authorization code."
+    assert written =~ "Paste the full redirect URL."
   end
 
   test "accepts a raw authorization code pasted manually" do
@@ -126,6 +126,8 @@ defmodule Pristine.OAuth2.InteractiveTest do
        }}
     end)
 
+    output = string_output()
+
     assert {:ok, %OAuth2.Token{access_token: "secret_access"}} =
              Interactive.authorize(provider(),
                browser: FakeBrowser,
@@ -135,9 +137,12 @@ defmodule Pristine.OAuth2.InteractiveTest do
                input: string_input("auth-code\n"),
                manual?: true,
                open_browser?: false,
-               output: string_output(),
+               output: output,
                redirect_uri: "https://example.com/callback"
              )
+
+    {_input, written} = StringIO.contents(output)
+    assert written =~ "Paste the full redirect URL or the raw authorization code."
   end
 
   test "rejects state mismatches when the full redirect url is pasted" do

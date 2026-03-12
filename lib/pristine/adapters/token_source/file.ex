@@ -30,9 +30,8 @@ defmodule Pristine.Adapters.TokenSource.File do
     with :ok <- validate_token(token),
          {:ok, path} <- fetch_path(opts),
          :ok <- ensure_parent_directory(path, opts),
-         {:ok, payload} <- encode_json(token),
-         :ok <- atomic_write(path, payload) do
-      :ok
+         {:ok, payload} <- encode_json(token) do
+      atomic_write(path, payload)
     end
   end
 
@@ -73,9 +72,8 @@ defmodule Pristine.Adapters.TokenSource.File do
     with :ok <- validate_optional_string_field(map, :access_token),
          :ok <- validate_optional_string_field(map, :refresh_token),
          :ok <- validate_optional_integer_field(map, :expires_at),
-         :ok <- validate_optional_non_empty_string_field(map, :token_type),
-         :ok <- validate_optional_map_field(map, :other_params) do
-      :ok
+         :ok <- validate_optional_non_empty_string_field(map, :token_type) do
+      validate_optional_map_field(map, :other_params)
     end
   end
 
@@ -169,9 +167,8 @@ defmodule Pristine.Adapters.TokenSource.File do
       {:ok, device} ->
         try do
           with :ok <- chmod(path),
-               :ok <- write_device(device, payload),
-               :ok <- sync_device(device) do
-            :ok
+               :ok <- write_device(device, payload) do
+            sync_device(device)
           end
         after
           File.close(device)

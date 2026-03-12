@@ -69,7 +69,26 @@ defmodule Pristine.Core.Pipeline do
     endpoint =
       manifest
       |> Manifest.fetch_endpoint!(endpoint_id)
-      |> hydrate_endpoint_security(manifest.security)
+
+    execute_endpoint(endpoint, manifest.security, payload, context, opts)
+  end
+
+  @spec execute_endpoint(
+          Pristine.Manifest.Endpoint.t(),
+          [map()] | nil,
+          term(),
+          Context.t(),
+          keyword()
+        ) ::
+          {:ok, term()} | {:error, term()}
+  def execute_endpoint(
+        %Pristine.Manifest.Endpoint{} = endpoint,
+        manifest_security,
+        payload,
+        %Context{} = context,
+        opts \\ []
+      ) do
+    endpoint = hydrate_endpoint_security(endpoint, manifest_security)
 
     serializer = context.serializer || raise ArgumentError, "serializer is required"
     transport = context.transport || raise ArgumentError, "transport is required"
