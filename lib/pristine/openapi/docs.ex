@@ -5,17 +5,12 @@ defmodule Pristine.OpenAPI.Docs do
 
   alias Pristine.OpenAPI.DocComposer
   alias Pristine.OpenAPI.IR
-  alias Pristine.OpenAPI.IR.CodeSample
-  alias Pristine.OpenAPI.IR.Operation
-  alias Pristine.OpenAPI.IR.Schema
-  alias Pristine.OpenAPI.IR.SecurityScheme
-  alias Pristine.OpenAPI.IR.SourceContext
 
   @spec build(map(), IR.t()) :: map()
-  def build(generator_state, %IR{} = ir) when is_map(generator_state) do
+  def build(generator_state, ir) when is_map(generator_state) and is_map(ir) do
     profile = generator_state |> Map.get(:call, %{}) |> Map.get(:profile)
     base_module = profile_base_module(profile)
-    ref_labels = schema_ref_labels(ir.schemas, base_module)
+    ref_labels = schema_ref_labels(Map.get(ir, :schemas, []), base_module)
 
     manifest = %{
       profile: profile && Atom.to_string(profile),
@@ -25,48 +20,52 @@ defmodule Pristine.OpenAPI.Docs do
         |> Enum.map(&Map.get(&1, :location))
         |> Enum.reject(&is_nil/1)
         |> Enum.sort(),
-      operations: Enum.map(ir.operations, &operation_entry(&1, base_module, ref_labels)),
+      operations:
+        Enum.map(Map.get(ir, :operations, []), &operation_entry(&1, base_module, ref_labels)),
       modules:
         generator_state
         |> Map.get(:files, [])
         |> Enum.sort_by(fn file -> full_module_name(Map.get(file, :module), base_module) end)
-        |> Enum.map(&module_entry(&1, base_module, ir.source_contexts)),
+        |> Enum.map(&module_entry(&1, base_module, Map.get(ir, :source_contexts, %{}))),
       schemas:
-        ir.schemas
+        Map.get(ir, :schemas, [])
         |> Enum.sort_by(&schema_sort_key(&1, base_module, ref_labels))
-        |> Enum.uniq_by(&Map.fetch!(ref_labels, &1.ref))
+        |> Enum.uniq_by(&Map.fetch!(ref_labels, Map.get(&1, :ref)))
         |> Enum.map(&schema_entry(&1, base_module, ref_labels)),
       security_schemes:
-        ir.security_schemes
+        Map.get(ir, :security_schemes, %{})
         |> Enum.map(fn {name, scheme} -> {name, security_scheme_entry(scheme)} end)
         |> Map.new(),
       source_contexts:
-        ir.source_contexts
+        Map.get(ir, :source_contexts, %{})
         |> Map.values()
-        |> Enum.sort_by(fn source_context -> {source_context.method, source_context.path} end)
+        |> Enum.sort_by(fn source_context ->
+          {Map.get(source_context, :method), Map.get(source_context, :path)}
+        end)
         |> Enum.map(&source_context_entry/1)
     }
 
     stringify_keys(manifest)
   end
 
-  defp operation_entry(%Operation{} = operation, base_module, ref_labels) do
-    composed = DocComposer.operation(operation, source_context: operation.source_context)
+  defp operation_entry(operation, base_module, ref_labels) when is_map(operation) do
+    composed =
+      DocComposer.operation(operation, source_context: Map.get(operation, :source_context))
 
     Map.merge(composed, %{
-      module: full_module_name(operation.module_name, base_module),
-      function: Atom.to_string(operation.function_name),
-      method: Atom.to_string(operation.method),
-      path: operation.path,
-      tags: operation.tags,
-      security: operation.security,
+      module: full_module_name(Map.get(operation, :module_name), base_module),
+      function: Atom.to_string(Map.get(operation, :function_name)),
+      method: Atom.to_string(Map.get(operation, :method)),
+      path: Map.get(operation, :path),
+      tags: Map.get(operation, :tags, []),
+      security: Map.get(operation, :security),
       request_body: composed.request_body,
-      query_params: Enum.map(operation.query_params, &param_entry(&1, ref_labels)),
+      query_params: Enum.map(Map.get(operation, :query_params, []), &param_entry(&1, ref_labels)),
       responses: composed.responses,
       external_docs: composed.external_docs,
-      source_context: source_context_entry(operation.source_context),
-      code_samples: Enum.map(operation.code_samples, &code_sample_entry/1),
-      extensions: operation.extensions
+      source_context: source_context_entry(Map.get(operation, :source_context)),
+      code_samples: Enum.map(Map.get(operation, :code_samples, []), &code_sample_entry/1),
+      extensions: Map.get(operation, :extensions, %{})
     })
   end
 
@@ -86,46 +85,50 @@ defmodule Pristine.OpenAPI.Docs do
     }
   end
 
-  defp schema_entry(%Schema{} = schema, base_module, ref_labels) do
+  defp schema_entry(schema, base_module, ref_labels) when is_map(schema) do
     composed = DocComposer.schema(schema)
 
     Map.merge(composed, %{
-      module: full_module_name(schema.module_name, base_module),
-      type: Atom.to_string(schema.type_name),
-      ref: Map.fetch!(ref_labels, schema.ref),
-      output_format: schema.output_format && Atom.to_string(schema.output_format),
-      contexts: Enum.map(schema.contexts, &context_entry(&1, ref_labels)),
-      deprecated: schema.deprecated,
-      example: normalize_manifest_value(schema.example, ref_labels),
-      examples: normalize_manifest_value(schema.examples, ref_labels),
-      external_docs: normalize_manifest_value(schema.external_docs, ref_labels),
-      extensions: normalize_manifest_value(schema.extensions, ref_labels),
+      module: full_module_name(Map.get(schema, :module_name), base_module),
+      type: Atom.to_string(Map.get(schema, :type_name)),
+      ref: Map.fetch!(ref_labels, Map.get(schema, :ref)),
+      output_format:
+        case Map.get(schema, :output_format) do
+          nil -> nil
+          output_format -> Atom.to_string(output_format)
+        end,
+      contexts: Enum.map(Map.get(schema, :contexts, []), &context_entry(&1, ref_labels)),
+      deprecated: Map.get(schema, :deprecated, false),
+      example: normalize_manifest_value(Map.get(schema, :example), ref_labels),
+      examples: normalize_manifest_value(Map.get(schema, :examples), ref_labels),
+      external_docs: normalize_manifest_value(Map.get(schema, :external_docs), ref_labels),
+      extensions: normalize_manifest_value(Map.get(schema, :extensions), ref_labels),
       fields: normalize_manifest_value(composed.fields, ref_labels)
     })
   end
 
-  defp security_scheme_entry(%SecurityScheme{} = scheme) do
+  defp security_scheme_entry(scheme) when is_map(scheme) do
     %{
-      name: scheme.name,
-      type: scheme.type,
-      scheme: scheme.scheme,
-      description: scheme.description,
-      details: scheme.details
+      name: Map.get(scheme, :name),
+      type: Map.get(scheme, :type),
+      scheme: Map.get(scheme, :scheme),
+      description: Map.get(scheme, :description),
+      details: Map.get(scheme, :details, %{})
     }
   end
 
   defp source_context_entry(nil), do: nil
 
-  defp source_context_entry(%SourceContext{} = source_context) do
+  defp source_context_entry(source_context) when is_map(source_context) do
     %{
-      method: Atom.to_string(source_context.method),
-      path: source_context.path,
-      title: source_context.title,
-      summary: source_context.summary,
-      description: source_context.description,
-      url: source_context.url,
-      code_samples: Enum.map(source_context.code_samples, &code_sample_entry/1),
-      metadata: source_context.metadata
+      method: Atom.to_string(Map.get(source_context, :method)),
+      path: Map.get(source_context, :path),
+      title: Map.get(source_context, :title),
+      summary: Map.get(source_context, :summary),
+      description: Map.get(source_context, :description),
+      url: Map.get(source_context, :url),
+      code_samples: Enum.map(Map.get(source_context, :code_samples, []), &code_sample_entry/1),
+      metadata: Map.get(source_context, :metadata, %{})
     }
   end
 
@@ -146,28 +149,30 @@ defmodule Pristine.OpenAPI.Docs do
     }
   end
 
-  defp code_sample_entry(%CodeSample{} = code_sample) do
+  defp code_sample_entry(code_sample) when is_map(code_sample) do
     %{
-      language: code_sample.language,
-      label: code_sample.label,
-      source: code_sample.source,
-      metadata: code_sample.metadata
+      language: Map.get(code_sample, :language),
+      label: Map.get(code_sample, :label),
+      source: Map.get(code_sample, :source),
+      metadata: Map.get(code_sample, :metadata, %{})
     }
   end
 
   defp schema_ref_labels(schemas, base_module) do
-    schemas_by_ref = Map.new(schemas, &{&1.ref, &1})
+    schemas_by_ref = Map.new(schemas, &{Map.get(&1, :ref), &1})
 
-    Enum.into(schemas, %{}, fn %Schema{ref: ref} = schema ->
+    Enum.into(schemas, %{}, fn schema ->
+      ref = Map.get(schema, :ref)
       {ref, schema_ref_label(schema, base_module, schemas_by_ref)}
     end)
   end
 
-  defp schema_ref_label(%Schema{} = schema, base_module, schemas_by_ref) do
+  defp schema_ref_label(schema, base_module, schemas_by_ref) when is_map(schema) do
     [
-      full_module_name(schema.module_name, base_module) || "anonymous_schema",
-      Atom.to_string(schema.type_name),
-      (schema.output_format && Atom.to_string(schema.output_format)) || "none",
+      full_module_name(Map.get(schema, :module_name), base_module) || "anonymous_schema",
+      Atom.to_string(Map.get(schema, :type_name)),
+      (Map.get(schema, :output_format) && Atom.to_string(Map.get(schema, :output_format))) ||
+        "none",
       schema_signature_hash(schema, schemas_by_ref)
     ]
     |> Enum.join(".")
@@ -252,21 +257,22 @@ defmodule Pristine.OpenAPI.Docs do
 
   defp normalize_manifest_value(value, _ref_labels), do: value
 
-  defp schema_signature(%Schema{} = schema, schemas_by_ref, seen) do
+  defp schema_signature(schema, schemas_by_ref, seen) when is_map(schema) do
     seen =
-      case schema.ref do
+      case Map.get(schema, :ref) do
         ref when is_reference(ref) -> MapSet.put(seen, ref)
         _other -> seen
       end
 
     [
-      module_name: full_module_name(schema.module_name, nil),
-      type_name: Atom.to_string(schema.type_name),
-      output_format: schema.output_format && Atom.to_string(schema.output_format),
-      title: schema.title,
-      description: schema.description,
+      module_name: full_module_name(Map.get(schema, :module_name), nil),
+      type_name: Atom.to_string(Map.get(schema, :type_name)),
+      output_format:
+        Map.get(schema, :output_format) && Atom.to_string(Map.get(schema, :output_format)),
+      title: Map.get(schema, :title),
+      description: Map.get(schema, :description),
       fields:
-        schema.fields
+        Map.get(schema, :fields, [])
         |> Enum.map(&field_signature(&1, schemas_by_ref, seen))
         |> Enum.sort()
     ]
@@ -285,7 +291,7 @@ defmodule Pristine.OpenAPI.Docs do
 
   defp normalize_signature_term(reference, schemas_by_ref, seen) when is_reference(reference) do
     case Map.get(schemas_by_ref, reference) do
-      %Schema{} = schema ->
+      schema when is_map(schema) ->
         if MapSet.member?(seen, reference),
           do: {:schema_ref, shallow_schema_identity(schema)},
           else: {:schema_ref, shallow_schema_identity(schema)}
@@ -322,14 +328,19 @@ defmodule Pristine.OpenAPI.Docs do
 
   defp normalize_signature_term(value, _schemas_by_ref, _seen), do: value
 
-  defp shallow_schema_identity(%Schema{} = schema) do
+  defp shallow_schema_identity(schema) when is_map(schema) do
     [
-      module_name: full_module_name(schema.module_name, nil),
-      type_name: Atom.to_string(schema.type_name),
-      output_format: schema.output_format && Atom.to_string(schema.output_format),
-      title: schema.title,
-      description: schema.description,
-      field_names: schema.fields |> Enum.map(& &1.name) |> Enum.sort()
+      module_name: full_module_name(Map.get(schema, :module_name), nil),
+      type_name: Atom.to_string(Map.get(schema, :type_name)),
+      output_format:
+        Map.get(schema, :output_format) && Atom.to_string(Map.get(schema, :output_format)),
+      title: Map.get(schema, :title),
+      description: Map.get(schema, :description),
+      field_names:
+        schema
+        |> Map.get(:fields, [])
+        |> Enum.map(&Map.get(&1, :name))
+        |> Enum.sort()
     ]
   end
 

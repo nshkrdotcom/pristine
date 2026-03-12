@@ -508,14 +508,18 @@ defmodule Pristine.OpenAPI.DocComposer do
 
   defp source_context_summary(nil), do: nil
 
-  defp source_context_summary(%SourceContext{summary: summary, title: title}),
-    do: summary || title
+  defp source_context_summary(source_context)
+       when is_struct(source_context, SourceContext),
+       do: Map.get(source_context, :summary) || Map.get(source_context, :title)
 
   defp source_context_summary(source_context),
     do: Map.get(source_context, :summary) || Map.get(source_context, :title)
 
   defp source_context_code_samples(nil), do: []
-  defp source_context_code_samples(%SourceContext{code_samples: code_samples}), do: code_samples
+
+  defp source_context_code_samples(source_context)
+       when is_struct(source_context, SourceContext),
+       do: Map.get(source_context, :code_samples, [])
 
   defp source_context_code_samples(source_context) do
     source_context
@@ -539,7 +543,10 @@ defmodule Pristine.OpenAPI.DocComposer do
   end
 
   defp normalize_source_context(nil), do: nil
-  defp normalize_source_context(%SourceContext{} = source_context), do: source_context
+
+  defp normalize_source_context(source_context)
+       when is_struct(source_context, SourceContext),
+       do: source_context
 
   defp normalize_source_context(source_context) when is_map(source_context) do
     %{

@@ -39,7 +39,9 @@ defmodule Pristine.OpenAPI.Bridge do
   end
 
   @spec generator_state(Result.t() | map()) :: map()
-  def generator_state(%Result{generator_state: generator_state}), do: generator_state
+  def generator_state(%{generator_state: generator_state}) when is_map(generator_state),
+    do: generator_state
+
   def generator_state(generator_state) when is_map(generator_state), do: generator_state
 
   defp ensure_generator_available! do
