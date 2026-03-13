@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Security fixture get self
+  title: Security fixture get account profile
   version: 1.0.0
 security:
   - bearerAuth: []
@@ -10,9 +10,9 @@ components:
       type: http
       scheme: bearer
 paths:
-  /v1/users/me:
+  /v1/accounts/me:
     get:
-      operationId: get-self
+      operationId: get-account-profile
       responses:
         '200':
-          description: Current user
+          description: Current account profile

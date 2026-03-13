@@ -8,7 +8,7 @@ defmodule Pristine.OpenAPI.ProfileTest do
       Profile.build(
         base_module: Pristine.OpenAPI.ProfileTest.Generated,
         output_dir: "/tmp/pristine-openapi-profile",
-        supplemental_files: ["/tmp/notion-supplement.yaml"],
+        supplemental_files: ["/tmp/example-supplement.yaml"],
         source_contexts: %{{:get, "/widgets"} => %{title: "Widgets reference"}},
         profile_overrides: [
           naming: [rename: [{"OAuth", "OAuth"}]],
@@ -20,7 +20,7 @@ defmodule Pristine.OpenAPI.ProfileTest do
     assert Keyword.get(config, :renderer) == Pristine.OpenAPI.Renderer
 
     assert config |> Keyword.get(:reader) |> Keyword.get(:additional_files) == [
-             "/tmp/notion-supplement.yaml"
+             "/tmp/example-supplement.yaml"
            ]
 
     output = Keyword.get(config, :output)

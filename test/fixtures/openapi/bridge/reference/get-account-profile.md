@@ -1,9 +1,9 @@
-# Get Self
+# Get Account Profile
 
 ````yaml
 openapi: 3.1.0
 info:
-  title: Bridge fixture get self
+  title: Bridge fixture get account profile
   version: 1.0.0
 security:
   - bearerAuth: []
@@ -13,30 +13,30 @@ components:
       type: http
       scheme: bearer
   schemas:
-    partialUserObjectResponse:
-      title: partialUserObjectResponse
+    accountProfileResponse:
+      title: accountProfileResponse
       type: object
       required:
         - id
-        - object
+        - kind
       properties:
         id:
           type: string
           format: uuid
-        object:
+        kind:
           type: string
 paths:
-  /v1/users/me:
+  /v1/accounts/me:
     get:
       tags:
-        - Users
-      summary: Retrieve the current user
-      operationId: get-self
+        - Accounts
+      summary: Retrieve the current account profile
+      operationId: get-account-profile
       responses:
         '200':
-          description: Current user
+          description: Current account profile
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/partialUserObjectResponse'
+                $ref: '#/components/schemas/accountProfileResponse'
 ````
