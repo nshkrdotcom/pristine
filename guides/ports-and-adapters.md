@@ -471,6 +471,11 @@ Bridges the generic pipeline into a caller-managed `Foundation.Dispatch`
 process. The pipeline forwards classified backoff windows into the dispatch
 adapter through `set_backoff/2`.
 
+When enabled, `dispatch:` must point at a running `Foundation.Dispatch`
+server handle. Pids, registered names, `{:global, term}`, and `{:via, ...}`
+references are all supported. Invalid explicit config raises instead of
+silently degrading to a noop.
+
 #### Noop Adapter
 
 ```elixir
@@ -498,7 +503,7 @@ Emits telemetry events for monitoring and debugging.
 Pristine.Adapters.Telemetry.Foundation
 ```
 
-**Events emitted:**
+**Default atom-shorthand events emitted:**
 - `[:pristine, :request, :start]`
 - `[:pristine, :request, :stop]`
 - `[:pristine, :request, :exception]`
@@ -518,8 +523,9 @@ Pristine.Adapters.Telemetry.Foundation
 )
 ```
 
-When `context.telemetry_events` overrides an event path, the adapter preserves
-the supplied path instead of forcing a `[:pristine, ...]` prefix.
+When `context.telemetry_events` overrides an event path with a full event list,
+the adapter preserves that supplied path instead of forcing a
+`[:pristine, ...]` prefix.
 
 #### Raw Adapter
 
