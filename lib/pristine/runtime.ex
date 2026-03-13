@@ -6,6 +6,7 @@ defmodule Pristine.Runtime do
   alias Pristine.Core.{Context, Pipeline, Types}
   alias Pristine.Manifest
   alias Pristine.Manifest.Endpoint
+  alias Pristine.OpenAPI.Client, as: OpenAPIClient
 
   @spec build_context!(Manifest.t() | map(), keyword()) :: Context.t()
   def build_context!(manifest_input, opts \\ []) do
@@ -25,6 +26,22 @@ defmodule Pristine.Runtime do
          context <- prepare_context(manifest, context) do
       Pipeline.execute(manifest, endpoint_id, payload, context, opts)
     end
+  end
+
+  @doc """
+  Execute a generic request spec through the standard runtime pipeline.
+
+  This is the recommended low-level escape hatch for generated SDKs and ad hoc
+  callers that need to issue requests without rebuilding a manifest.
+  """
+  @spec execute_request(
+          OpenAPIClient.request_spec_t() | OpenAPIClient.request_t(),
+          Context.t(),
+          keyword()
+        ) ::
+          {:ok, term()} | {:error, term()}
+  def execute_request(request_spec, %Context{} = context, opts \\ []) do
+    Pipeline.execute_request(request_spec, context, opts)
   end
 
   @spec execute_endpoint(Endpoint.t(), term(), Context.t(), keyword()) ::

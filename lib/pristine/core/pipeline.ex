@@ -25,6 +25,7 @@ defmodule Pristine.Core.Pipeline do
   }
 
   alias Pristine.Manifest
+  alias Pristine.OpenAPI.Client, as: OpenAPIClient
   alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
 
   @retry_policy_key_aliases %{
@@ -73,6 +74,48 @@ defmodule Pristine.Core.Pipeline do
       |> Manifest.fetch_endpoint!(endpoint_id)
 
     execute_endpoint(endpoint, manifest.security, payload, context, opts)
+  end
+
+  @doc false
+  @spec execute_request(
+          OpenAPIClient.request_spec_t() | OpenAPIClient.request_t(),
+          Context.t(),
+          keyword()
+        ) ::
+          {:ok, term()} | {:error, term()}
+  def execute_request(request_spec, %Context{} = context, opts \\ []) when is_map(request_spec) do
+    request_spec = normalize_execute_request_spec(request_spec)
+    {payload, body_type, content_type} = request_payload(request_spec)
+
+    endpoint =
+      %Pristine.Manifest.Endpoint{
+        id: request_spec.id,
+        method: request_spec.method,
+        path: request_spec.path,
+        circuit_breaker: request_spec.circuit_breaker,
+        headers: request_spec.headers,
+        query: request_spec.query,
+        rate_limit: request_spec.rate_limit,
+        resource: request_spec.resource,
+        body_type: body_type,
+        content_type: content_type,
+        retry: request_spec.retry,
+        security: request_spec.security,
+        telemetry: request_spec.telemetry,
+        timeout: request_spec.timeout,
+        request: request_spec.request_schema,
+        response: request_spec.response_schema
+      }
+
+    execute_opts =
+      opts
+      |> Keyword.put(
+        :path_params,
+        merge_string_key_maps(request_spec.path_params, opts[:path_params])
+      )
+      |> maybe_put_new(:auth, request_spec.auth)
+
+    execute_endpoint(endpoint, nil, payload, context, execute_opts)
   end
 
   @spec execute_endpoint(
@@ -572,6 +615,102 @@ defmodule Pristine.Core.Pipeline do
   defp resolve_request(fun) when is_function(fun, 0), do: fun.()
   defp resolve_request(request), do: request
 
+  defp normalize_execute_request_spec(%{path: path} = request_spec) when is_binary(path) do
+    %{
+      method: normalize_execute_request_method(Map.get(request_spec, :method)),
+      path: path,
+      path_params: normalize_string_key_map(Map.get(request_spec, :path_params)),
+      query: normalize_query_map(Map.get(request_spec, :query)),
+      body: Map.get(request_spec, :body),
+      form_data: Map.get(request_spec, :form_data),
+      headers: normalize_header_map(Map.get(request_spec, :headers)),
+      auth: Map.get(request_spec, :auth),
+      security: Map.get(request_spec, :security),
+      request_schema: Map.get(request_spec, :request_schema),
+      response_schema: Map.get(request_spec, :response_schema),
+      circuit_breaker: Map.get(request_spec, :circuit_breaker),
+      id:
+        normalize_execute_request_id(
+          Map.get(request_spec, :id),
+          Map.get(request_spec, :method),
+          path
+        ),
+      rate_limit: Map.get(request_spec, :rate_limit),
+      resource: Map.get(request_spec, :resource),
+      retry: Map.get(request_spec, :retry),
+      telemetry: Map.get(request_spec, :telemetry),
+      timeout: Map.get(request_spec, :timeout)
+    }
+  end
+
+  defp normalize_execute_request_spec(%{url: _path} = request_spec) do
+    request_spec
+    |> OpenAPIClient.to_request_spec()
+    |> normalize_execute_request_spec()
+  end
+
+  defp normalize_execute_request_spec(request_spec) do
+    raise ArgumentError, "invalid request spec: #{inspect(request_spec)}"
+  end
+
+  defp normalize_execute_request_method(method) when is_atom(method), do: method
+  defp normalize_execute_request_method(method) when is_binary(method), do: method
+
+  defp normalize_execute_request_method(method) do
+    raise ArgumentError, "invalid request method: #{inspect(method)}"
+  end
+
+  defp normalize_execute_request_id(nil, method, path) do
+    "request:" <> normalized_method_name(method) <> ":" <> path
+  end
+
+  defp normalize_execute_request_id(id, _method, _path) when is_binary(id), do: id
+  defp normalize_execute_request_id(id, _method, _path), do: to_string(id)
+
+  defp normalized_method_name(method) when is_atom(method) do
+    method
+    |> Atom.to_string()
+    |> String.upcase()
+  end
+
+  defp normalized_method_name(method) when is_binary(method), do: String.upcase(method)
+  defp normalized_method_name(method), do: method |> to_string() |> String.upcase()
+
+  defp request_payload(%{form_data: form_data} = request_spec) when is_map(form_data) do
+    if map_size(form_data) > 0 do
+      {form_data, "multipart", nil}
+    else
+      request_payload(%{request_spec | form_data: nil})
+    end
+  end
+
+  defp request_payload(%{body: nil}), do: {nil, "raw", nil}
+
+  defp request_payload(%{body: body}) when is_map(body),
+    do: {body, nil, "application/json"}
+
+  defp request_payload(%{body: body}), do: {body, "raw", nil}
+
+  defp normalize_string_key_map(nil), do: %{}
+
+  defp normalize_string_key_map(map) when is_map(map) do
+    Map.new(map, fn {key, value} -> {to_string(key), value} end)
+  end
+
+  defp normalize_string_key_map(map) when is_list(map) do
+    if Keyword.keyword?(map) do
+      Map.new(map, fn {key, value} -> {to_string(key), value} end)
+    else
+      %{}
+    end
+  end
+
+  defp normalize_string_key_map(_map), do: %{}
+
+  defp merge_string_key_maps(base, override) do
+    Map.merge(base, normalize_string_key_map(override))
+  end
+
   defp execute_with_resilience(
          admission_control,
          transport,
@@ -772,6 +911,16 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp normalize_header_map(_headers), do: %{}
+
+  defp maybe_put_new(opts, _key, nil), do: opts
+
+  defp maybe_put_new(opts, key, value) do
+    if Keyword.has_key?(opts, key) do
+      opts
+    else
+      Keyword.put(opts, key, value)
+    end
+  end
 
   defp build_extra_headers(%Context{extra_headers: fun} = context, endpoint, opts)
        when is_function(fun, 3) do

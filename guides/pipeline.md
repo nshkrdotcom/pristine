@@ -107,6 +107,33 @@ Returns `StreamResponse` with lazy event stream. See [Streaming Guide](streaming
 | `:backoff` | `:none`, `:linear`, or `:exponential` |
 | `:on_state_change` | Callback on state changes |
 
+### Low-Level Request Specs
+
+`Pristine.execute_request/3` and `Pristine.Runtime.execute_request/3` execute a
+generic request spec through the same pipeline used for manifest endpoints.
+
+```elixir
+request_spec = %{
+  method: :post,
+  path: "/widgets/{widget_id}/comments",
+  path_params: %{"widget_id" => "w_123"},
+  query: %{"notify" => true},
+  body: %{"message" => "hello"},
+  form_data: nil,
+  headers: %{"X-Request-Source" => "manual"},
+  auth: "token",
+  security: nil,
+  request_schema: nil,
+  response_schema: nil,
+  id: "raw.create_comment"
+}
+
+{:ok, result} = Pristine.execute_request(request_spec, context)
+```
+
+This is the recommended escape hatch for generated SDKs. They should wrap the
+generic request API rather than rebuild their own low-level request path.
+
 ## Request Building
 
 ### URL Construction
@@ -130,6 +157,16 @@ Pipeline.execute(manifest, :get_post, %{}, context,
 - Path parameter substitution (`{param}`)
 - Query string encoding
 - Base URL normalization
+
+### Request Path Safety
+
+Pristine validates both direct request paths and path parameter values before
+the transport adapter runs. Raw requests executed through
+`Pristine.execute_request/3` inherit the same safeguards as manifest-defined
+endpoints.
+
+The runtime raises `ArgumentError` when it detects traversal sequences such as
+`../secret` or encoded equivalents like `%2e%2e`.
 
 ### Header Building
 
