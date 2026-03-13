@@ -12,8 +12,10 @@ Pristine implements a hexagonal architecture where **ports** define interface co
 | Auth | Authentication | Bearer, APIKey, OAuth2 |
 | TokenSource | OAuth2 token retrieval | File, Refreshable, Static |
 | Retry | Retry logic | Foundation, Noop |
+| ResultClassifier | HTTP outcome classification | HTTP |
 | CircuitBreaker | Failure isolation | Foundation, Noop |
 | RateLimit | Request throttling | BackoffWindow, Noop |
+| AdmissionControl | Optional high-throughput request shaping | Dispatch, Noop |
 | Telemetry | Observability | Foundation, Raw, Reporter, Noop |
 | Compression | Payload compression | Gzip |
 | Multipart | Form encoding | Ex |
@@ -345,6 +347,37 @@ Pristine.Adapters.Retry.Noop
 
 Executes once without retries. Useful for testing.
 
+### ResultClassifier (`Pristine.Ports.ResultClassifier`)
+
+Classifies transport and HTTP results into runtime semantics that the pipeline
+can share across retry, rate limiting, circuit breaking, and telemetry.
+
+```elixir
+@callback classify(result :: term(), endpoint :: map(), context :: Context.t(), opts :: keyword()) ::
+  %{
+    retry?: boolean(),
+    retry_after_ms: non_neg_integer() | nil,
+    limiter_backoff_ms: non_neg_integer() | nil,
+    breaker_outcome: :success | :failure | :ignore,
+    telemetry: map()
+  }
+```
+
+#### HTTP Adapter
+
+```elixir
+Pristine.Adapters.ResultClassifier.HTTP
+```
+
+Default generic HTTP classification:
+
+- `429` is retryable, sets limiter backoff, and is ignored by circuit breakers
+- `408`/`500`/`502`/`503`/`504` are retryable and count as breaker failures
+- `2xx` through most `4xx` results count as breaker successes
+- transport errors count as breaker failures
+
+SDKs can swap in provider-specific classifiers while reusing the same pipeline.
+
 ### CircuitBreaker (`Pristine.Ports.CircuitBreaker`)
 
 Prevents cascading failures by opening circuits on repeated failures.
@@ -368,6 +401,11 @@ context = %Context{
 
 **Per-endpoint circuit breakers:**
 Circuits are keyed by endpoint ID, providing isolation between endpoints.
+
+The pipeline passes classified breaker outcomes into the adapter. The
+Foundation-backed adapter honors `:success`, `:failure`, and `:ignore`, so
+HTTP responses can affect circuit health without conflating `429` with real
+downstream outages.
 
 #### Noop Adapter
 
@@ -402,7 +440,7 @@ context = %Context{
 
 **Features:**
 - Sliding window rate limiting
-- Server-driven backoff (from 429 responses)
+- Server-driven backoff learned automatically from classified results such as `429`
 - Per-key rate limits
 
 #### Noop Adapter
@@ -412,6 +450,34 @@ Pristine.Adapters.RateLimit.Noop
 ```
 
 No rate limiting applied.
+
+### AdmissionControl (`Pristine.Ports.AdmissionControl`)
+
+Optional outer request wrapper for coordinated dispatching and other
+high-throughput admission controls.
+
+```elixir
+@callback with_admission((-> term()), keyword()) :: term()
+@callback set_backoff(non_neg_integer(), keyword()) :: :ok
+```
+
+#### Dispatch Adapter
+
+```elixir
+Pristine.Adapters.AdmissionControl.Dispatch
+```
+
+Bridges the generic pipeline into a caller-managed `Foundation.Dispatch`
+process. The pipeline forwards classified backoff windows into the dispatch
+adapter through `set_backoff/2`.
+
+#### Noop Adapter
+
+```elixir
+Pristine.Adapters.AdmissionControl.Noop
+```
+
+Executes requests without additional coordination.
 
 ## Observability Ports
 
@@ -452,13 +518,17 @@ Pristine.Adapters.Telemetry.Foundation
 )
 ```
 
+When `context.telemetry_events` overrides an event path, the adapter preserves
+the supplied path instead of forcing a `[:pristine, ...]` prefix.
+
 #### Raw Adapter
 
 ```elixir
 Pristine.Adapters.Telemetry.Raw
 ```
 
-Direct `:telemetry` emission without event prefixing.
+Direct `:telemetry` emission without event prefixing. Caller-supplied event
+paths are emitted exactly as provided.
 
 #### Reporter Adapter
 

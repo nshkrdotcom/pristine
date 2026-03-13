@@ -92,6 +92,5 @@ defmodule Pristine.Adapters.Telemetry.Foundation do
   end
 
   defp normalize_event(event) when is_atom(event), do: [:pristine, event]
-  defp normalize_event([:pristine | _] = event), do: event
-  defp normalize_event(event) when is_list(event), do: [:pristine | event]
+  defp normalize_event(event) when is_list(event), do: event
 end

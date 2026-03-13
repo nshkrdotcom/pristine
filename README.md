@@ -26,7 +26,7 @@ Pristine separates domain logic from infrastructure through a clean ports and ad
 - **Code Generation** — Generate type modules, resource modules, and clients from manifests
 - **Type Safety** — Sinter schema validation for requests and responses
 - **Optional OAuth2 Control Plane** — Authorization URL generation, PKCE, token exchange, refresh, revoke, and introspect helpers without routing normal API traffic through Tesla
-- **Resilience Built-In** — Retry policies, circuit breakers, and rate limiting
+- **Resilience Built-In** — Classifier-driven retries, circuit breakers, shared rate limiting, and optional admission control
 - **Streaming Support** — First-class SSE (Server-Sent Events) handling
 - **Observable** — Telemetry events throughout the request lifecycle
 - **Extensible** — Swap adapters for transport, auth, serialization, and more
@@ -148,8 +148,10 @@ Pristine implements a hexagonal (ports and adapters) architecture:
 | **Serializer** | JSON |
 | **Auth** | Bearer, APIKey |
 | **Retry** | Foundation, Noop |
+| **Result Classifier** | HTTP |
 | **Circuit Breaker** | Foundation, Noop |
 | **Rate Limit** | BackoffWindow, Noop |
+| **Admission Control** | Dispatch, Noop |
 | **Telemetry** | Foundation, Raw, Reporter, Noop |
 | **Compression** | Gzip |
 | **TokenSource** | File, Refreshable, Static |
@@ -171,6 +173,7 @@ context = Pristine.context(
   serializer: Pristine.Adapters.Serializer.JSON,
   auth: [{Pristine.Adapters.Auth.Bearer, token: "your-token"}],
   retry: Pristine.Adapters.Retry.Foundation,
+  result_classifier: Pristine.Adapters.ResultClassifier.HTTP,
   telemetry: Pristine.Adapters.Telemetry.Foundation
 )
 
@@ -179,6 +182,21 @@ context = Pristine.context(
   path_params: %{"id" => "123"}
 )
 ```
+
+HTTP resilience behavior is classifier-driven. `result_classifier` decides:
+
+- whether a result is retryable
+- whether a shared limiter should learn a backoff window
+- whether the circuit breaker should record success, failure, or ignore the outcome
+- which classification metadata should be attached to telemetry
+
+SDKs can replace `Pristine.Adapters.ResultClassifier.HTTP` with provider-specific
+classification while keeping the rest of the runtime generic.
+
+If you need high-throughput shaping, `admission_control` wraps the request path
+outside the transport call. This is where adapters such as
+`Pristine.Adapters.AdmissionControl.Dispatch` can coordinate `Foundation.Dispatch`
+with classified backoff signals.
 
 ## Security Metadata And OAuth2
 

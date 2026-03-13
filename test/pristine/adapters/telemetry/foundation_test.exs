@@ -28,6 +28,31 @@ defmodule Pristine.Adapters.Telemetry.FoundationTest do
 
       assert_receive {:telemetry, [:pristine, :test_emit], %{duration: 100}, %{key: "value"}}
     end
+
+    test "preserves caller-supplied event paths" do
+      test_pid = self()
+      ref = make_ref()
+      handler_id = "test-emit-raw-#{inspect(ref)}"
+
+      :telemetry.attach(
+        handler_id,
+        [:notion_sdk, :request, :stop],
+        &TestHandler.handle_event/4,
+        %{test_pid: test_pid, tag: :telemetry}
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      assert :ok =
+               TelemetryAdapter.emit(
+                 [:notion_sdk, :request, :stop],
+                 %{key: "value"},
+                 %{duration: 100}
+               )
+
+      assert_receive {:telemetry, [:notion_sdk, :request, :stop], %{duration: 100},
+                      %{key: "value"}}
+    end
   end
 
   describe "measure/3" do
