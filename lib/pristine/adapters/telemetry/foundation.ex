@@ -1,6 +1,10 @@
 defmodule Pristine.Adapters.Telemetry.Foundation do
   @moduledoc """
-  Telemetry adapter using the `:telemetry` library directly.
+  Telemetry adapter backed by `Foundation.Telemetry`.
+
+  This is the recommended runtime telemetry adapter. It keeps Pristine on the
+  normal `:telemetry` handler model while letting callers attach exporters such
+  as TelemetryReporter separately.
 
   This adapter provides full telemetry support including:
   - Event emission
@@ -47,7 +51,7 @@ defmodule Pristine.Adapters.Telemetry.Foundation do
   """
   def emit(event, metadata, measurements)
       when (is_atom(event) or is_list(event)) and is_map(metadata) and is_map(measurements) do
-    :telemetry.execute(normalize_event(event), measurements, metadata)
+    Foundation.Telemetry.execute(normalize_event(event), measurements, metadata)
     :ok
   end
 

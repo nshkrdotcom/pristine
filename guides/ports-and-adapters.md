@@ -2,6 +2,11 @@
 
 Pristine implements a hexagonal architecture where **ports** define interface contracts and **adapters** provide concrete implementations. This guide documents all available ports and their adapters.
 
+For production request execution, prefer `Pristine.foundation_context/1` or
+`Pristine.Profiles.Foundation.context/1` instead of wiring each runtime seam by
+hand. Some ports in this reference are lower-level utilities or extension seams
+and are not part of the default `Pristine.execute/5` request path.
+
 ## Port Overview
 
 | Port | Purpose | Adapters |
@@ -372,8 +377,9 @@ Pristine.Adapters.ResultClassifier.HTTP
 Default generic HTTP classification:
 
 - `429` is retryable, sets limiter backoff, and is ignored by circuit breakers
-- `408`/`500`/`502`/`503`/`504` are retryable and count as breaker failures
-- `2xx` through most `4xx` results count as breaker successes
+- `408`/`500`/`502`/`503`/`504` are retryable only for safe or explicitly idempotent requests and count as breaker failures
+- caller-side `4xx` responses such as `400`, `401`, `403`, `404`, and `422` are ignored by circuit breakers
+- successful `2xx` responses count as breaker successes
 - transport errors count as breaker failures
 
 SDKs can swap in provider-specific classifiers while reusing the same pipeline.
@@ -503,6 +509,11 @@ Emits telemetry events for monitoring and debugging.
 Pristine.Adapters.Telemetry.Foundation
 ```
 
+This is the recommended runtime telemetry adapter. It emits normal
+`:telemetry` events through `Foundation.Telemetry`, which means local handlers,
+metrics, and optional reporter export can all subscribe to the same event
+stream.
+
 **Default atom-shorthand events emitted:**
 - `[:pristine, :request, :start]`
 - `[:pristine, :request, :stop]`
@@ -542,7 +553,12 @@ paths are emitted exactly as provided.
 Pristine.Adapters.Telemetry.Reporter
 ```
 
-Integrates with `telemetry_reporter` for batched event reporting.
+Directly logs into `TelemetryReporter`.
+
+This adapter is kept as a compatibility path. For new code, prefer
+`Pristine.Adapters.Telemetry.Foundation` plus
+`Pristine.Profiles.Foundation.attach_reporter/2` so export remains a normal
+telemetry handler concern instead of a separate telemetry implementation.
 
 #### Noop Adapter
 
@@ -572,9 +588,12 @@ Pristine.Adapters.Compression.Gzip
 
 **Usage:**
 ```elixir
-# Automatic decompression of gzip responses
-# Set Content-Encoding: gzip header
+{:ok, compressed} = Pristine.Adapters.Compression.Gzip.compress("payload")
+{:ok, decompressed} = Pristine.Adapters.Compression.Gzip.decompress(compressed)
 ```
+
+The standard HTTP pipeline already decodes gzip responses internally. This port
+is available when you need explicit compression behavior outside that path.
 
 ## Multipart Port
 

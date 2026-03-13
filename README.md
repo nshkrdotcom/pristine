@@ -29,6 +29,7 @@ Pristine separates domain logic from infrastructure through a clean ports and ad
 - **Resilience Built-In** — Classifier-driven retries, circuit breakers, shared rate limiting, and optional admission control
 - **Streaming Support** — First-class SSE (Server-Sent Events) handling
 - **Observable** — Telemetry events throughout the request lifecycle
+- **Production Profile** — Shared Foundation-backed runtime wiring through `Pristine.foundation_context/1`
 - **Extensible** — Swap adapters for transport, auth, serialization, and more
 
 ## Installation
@@ -165,16 +166,16 @@ Execute endpoints without code generation:
 # Load manifest
 {:ok, manifest} = Pristine.load_manifest_file("manifest.json")
 
-# Build context with adapters
-context = Pristine.context(
+# Build a production context
+context = Pristine.foundation_context(
   base_url: "https://api.example.com",
   transport: Pristine.Adapters.Transport.Finch,
   transport_opts: [finch: MyApp.Finch],
   serializer: Pristine.Adapters.Serializer.JSON,
   auth: [{Pristine.Adapters.Auth.Bearer, token: "your-token"}],
-  retry: Pristine.Adapters.Retry.Foundation,
-  result_classifier: Pristine.Adapters.ResultClassifier.HTTP,
-  telemetry: Pristine.Adapters.Telemetry.Foundation
+  rate_limit: [key: {:my_app, :my_api}, registry: MyApp.RateLimits],
+  circuit_breaker: [registry: MyApp.Breakers],
+  telemetry: [namespace: [:my_api], metadata: %{service: :my_api}]
 )
 
 # Execute endpoint
@@ -182,6 +183,18 @@ context = Pristine.context(
   path_params: %{"id" => "123"}
 )
 ```
+
+`Pristine.foundation_context/1` is the recommended production entry point. It
+builds a cohesive runtime over the existing ports/adapters surface:
+
+- Foundation-backed retry with a default two-attempt policy
+- shared rate-limit learning via `Pristine.Adapters.RateLimit.BackoffWindow`
+- Foundation circuit breaking
+- structured telemetry events under `[:pristine, ...]` or your namespace
+- optional Dispatch-backed admission control
+
+`Pristine.context/1` remains the low-level escape hatch when you need to wire
+every seam manually.
 
 HTTP resilience behavior is classifier-driven. `result_classifier` decides:
 
@@ -201,6 +214,38 @@ with classified backoff signals.
 When you enable that adapter, pass a real `Foundation.Dispatch` server handle
 through `admission_opts`. Registered names are supported, and invalid explicit
 dispatch config raises instead of silently falling back to noop behavior.
+
+## Telemetry Export
+
+Use normal `:telemetry` emission in the runtime, then attach
+`TelemetryReporter` as an exporter:
+
+```elixir
+children = [
+  {Finch, name: MyApp.Finch},
+  Pristine.Profiles.Foundation.reporter_child_spec(
+    name: MyApp.TelemetryReporter,
+    transport: MyApp.TelemetryTransport
+  )
+]
+
+context =
+  Pristine.foundation_context(
+    base_url: "https://api.example.com",
+    transport: Pristine.Adapters.Transport.Finch,
+    transport_opts: [finch: MyApp.Finch]
+  )
+
+{:ok, handler_id} =
+  Pristine.Profiles.Foundation.attach_reporter(
+    context,
+    reporter: MyApp.TelemetryReporter
+  )
+```
+
+This is the preferred export path for new code. The legacy
+`Pristine.Adapters.Telemetry.Reporter` adapter still exists as a direct
+compatibility layer, but it bypasses the normal `:telemetry` handler model.
 
 ## Security Metadata And OAuth2
 

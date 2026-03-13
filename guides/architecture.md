@@ -109,6 +109,11 @@ The context carries all runtime configuration:
 }
 ```
 
+Most production callers should not build that struct field-by-field. Use
+`Pristine.foundation_context/1` to get cohesive default wiring over the
+Foundation-backed adapters, then drop to `Pristine.context/1` only when you
+need full manual control.
+
 `type_schemas` now covers both manifest-compiled schemas and any direct OpenAPI refs resolved at runtime. That keeps the boundary generic: generated SDKs can opt into typed responses without copying runtime schema logic into each package.
 
 ### Request/Response (`Pristine.Core.Request`, `Pristine.Core.Response`)
@@ -187,12 +192,15 @@ dev_context = %Context{
   telemetry: Pristine.Adapters.Telemetry.Noop
 }
 
-# Production - full resilience
-prod_context = %Context{
-  retry: Pristine.Adapters.Retry.Foundation,
-  circuit_breaker: Pristine.Adapters.CircuitBreaker.Foundation,
-  telemetry: Pristine.Adapters.Telemetry.Foundation
-}
+# Production - shared runtime profile
+prod_context =
+  Pristine.foundation_context(
+    transport: Pristine.Adapters.Transport.Finch,
+    transport_opts: [finch: MyApp.Finch],
+    rate_limit: [key: {:my_app, :integration}, registry: MyApp.RateLimits],
+    circuit_breaker: [registry: MyApp.Breakers],
+    telemetry: [namespace: [:my_sdk]]
+  )
 ```
 
 ## Data Flow
