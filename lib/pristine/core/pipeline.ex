@@ -18,6 +18,7 @@ defmodule Pristine.Core.Pipeline do
     Request,
     RequestPath,
     Response,
+    ResultClassification,
     StreamResponse,
     TelemetryHeaders,
     Url
@@ -200,6 +201,9 @@ defmodule Pristine.Core.Pipeline do
            opts: opts
          }
        ) do
+    classification = classify_result(context, {:ok, response}, endpoint, opts)
+    telemetry_metadata = Map.merge(telemetry_metadata, classification.telemetry)
+
     case handle_response(response, serializer, response_schema, endpoint, context, opts) do
       {:ok, data} ->
         retry_count = current_retry_count(retry_key)
@@ -259,15 +263,18 @@ defmodule Pristine.Core.Pipeline do
          {:error, reason} = error,
          _serializer,
          _response_schema,
-         _endpoint,
+         endpoint,
          %{
            context: context,
            telemetry: telemetry,
            metadata: telemetry_metadata,
            start_time: start_time,
-           retry_key: retry_key
+           retry_key: retry_key,
+           opts: opts
          }
        ) do
+    classification = classify_result(context, error, endpoint, opts)
+    telemetry_metadata = Map.merge(telemetry_metadata, classification.telemetry)
     retry_count = current_retry_count(retry_key)
 
     error =
@@ -475,6 +482,7 @@ defmodule Pristine.Core.Pipeline do
          opts,
          retry_overrides
        ) do
+    admission_control = context.admission_control || Pristine.Adapters.AdmissionControl.Noop
     cb_name = circuit_breaker_name(endpoint)
     cb_opts = context.circuit_breaker_opts
     rl_opts = rate_limit_opts(endpoint, context)
@@ -485,15 +493,22 @@ defmodule Pristine.Core.Pipeline do
         fn ->
           request = resolve_request(request_or_fun)
 
+          resilience = %{
+            endpoint: endpoint,
+            context: context,
+            cb_name: cb_name,
+            cb_opts: cb_opts,
+            rl_opts: rl_opts,
+            request_opts: opts
+          }
+
           execute_with_resilience(
+            admission_control,
             transport,
             rate_limiter,
             circuit_breaker,
             request,
-            context,
-            cb_name,
-            cb_opts,
-            rl_opts
+            resilience
           )
         end,
         rt_opts
@@ -505,27 +520,51 @@ defmodule Pristine.Core.Pipeline do
   defp resolve_request(request), do: request
 
   defp execute_with_resilience(
+         admission_control,
          transport,
          rate_limiter,
          circuit_breaker,
          request,
-         context,
-         cb_name,
-         cb_opts,
-         rl_opts
+         %{endpoint: endpoint, context: context, request_opts: opts} = resilience
        ) do
-    rate_limiter.within_limit(
+    cb_name = resilience.cb_name
+    cb_opts = resilience.cb_opts
+    rl_opts = resilience.rl_opts
+    admission_opts = admission_opts(request, endpoint, context)
+
+    admission_control.with_admission(
       fn ->
-        execute_with_circuit_breaker(
-          circuit_breaker,
-          transport,
-          request,
-          context,
-          cb_name,
-          cb_opts
+        rate_limiter.within_limit(
+          fn ->
+            result =
+              execute_with_circuit_breaker(
+                circuit_breaker,
+                transport,
+                request,
+                endpoint,
+                context,
+                cb_name,
+                cb_opts,
+                opts
+              )
+
+            maybe_apply_limiter_backoff(rate_limiter, result, endpoint, context, rl_opts, opts)
+
+            maybe_apply_admission_backoff(
+              admission_control,
+              result,
+              endpoint,
+              context,
+              admission_opts,
+              opts
+            )
+
+            result
+          end,
+          rl_opts
         )
       end,
-      rl_opts
+      admission_opts
     )
   end
 
@@ -533,10 +572,21 @@ defmodule Pristine.Core.Pipeline do
          circuit_breaker,
          transport,
          request,
+         endpoint,
          context,
          cb_name,
-         cb_opts
+         cb_opts,
+         opts
        ) do
+    cb_opts =
+      Keyword.put(
+        cb_opts,
+        :success?,
+        fn result ->
+          classify_result(context, result, endpoint, opts).breaker_outcome
+        end
+      )
+
     circuit_breaker.call(cb_name, fn -> send_request(transport, request, context) end, cb_opts)
   end
 
@@ -694,8 +744,8 @@ defmodule Pristine.Core.Pipeline do
 
   defp normalize_query_map(_), do: %{}
 
-  defp retry_opts(%{retry: nil}, %Context{} = context, opts) do
-    apply_request_retry_opts(context.retry_opts, context, opts)
+  defp retry_opts(%{retry: nil} = endpoint, %Context{} = context, opts) do
+    apply_request_retry_opts(context.retry_opts, endpoint, context, opts)
   end
 
   defp retry_opts(
@@ -708,7 +758,7 @@ defmodule Pristine.Core.Pipeline do
 
     base_opts
     |> Keyword.merge(policy_opts)
-    |> apply_request_retry_opts(context, opts)
+    |> apply_request_retry_opts(endpoint, context, opts)
   end
 
   defp normalize_retry_policy_opts(nil), do: []
@@ -759,7 +809,7 @@ defmodule Pristine.Core.Pipeline do
     ArgumentError -> nil
   end
 
-  defp apply_request_retry_opts(base_opts, %Context{} = context, opts) do
+  defp apply_request_retry_opts(base_opts, endpoint, %Context{} = context, opts) do
     merged =
       (base_opts || [])
       |> Keyword.merge(Keyword.get(opts, :retry_opts, []))
@@ -772,16 +822,16 @@ defmodule Pristine.Core.Pipeline do
       )
       |> normalize_retry_attempts()
 
-    maybe_put_retry_policy(merged, context, max_attempts)
+    maybe_put_retry_policy(merged, endpoint, context, opts, max_attempts)
   end
 
-  defp maybe_put_retry_policy(merged, _context, nil), do: merged
+  defp maybe_put_retry_policy(merged, _endpoint, _context, _opts, nil), do: merged
 
-  defp maybe_put_retry_policy(merged, context, max_attempts) do
+  defp maybe_put_retry_policy(merged, endpoint, context, opts, max_attempts) do
     if Keyword.has_key?(merged, :policy) do
       merged
     else
-      case build_http_retry_policy(context, max_attempts, merged) do
+      case build_http_retry_policy(context, endpoint, opts, max_attempts, merged) do
         nil -> merged
         policy -> Keyword.put(Keyword.delete(merged, :max_retries), :policy, policy)
       end
@@ -794,7 +844,13 @@ defmodule Pristine.Core.Pipeline do
 
   defp normalize_retry_attempts(_), do: nil
 
-  defp build_http_retry_policy(%Context{retry: retry}, max_attempts, opts) do
+  defp build_http_retry_policy(
+         %Context{retry: retry} = context,
+         endpoint,
+         request_opts,
+         max_attempts,
+         opts
+       ) do
     if retry_supports_http_policy?(retry) do
       backoff = build_backoff(retry, opts)
 
@@ -802,8 +858,11 @@ defmodule Pristine.Core.Pipeline do
         opts
         |> Keyword.put(:max_attempts, max_attempts)
         |> Keyword.put(:backoff, backoff)
-        |> Keyword.put(:retry_on, &http_retry_on(retry, &1))
-        |> Keyword.put(:retry_after_ms_fun, &http_retry_after_ms(retry, &1))
+        |> Keyword.put(:retry_on, &classified_retry?(context, endpoint, request_opts, &1))
+        |> Keyword.put(
+          :retry_after_ms_fun,
+          &classified_retry_after_ms(context, endpoint, request_opts, &1)
+        )
 
       retry.build_policy(policy_opts)
     else
@@ -931,31 +990,10 @@ defmodule Pristine.Core.Pipeline do
     ]
   end
 
-  defp http_retry_on(retry, {:ok, response}) do
-    if function_exported?(retry, :should_retry?, 1) do
-      retry.should_retry?(response)
-    else
-      false
-    end
-  end
-
-  defp http_retry_on(_retry, {:error, %Mint.TransportError{}}), do: true
-  defp http_retry_on(_retry, {:error, %Mint.HTTPError{}}), do: true
-  defp http_retry_on(_retry, {:error, :timeout}), do: true
-  defp http_retry_on(_retry, _result), do: false
-
-  defp http_retry_after_ms(retry, {:ok, %{headers: headers}}) do
-    if function_exported?(retry, :parse_retry_after, 1) do
-      retry.parse_retry_after(%{headers: headers})
-    end
-  end
-
-  defp http_retry_after_ms(_retry, _result), do: nil
-
   defp rate_limit_opts(%{rate_limit: nil}, %Context{rate_limit_opts: opts}), do: opts
 
   defp rate_limit_opts(endpoint, %Context{rate_limit_opts: opts}) do
-    Keyword.put(opts, :key, endpoint.rate_limit || endpoint.id)
+    Keyword.put_new(opts, :key, endpoint.rate_limit || endpoint.id)
   end
 
   defp circuit_breaker_name(endpoint) do
@@ -1336,7 +1374,10 @@ defmodule Pristine.Core.Pipeline do
         method: HTTPMethod.telemetry(endpoint.method),
         path: path,
         pool_type: pool_type,
-        base_url: context.base_url
+        base_url: context.base_url,
+        resource: endpoint.resource,
+        retry_group: endpoint.retry,
+        breaker_name: circuit_breaker_name(endpoint)
       }
       |> Map.merge(context.telemetry_metadata || %{})
 
@@ -1417,6 +1458,104 @@ defmodule Pristine.Core.Pipeline do
       metadata,
       %{duration: System.monotonic_time() - start_time}
     )
+  end
+
+  defp maybe_apply_limiter_backoff(rate_limiter, result, endpoint, context, rl_opts, opts) do
+    classification = classify_result(context, result, endpoint, opts)
+
+    case classification.limiter_backoff_ms do
+      duration_ms when is_integer(duration_ms) and duration_ms >= 0 ->
+        maybe_set_limiter_backoff(rate_limiter, duration_ms, rl_opts)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp maybe_set_limiter_backoff(rate_limiter, duration_ms, rl_opts) do
+    if function_exported?(rate_limiter, :for_key, 2) and function_exported?(rate_limiter, :set, 3) do
+      key = Keyword.get(rl_opts, :key, :default)
+      limiter = rate_limiter.for_key(key, rl_opts)
+      rate_limiter.set(limiter, duration_ms, rl_opts)
+    else
+      :ok
+    end
+  end
+
+  defp maybe_apply_admission_backoff(
+         admission_control,
+         result,
+         endpoint,
+         context,
+         admission_opts,
+         opts
+       ) do
+    classification = classify_result(context, result, endpoint, opts)
+
+    case classification.limiter_backoff_ms do
+      duration_ms when is_integer(duration_ms) and duration_ms >= 0 ->
+        if function_exported?(admission_control, :set_backoff, 2) do
+          admission_control.set_backoff(duration_ms, admission_opts)
+        else
+          :ok
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp classified_retry?(context, endpoint, opts, result) do
+    classify_result(context, result, endpoint, opts).retry?
+  end
+
+  defp classified_retry_after_ms(context, endpoint, opts, result) do
+    classify_result(context, result, endpoint, opts).retry_after_ms
+  end
+
+  defp classify_result(%Context{} = context, result, endpoint, opts) do
+    classifier = context.result_classifier || Pristine.Adapters.ResultClassifier.HTTP
+
+    classifier
+    |> invoke_classifier(result, endpoint, context, opts)
+    |> ResultClassification.normalize()
+  end
+
+  defp invoke_classifier(classifier, result, endpoint, context, opts) when is_atom(classifier) do
+    classifier.classify(result, endpoint, context, opts)
+  end
+
+  defp invoke_classifier(classifier, result, endpoint, context, opts)
+       when is_function(classifier, 4) do
+    classifier.(result, endpoint, context, opts)
+  end
+
+  defp invoke_classifier(classifier, result, endpoint, _context, opts)
+       when is_function(classifier, 3) do
+    classifier.(result, endpoint, opts)
+  end
+
+  defp invoke_classifier(classifier, result, endpoint, _context, _opts)
+       when is_function(classifier, 2) do
+    classifier.(result, endpoint)
+  end
+
+  defp invoke_classifier(_classifier, _result, _endpoint, _context, _opts), do: %{}
+
+  defp admission_opts(%Request{} = request, endpoint, %Context{admission_opts: base_opts}) do
+    base_opts
+    |> Keyword.put_new(:estimated_bytes, request_bytes(request.body))
+    |> Keyword.put_new(:resource, endpoint.resource)
+    |> Keyword.put_new(:endpoint_id, endpoint.id)
+  end
+
+  defp request_bytes(nil), do: 0
+
+  defp request_bytes(body) do
+    body
+    |> IO.iodata_length()
+  rescue
+    _ -> 0
   end
 
   defp emit_request_exception(
