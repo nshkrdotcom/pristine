@@ -285,7 +285,7 @@ end, key: rate_limit_key)
 The rate limiter:
 - Blocks if limit exceeded
 - Respects server-driven backoff (429 responses)
-- Per-endpoint key isolation
+- Uses whichever key the endpoint or caller supplies
 
 ### Circuit Breaking
 
@@ -298,7 +298,7 @@ end, [])
 The circuit breaker:
 - Opens after repeated failures
 - Prevents cascading failures
-- Per-endpoint circuit isolation
+- Uses whichever circuit name the endpoint or caller supplies
 
 ### Retry Logic
 
@@ -313,8 +313,8 @@ end, policy: retry_policy)
 | Condition | Retry? |
 |-----------|--------|
 | Status 429 | Yes (with backoff) |
-| Status 5xx | Yes |
-| Connection error | Yes |
+| Status 408/500/502/503/504 | Yes for safe or explicitly idempotent requests |
+| Transient transport failure | Yes when the classifier marks it retryable |
 | Status 4xx (not 429) | No |
 | Validation error | No |
 
@@ -362,10 +362,10 @@ The key is sent via the configured header (default: `Idempotency-Key`).
 
 ### Decompression
 
-If `content-encoding: gzip`:
-```elixir
-body = Pristine.Adapters.Compression.Gzip.decompress(body)
-```
+If `content-encoding: gzip`, the pipeline decodes the response body internally
+and strips the header before decoding the payload. The `Compression` port and
+gzip adapter remain available as standalone extension seams, but the standard
+HTTP pipeline does not dispatch through that port today.
 
 ### Decoding
 
@@ -482,12 +482,18 @@ context = %Pristine.Core.Context{
 ### Context Factory
 
 ```elixir
-context = Pristine.context(
+context = Pristine.foundation_context(
   base_url: "https://api.example.com",
   transport: Pristine.Adapters.Transport.Finch,
-  # ... other options
+  transport_opts: [finch: MyApp.Finch],
+  rate_limit: [key: {:my_app, :integration}, registry: MyApp.RateLimits],
+  circuit_breaker: [registry: MyApp.Breakers],
+  telemetry: [namespace: [:my_sdk]]
 )
 ```
+
+Use `Pristine.context/1` when you need to wire the raw ports/adapters surface
+directly. Use `Pristine.foundation_context/1` for the shared production path.
 
 ## Telemetry
 
@@ -524,6 +530,30 @@ context = Pristine.context(
   nil
 )
 ```
+
+### Exporting To TelemetryReporter
+
+For external export, keep the runtime on normal `:telemetry` events and attach
+`TelemetryReporter` as a handler:
+
+```elixir
+children = [
+  {Finch, name: MyApp.Finch},
+  Pristine.Profiles.Foundation.reporter_child_spec(
+    name: MyApp.TelemetryReporter,
+    transport: MyApp.TelemetryTransport
+  )
+]
+
+{:ok, handler_id} =
+  Pristine.Profiles.Foundation.attach_reporter(
+    context,
+    reporter: MyApp.TelemetryReporter
+  )
+```
+
+This is preferred over the compatibility-only
+`Pristine.Adapters.Telemetry.Reporter` adapter for new code.
 
 ### Custom Event Names
 
@@ -615,15 +645,14 @@ With custom error module:
 {:ok, manifest} = Pristine.load_manifest_file("manifest.json")
 
 # 2. Build context
-context = Pristine.context(
+context = Pristine.foundation_context(
   base_url: "https://api.example.com",
   transport: Pristine.Adapters.Transport.Finch,
   transport_opts: [finch: MyApp.Finch],
   serializer: Pristine.Adapters.Serializer.JSON,
   auth: [{Pristine.Adapters.Auth.Bearer, token: "secret"}],
-  retry: Pristine.Adapters.Retry.Foundation,
-  retry_policies: %{"default" => %{max_attempts: 3}},
-  telemetry: Pristine.Adapters.Telemetry.Foundation
+  retry: [max_attempts: 3],
+  telemetry: [namespace: [:my_sdk]]
 )
 
 # 3. Execute

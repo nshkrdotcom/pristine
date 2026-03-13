@@ -1,9 +1,12 @@
 defmodule Pristine.Adapters.Telemetry.Reporter do
   @moduledoc """
-  Telemetry adapter backed by TelemetryReporter.
+  Compatibility telemetry adapter backed by TelemetryReporter.
 
-  This adapter sends telemetry events to TelemetryReporter for external
-  reporting and aggregation.
+  This adapter sends events directly to a reporter instance. Prefer
+  `Pristine.Adapters.Telemetry.Foundation` plus
+  `Pristine.Profiles.Foundation.attach_reporter/2` for new code so the runtime
+  continues to emit standard `:telemetry` events and reporter export stays a
+  handler concern.
   """
 
   @behaviour Pristine.Ports.Telemetry

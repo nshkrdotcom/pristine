@@ -93,6 +93,7 @@ defmodule Pristine.MixProject do
         "CHANGELOG.md",
         "LICENSE",
         "guides/getting-started.md",
+        "guides/foundation-runtime.md",
         "guides/architecture.md",
         "guides/manifests.md",
         "guides/ports-and-adapters.md",
@@ -104,7 +105,8 @@ defmodule Pristine.MixProject do
         Introduction: [
           "README.md",
           "CHANGELOG.md",
-          "guides/getting-started.md"
+          "guides/getting-started.md",
+          "guides/foundation-runtime.md"
         ],
         Architecture: [
           "guides/architecture.md",
@@ -122,6 +124,7 @@ defmodule Pristine.MixProject do
       groups_for_modules: [
         "Core Pipeline": [
           Pristine,
+          Pristine.Profiles.Foundation,
           Pristine.Core.Pipeline,
           Pristine.Core.Context,
           Pristine.Core.Request,

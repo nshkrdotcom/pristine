@@ -6,6 +6,7 @@ defmodule Pristine do
   alias Pristine.Core.Context
   alias Pristine.Manifest
   alias Pristine.Manifest.Endpoint
+  alias Pristine.Profiles.Foundation, as: FoundationProfile
   alias Pristine.Runtime
 
   @doc """
@@ -30,6 +31,14 @@ defmodule Pristine do
   @spec context(keyword()) :: Context.t()
   def context(opts \\ []) do
     Context.new(opts)
+  end
+
+  @doc """
+  Build a Foundation-backed production context.
+  """
+  @spec foundation_context(keyword()) :: Context.t()
+  def foundation_context(opts \\ []) do
+    FoundationProfile.context(opts)
   end
 
   @doc """

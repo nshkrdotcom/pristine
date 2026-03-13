@@ -117,13 +117,14 @@ You can also execute endpoints directly without generating code:
 # Load manifest
 {:ok, manifest} = Pristine.load_manifest_file("manifest.json")
 
-# Build context with adapters
-context = Pristine.context(
+# Build a production context
+context = Pristine.foundation_context(
   base_url: "https://api.example.com",
   transport: Pristine.Adapters.Transport.Finch,
   transport_opts: [finch: MyApp.Finch],
   serializer: Pristine.Adapters.Serializer.JSON,
-  auth: [{Pristine.Adapters.Auth.Bearer, token: "your-token"}]
+  auth: [{Pristine.Adapters.Auth.Bearer, token: "your-token"}],
+  telemetry: [namespace: [:my_api]]
 )
 
 # Execute endpoint
@@ -136,10 +137,11 @@ If you are using OpenAPI-generated schema refs in the manifest or generated clie
 
 ### Adapters
 
-Pristine uses a hexagonal architecture. Configure adapters for each concern:
+Pristine uses a hexagonal architecture. For production callers, start with the
+shared Foundation-backed profile:
 
 ```elixir
-context = Pristine.context(
+context = Pristine.foundation_context(
   # HTTP Transport
   transport: Pristine.Adapters.Transport.Finch,
   transport_opts: [finch: MyApp.Finch, receive_timeout: 30_000],
@@ -156,15 +158,18 @@ context = Pristine.context(
     {Pristine.Adapters.Auth.APIKey, value: "key", header: "X-API-Key"}
   ],
 
-  # Resilience
-  retry: Pristine.Adapters.Retry.Foundation,
-  circuit_breaker: Pristine.Adapters.CircuitBreaker.Foundation,
-  rate_limiter: Pristine.Adapters.RateLimit.BackoffWindow,
+  # Cohesive production seams
+  retry: [max_attempts: 3],
+  rate_limit: [key: {:my_app, :my_api}, registry: MyApp.RateLimits],
+  circuit_breaker: [registry: MyApp.Breakers],
 
-  # Observability
-  telemetry: Pristine.Adapters.Telemetry.Foundation
+  # Structured telemetry
+  telemetry: [namespace: [:my_api], metadata: %{service: :my_api}]
 )
 ```
+
+`Pristine.context/1` remains available when you want to wire each adapter
+manually or disable the profile entirely.
 
 If your API uses OpenAPI-style `security` metadata, `auth` can also be a map keyed by security-scheme name:
 
@@ -265,6 +270,30 @@ context = Pristine.context(
 `Refreshable` only acts on tokens that already include `expires_at`. For
 providers that do not expose expiry metadata, keep refresh explicit instead of
 inventing pre-expiry policy.
+
+### Telemetry Exporters
+
+Emit regular `:telemetry` events from the runtime, then attach a reporter as an
+exporter:
+
+```elixir
+children = [
+  {Finch, name: MyApp.Finch},
+  Pristine.Profiles.Foundation.reporter_child_spec(
+    name: MyApp.TelemetryReporter,
+    transport: MyApp.TelemetryTransport
+  )
+]
+
+{:ok, handler_id} =
+  Pristine.Profiles.Foundation.attach_reporter(
+    context,
+    reporter: MyApp.TelemetryReporter
+  )
+```
+
+That keeps local handlers, metrics, and external export on the same telemetry
+event stream.
 
 ### Retry Policies
 
