@@ -146,18 +146,29 @@ defmodule Pristine.OpenAPI.Docs do
 
   defp param_entry(param, ref_labels) do
     %{
-      name: param.name,
-      location: param.location && Atom.to_string(param.location),
-      description: param.description,
-      required: param.required,
-      deprecated: param.deprecated,
-      example: param.example,
-      examples: param.examples,
-      style: param.style && Atom.to_string(param.style),
-      explode: param.explode,
+      name: Map.get(param, :name),
+      location:
+        case Map.get(param, :location) do
+          nil -> nil
+          location -> Atom.to_string(location)
+        end,
+      description: Map.get(param, :description),
+      required: Map.get(param, :required, false),
+      deprecated: Map.get(param, :deprecated, false),
+      example: Map.get(param, :example),
+      examples: Map.get(param, :examples),
+      style:
+        case Map.get(param, :style) do
+          nil -> nil
+          style -> Atom.to_string(style)
+        end,
+      explode: Map.get(param, :explode, false),
       value_type:
-        normalize_manifest_value(DocComposer.json_friendly_type(param.value_type), ref_labels),
-      extensions: param.extensions
+        normalize_manifest_value(
+          DocComposer.json_friendly_type(Map.get(param, :value_type)),
+          ref_labels
+        ),
+      extensions: Map.get(param, :extensions, %{})
     }
   end
 

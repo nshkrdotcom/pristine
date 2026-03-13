@@ -1,7 +1,6 @@
 defmodule Pristine.OpenAPI.RendererTest do
   use ExUnit.Case, async: true
 
-  alias OpenAPI.Processor.Operation
   alias OpenAPI.Processor.Operation.Param
   alias OpenAPI.Processor.Schema
   alias OpenAPI.Renderer.File
@@ -93,7 +92,7 @@ defmodule Pristine.OpenAPI.RendererTest do
 
     state = %State{profile: profile}
 
-    operation = %Operation{
+    operation = %{
       function_name: :list_widgets,
       module_name: Widgets,
       request_body: [],
@@ -103,7 +102,7 @@ defmodule Pristine.OpenAPI.RendererTest do
       request_path: "/widgets",
       request_path_parameters: [],
       request_query_parameters: [
-        %Param{name: "cursor", description: "Pagination cursor", required: false}
+        %Param{name: "cursor", description: "Pagination cursor"}
       ],
       response_docs: [
         %{status: 200, description: "Widget list", content_types: ["application/json"]}
@@ -140,7 +139,7 @@ defmodule Pristine.OpenAPI.RendererTest do
 
     state = %State{profile: profile}
 
-    operation = %Operation{
+    operation = %{
       function_name: :list_widgets,
       module_name: Widgets,
       request_body: [],
@@ -181,8 +180,15 @@ defmodule Pristine.OpenAPI.RendererTest do
     assert NamedTypedMapFixture.generated_path?(fixture, "/user.ex")
     assert NamedTypedMapFixture.generated_path?(fixture, "/workspace.ex")
 
-    assert NamedTypedMapFixture.source!(fixture, "/user.ex") =~ "@type t :: %{"
+    user_source = NamedTypedMapFixture.source!(fixture, "/user.ex")
+    workspace_source = NamedTypedMapFixture.source!(fixture, "/workspace.ex")
 
-    assert NamedTypedMapFixture.source!(fixture, "/workspace.ex") =~ "@type t :: %{"
+    assert user_source =~ "@type t ::"
+    assert user_source =~ "def __openapi_fields__(:t)"
+    assert user_source =~ "def __schema__(:t)"
+
+    assert workspace_source =~ "@type t ::"
+    assert workspace_source =~ "def __openapi_fields__(:t)"
+    assert workspace_source =~ "def __schema__(:t)"
   end
 end

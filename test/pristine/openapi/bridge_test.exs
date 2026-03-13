@@ -424,8 +424,12 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert function_exported?(workspace_module, :__schema__, 1)
     assert oauth_source =~ "#{inspect(user_module)}.t()"
     assert oauth_source =~ "#{inspect(workspace_module)}.t()"
-    assert user_source =~ "@type t :: %{"
-    assert workspace_source =~ "@type t :: %{"
+    assert user_source =~ "@type t ::"
+    assert user_source =~ "def __openapi_fields__(:t)"
+    assert user_source =~ "def __schema__(:t)"
+    assert workspace_source =~ "@type t ::"
+    assert workspace_source =~ "def __openapi_fields__(:t)"
+    assert workspace_source =~ "def __schema__(:t)"
   end
 
   defp compile_generated_sources!(sources) do
