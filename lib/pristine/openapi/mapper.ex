@@ -17,9 +17,15 @@ defmodule Pristine.OpenAPI.Mapper do
   @spec to_ir(map(), keyword()) :: IR.t()
   def to_ir(generator_state, opts \\ []) when is_map(generator_state) and is_list(opts) do
     source_contexts = normalize_source_contexts(Keyword.get(opts, :source_contexts, %{}))
+    security_metadata = Keyword.get(opts, :security_metadata, %{})
 
     struct(IR,
-      operations: map_operations(Map.get(generator_state, :operations, []), source_contexts),
+      operations:
+        map_operations(
+          Map.get(generator_state, :operations, []),
+          source_contexts,
+          security_metadata
+        ),
       schemas: map_schemas(Map.get(generator_state, :schemas, %{})),
       security_schemes: map_security_schemes(generator_state),
       source_contexts: map_source_contexts(source_contexts)
@@ -48,18 +54,22 @@ defmodule Pristine.OpenAPI.Mapper do
 
   def normalize_source_contexts(_source_contexts), do: %{}
 
-  defp map_operations(operations, source_contexts) do
+  defp map_operations(operations, source_contexts, security_metadata) do
     operations
-    |> Enum.map(&map_operation(&1, source_contexts))
+    |> Enum.map(&map_operation(&1, source_contexts, security_metadata))
     |> Enum.sort_by(fn operation ->
       {inspect(operation.module_name), Atom.to_string(operation.function_name), operation.path}
     end)
   end
 
-  defp map_operation(operation, source_contexts) do
+  defp map_operation(operation, source_contexts, security_metadata) do
     method = Map.get(operation, :request_method)
     path = Map.get(operation, :request_path)
     source_context = Map.get(source_contexts, {method, path})
+
+    security =
+      Map.get(operation, :security) ||
+        fallback_security_for_operation(security_metadata, method, path)
 
     struct(Operation,
       module_name: Map.get(operation, :module_name),
@@ -71,7 +81,7 @@ defmodule Pristine.OpenAPI.Mapper do
       deprecated: Map.get(operation, :deprecated, false),
       external_docs: normalize_external_docs(Map.get(operation, :external_docs)),
       tags: Map.get(operation, :tags, []),
-      security: normalize_security_requirements(Map.get(operation, :security)),
+      security: normalize_security_requirements(security),
       request_body: normalize_request_body_docs(Map.get(operation, :request_body_docs)),
       query_params: Enum.map(Map.get(operation, :request_query_parameters, []), &map_param/1),
       path_params: Enum.map(Map.get(operation, :request_path_parameters, []), &map_param/1),
@@ -319,6 +329,15 @@ defmodule Pristine.OpenAPI.Mapper do
   defp normalize_security_requirements(nil), do: nil
   defp normalize_security_requirements(security) when is_list(security), do: Enum.uniq(security)
   defp normalize_security_requirements(security), do: security
+
+  defp fallback_security_for_operation(security_metadata, method, path)
+       when is_map(security_metadata) do
+    security_metadata
+    |> Map.get(:operations, %{})
+    |> Map.get({method, path})
+  end
+
+  defp fallback_security_for_operation(_security_metadata, _method, _path), do: nil
 
   defp normalize_method(method) when method in @http_methods, do: method
 

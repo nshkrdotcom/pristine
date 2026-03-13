@@ -4,13 +4,13 @@ defmodule Pristine.MixProject do
   @version "0.1.0"
   @source_url "https://github.com/nshkrdotcom/pristine"
 
-  defp local_or_github(app, path, github, opts \\ []) do
-    if File.dir?(path) do
-      {app, [path: path] ++ opts}
-    else
-      {app, [github: github] ++ opts}
-    end
-  end
+  # defp local_or_github(app, path, github, opts \\ []) do
+  #   if File.dir?(path) do
+  #     {app, [path: path] ++ opts}
+  #   else
+  #     {app, [github: github] ++ opts}
+  #   end
+  # end
 
   def project do
     [
@@ -49,37 +49,25 @@ defmodule Pristine.MixProject do
       {:nimble_options, "~> 1.1"},
       {:yaml_elixir, "~> 2.12"},
       {:oauth2, "~> 2.1", optional: true},
-      {:telemetry, "~> 1.2"},
-      {:finch, "~> 0.18"},
-      local_or_github(:sinter, "../sinter", "nshkrdotcom/sinter"),
-      local_or_github(:foundation, "../foundation", "nshkrdotcom/foundation"),
-      local_or_github(:multipart_ex, "../multipart_ex", "nshkrdotcom/multipart_ex"),
-      local_or_github(
-        :telemetry_reporter,
-        "../telemetry_reporter",
-        "nshkrdotcom/telemetry_reporter"
-      ),
-      local_or_github(
-        :tiktoken_ex,
-        "../../North-Shore-AI/tiktoken_ex",
-        "North-Shore-AI/tiktoken_ex"
-      ),
-      local_or_github(
-        :oapi_generator,
-        "../open-api-generator",
-        "aj-foster/open-api-generator",
-        optional: true,
-        runtime: false
-      ),
-      {:nx, "~> 0.9"},
+      {:telemetry, "~> 1.4"},
+      {:finch, "~> 0.21"},
+      {:sinter, "~> 0.2.0"},
+      {:foundation, "~> 0.2.1"},
+      {:multipart_ex, "~> 0.1.0"},
+      {:telemetry_reporter, "~> 0.1.0"},
+      {:tiktoken_ex, "~> 0.2.0"},
+
+      ### OpenAPI Generator
+      {:oapi_generator,
+       github: "nshkrdotcom/open-api-generator", only: [:dev, :test], runtime: false},
       {:uuid, "~> 1.1"},
-      {:mox, "~> 1.1", only: :test},
-      {:plug, "~> 1.15"},
-      {:plug_cowboy, "~> 2.7", only: [:dev, :test]},
-      {:bandit, "~> 1.0"},
+      {:mox, "~> 1.2", only: :test},
+      {:plug, "~> 1.19"},
+      {:plug_cowboy, "~> 2.8", only: [:dev, :test]},
+      {:bandit, "~> 1.10"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.40", only: :dev, runtime: false}
     ]
   end
 

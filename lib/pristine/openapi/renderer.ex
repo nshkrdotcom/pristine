@@ -321,7 +321,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     defp fallback_security_for_operation(state, method, path) do
       state
       |> config()
-      |> Keyword.get(:security_metadata, %{})
+      |> security_metadata()
       |> Map.get(:operations, %{})
       |> Map.get({method, path})
     end
@@ -420,12 +420,12 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
         end
 
       clauses =
-        Enum.map(schemas, fn %ProcessedSchema{fields: fields, type_name: type_name} ->
+        Enum.map(schemas, fn %ProcessedSchema{fields: fields, type_name: type_name} = schema ->
           openapi_fields =
             fields
             |> Enum.reject(& &1.private)
             |> Enum.sort_by(& &1.name)
-            |> Enum.map(&DocComposer.field(&1, Util.to_readable_type(state, &1.type)))
+            |> Enum.map(&render_openapi_field(state, schema, &1))
 
           quote do
             def __openapi_fields__(unquote(type_name)) do
@@ -435,6 +435,160 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
         end)
 
       Util.clean_list([typespec, header, clauses])
+    end
+
+    defp render_openapi_field(state, schema, field) do
+      metadata =
+        case resolve_raw_field_spec(state, schema, field.name) do
+          nil -> %{}
+          raw_field -> raw_field_metadata(raw_field)
+        end
+
+      rendered_type = Util.to_readable_type(state, field.type)
+
+      field =
+        %{
+          default: first_non_nil(Map.get(field, :default), Map.get(metadata, :default)),
+          description:
+            first_non_nil(Map.get(field, :description), Map.get(metadata, :description)),
+          deprecated: Map.get(field, :deprecated, false) or Map.get(metadata, :deprecated, false),
+          example: first_non_nil(Map.get(field, :example), Map.get(metadata, :example)),
+          examples: first_non_nil(Map.get(field, :examples), Map.get(metadata, :examples)),
+          external_docs:
+            first_non_nil(Map.get(field, :external_docs), Map.get(metadata, :external_docs)),
+          extensions:
+            Map.merge(Map.get(metadata, :extensions, %{}), Map.get(field, :extensions, %{})),
+          name: field.name,
+          nullable: Map.get(field, :nullable, false),
+          read_only: Map.get(field, :read_only, false) or Map.get(metadata, :read_only, false),
+          required: Map.get(field, :required, false),
+          write_only: Map.get(field, :write_only, false) or Map.get(metadata, :write_only, false)
+        }
+
+      DocComposer.field(field, rendered_type)
+    end
+
+    defp resolve_raw_field_spec(state, schema, field_name) do
+      with raw_schema when not is_nil(raw_schema) <- resolve_raw_schema_spec(state, schema),
+           properties when is_map(properties) <- Map.get(raw_schema, :properties) do
+        properties
+        |> Map.get(field_name)
+        |> resolve_schema_spec(state)
+      end
+    end
+
+    defp resolve_raw_schema_spec(state, %ProcessedSchema{context: contexts}) do
+      Enum.find_value(contexts, &resolve_raw_schema_context(state, &1))
+    end
+
+    defp resolve_raw_schema_context(
+           state,
+           {:response, module_name, function_name, status, content_type}
+         ) do
+      with operation when not is_nil(operation) <-
+             resolve_processed_operation(state, module_name, function_name),
+           raw_operation when not is_nil(raw_operation) <-
+             resolve_raw_operation_spec(state, operation),
+           response when not is_nil(response) <-
+             Map.get(Map.get(raw_operation, :responses, %{}), status),
+           media when not is_nil(media) <- Map.get(Map.get(response, :content, %{}), content_type) do
+        resolve_schema_spec(Map.get(media, :schema), state)
+      end
+    end
+
+    defp resolve_raw_schema_context(state, {:request, module_name, function_name, content_type}) do
+      with operation when not is_nil(operation) <-
+             resolve_processed_operation(state, module_name, function_name),
+           raw_operation when not is_nil(raw_operation) <-
+             resolve_raw_operation_spec(state, operation),
+           request_body when not is_nil(request_body) <- Map.get(raw_operation, :request_body),
+           media when not is_nil(media) <-
+             Map.get(Map.get(request_body, :content, %{}), content_type) do
+        resolve_schema_spec(Map.get(media, :schema), state)
+      end
+    end
+
+    defp resolve_raw_schema_context(state, {:field, parent_ref, field_name}) do
+      with parent when not is_nil(parent) <- Map.get(state.schemas, parent_ref),
+           raw_parent when not is_nil(raw_parent) <- resolve_raw_schema_spec(state, parent),
+           properties when is_map(properties) <- Map.get(raw_parent, :properties) do
+        properties
+        |> Map.get(field_name)
+        |> resolve_schema_spec(state)
+      end
+    end
+
+    defp resolve_raw_schema_context(_state, _context), do: nil
+
+    defp resolve_processed_operation(state, module_name, function_name) do
+      Enum.find(state.operations, fn operation ->
+        operation.module_name == module_name and operation.function_name == function_name
+      end)
+    end
+
+    defp resolve_raw_operation_spec(state, operation) do
+      with spec when not is_nil(spec) <- config(state)[:spec_metadata_source],
+           path_item when not is_nil(path_item) <-
+             Map.get(Map.get(spec, :paths, %{}), operation.request_path) do
+        Map.get(path_item, operation.request_method)
+      end
+    end
+
+    defp resolve_schema_spec(nil, _state), do: nil
+
+    defp resolve_schema_spec({:ref, full_path}, state) do
+      state
+      |> config()
+      |> Keyword.get(:schema_specs_by_path, %{})
+      |> Map.get(full_path)
+      |> resolve_schema_spec(state)
+    end
+
+    defp resolve_schema_spec(schema, _state), do: schema
+
+    defp raw_field_metadata(raw_field) do
+      %{
+        default: Map.get(raw_field, :default),
+        description: Map.get(raw_field, :description),
+        deprecated: Map.get(raw_field, :deprecated, false),
+        example: Map.get(raw_field, :example),
+        examples: Map.get(raw_field, :examples),
+        external_docs: Map.get(raw_field, :external_docs),
+        extensions: raw_schema_extensions(raw_field),
+        read_only: Map.get(raw_field, :read_only, false),
+        write_only: Map.get(raw_field, :write_only, false)
+      }
+    end
+
+    defp raw_schema_extensions(raw_field) do
+      with file when is_binary(file) <- Map.get(raw_field, :"$oag_last_ref_file"),
+           path when is_list(path) <- Map.get(raw_field, :"$oag_last_ref_path"),
+           source when is_map(source) <- read_openapi_source(file),
+           raw_value when is_map(raw_value) <- get_in(source, path) do
+        raw_value
+        |> Enum.filter(fn {key, _value} -> String.starts_with?(to_string(key), "x-") end)
+        |> Map.new(fn {key, value} -> {to_string(key), value} end)
+      else
+        _other -> %{}
+      end
+    end
+
+    defp read_openapi_source(path) do
+      case Path.extname(path) do
+        ext when ext in [".yaml", ".yml"] ->
+          YamlElixir.read_from_file!(path)
+
+        ".json" ->
+          path |> Elixir.File.read!() |> Jason.decode!()
+
+        _other ->
+          contents = Elixir.File.read!(path)
+
+          case Jason.decode(contents) do
+            {:ok, decoded} -> decoded
+            {:error, _reason} -> YamlElixir.read_from_file!(path)
+          end
+      end
     end
 
     defp render_schema_function(schemas, default_type) do
@@ -478,12 +632,92 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
       |> Enum.group_by(&{&1.module_name, &1.type_name})
       |> Enum.map(fn {_module_and_type, grouped} ->
         grouped
-        |> Enum.sort_by(&ProcessedSchema.stable_sort_key(&1, state.schemas))
+        |> Enum.sort_by(&schema_group_sort_key(&1, state.schemas))
         |> Enum.reduce(&ProcessedSchema.merge/2)
       end)
       |> List.flatten()
       |> Enum.sort_by(& &1.type_name)
     end
+
+    defp schema_group_sort_key(%ProcessedSchema{} = schema, schemas_by_ref) do
+      [
+        module_name: module_name_string(schema.module_name),
+        type_name: atom_to_string(schema.type_name),
+        output_format: atom_to_string(schema.output_format),
+        context:
+          schema.context
+          |> Enum.map(&normalize_schema_term(&1, schemas_by_ref))
+          |> Enum.sort(),
+        fields:
+          schema.fields
+          |> Enum.map(&normalize_schema_field(&1, schemas_by_ref))
+          |> Enum.sort()
+      ]
+    end
+
+    defp normalize_schema_field(field, schemas_by_ref) do
+      [
+        name: field.name,
+        default: normalize_schema_term(field.default, schemas_by_ref),
+        type: normalize_schema_term(field.type, schemas_by_ref),
+        required: field.required,
+        nullable: field.nullable,
+        private: field.private
+      ]
+    end
+
+    defp normalize_schema_term(reference, schemas_by_ref) when is_reference(reference) do
+      case Map.get(schemas_by_ref, reference) do
+        %ProcessedSchema{} = schema ->
+          {:schema_ref, shallow_schema_identity(schema)}
+
+        nil ->
+          {:schema_ref, "missing"}
+      end
+    end
+
+    defp normalize_schema_term(%_{} = struct, schemas_by_ref) do
+      struct
+      |> Map.from_struct()
+      |> normalize_schema_term(schemas_by_ref)
+    end
+
+    defp normalize_schema_term(map, schemas_by_ref) when is_map(map) do
+      map
+      |> Enum.map(fn {key, value} ->
+        {normalize_schema_term(key, schemas_by_ref), normalize_schema_term(value, schemas_by_ref)}
+      end)
+      |> Enum.sort()
+    end
+
+    defp normalize_schema_term(tuple, schemas_by_ref) when is_tuple(tuple) do
+      tuple
+      |> Tuple.to_list()
+      |> Enum.map(&normalize_schema_term(&1, schemas_by_ref))
+      |> List.to_tuple()
+    end
+
+    defp normalize_schema_term(list, schemas_by_ref) when is_list(list) do
+      Enum.map(list, &normalize_schema_term(&1, schemas_by_ref))
+    end
+
+    defp normalize_schema_term(atom, _schemas_by_ref) when is_atom(atom), do: Atom.to_string(atom)
+    defp normalize_schema_term(value, _schemas_by_ref), do: value
+
+    defp shallow_schema_identity(%ProcessedSchema{} = schema) do
+      [
+        module_name: module_name_string(schema.module_name),
+        type_name: atom_to_string(schema.type_name),
+        output_format: atom_to_string(schema.output_format),
+        field_names: schema.fields |> Enum.map(& &1.name) |> Enum.sort()
+      ]
+    end
+
+    defp module_name_string(nil), do: nil
+    defp module_name_string(module_name) when is_atom(module_name), do: inspect(module_name)
+
+    defp atom_to_string(nil), do: nil
+    defp atom_to_string(atom) when is_atom(atom), do: Atom.to_string(atom)
 
     @doc false
     def rewrite_nested_module_aliases(nil), do: nil
@@ -666,6 +900,15 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
       Application.get_env(:oapi_generator, profile, [])
       |> Keyword.get(:output, [])
     end
+
+    defp security_metadata(output_config) do
+      Keyword.get(output_config, :security_metadata) ||
+        Keyword.get(output_config, :security_fallback_metadata) ||
+        %{}
+    end
+
+    defp first_non_nil(nil, fallback), do: fallback
+    defp first_non_nil(value, _fallback), do: value
 
     defp source_contexts(state) do
       config(state)[:source_contexts] || %{}
