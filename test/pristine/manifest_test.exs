@@ -188,13 +188,13 @@ defmodule Pristine.ManifestTest do
           type: "http",
           scheme: "bearer"
         },
-        notionOauth: %{
+        exampleOauth: %{
           type: "oauth2",
           flows: %{
             authorizationCode: %{
-              authorizationUrl: "https://api.notion.com/v1/oauth/authorize",
-              tokenUrl: "https://api.notion.com/v1/oauth/token",
-              scopes: %{"workspace.read" => "Read workspace"}
+              authorizationUrl: "https://api.example.com/oauth/authorize",
+              tokenUrl: "https://api.example.com/oauth/token",
+              scopes: %{"projects.read" => "Read project data"}
             }
           }
         }
@@ -212,9 +212,9 @@ defmodule Pristine.ManifestTest do
         %{
           id: "oauth_token",
           method: "POST",
-          path: "/v1/oauth/token",
+          path: "/oauth/token",
           auth: "basicAuth",
-          security: [%{notionOauth: ["workspace.read"]}]
+          security: [%{exampleOauth: ["projects.read"]}]
         }
       ],
       types: %{}
@@ -226,12 +226,12 @@ defmodule Pristine.ManifestTest do
     assert manifest.security == [%{"bearerAuth" => []}]
     assert manifest.security_schemes["bearerAuth"]["scheme"] == "bearer"
 
-    assert manifest.security_schemes["notionOauth"]["flows"]["authorizationCode"]["tokenUrl"] ==
-             "https://api.notion.com/v1/oauth/token"
+    assert manifest.security_schemes["exampleOauth"]["flows"]["authorizationCode"]["tokenUrl"] ==
+             "https://api.example.com/oauth/token"
 
     assert manifest.endpoints["list_users"].security == [%{"bearerAuth" => []}]
     assert manifest.endpoints["oauth_token"].auth == "basicAuth"
-    assert manifest.endpoints["oauth_token"].security == [%{"notionOauth" => ["workspace.read"]}]
+    assert manifest.endpoints["oauth_token"].security == [%{"exampleOauth" => ["projects.read"]}]
   end
 
   test "preserves alias array item definitions" do

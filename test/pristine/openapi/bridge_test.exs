@@ -7,11 +7,11 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
   @reference_root Path.expand("../../fixtures/openapi/bridge/reference", __DIR__)
   @proof_pages [
-    "get-self.md",
-    "get-users.md",
-    "create-a-token.md",
-    "create-a-file-upload.md",
-    "send-a-file-upload.md"
+    "get-account-profile.md",
+    "list-projects.md",
+    "create-session-token.md",
+    "create-upload.md",
+    "send-upload-part.md"
   ]
 
   test "processes committed markdown OpenAPI snippets through the pristine bridge profile" do
@@ -39,26 +39,31 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert %Result{} = state
     assert Bridge.generator_state(state).operations == state.operations
     assert state.source_contexts == %{}
-    assert Enum.any?(state.docs_manifest["operations"], &(&1["path"] == "/v1/users/me"))
-    assert Enum.any?(state.docs_manifest["modules"], &String.ends_with?(&1["module"], ".Users"))
+    assert Enum.any?(state.docs_manifest["operations"], &(&1["path"] == "/v1/accounts/me"))
+
+    assert Enum.any?(
+             state.docs_manifest["modules"],
+             &String.ends_with?(&1["module"], ".Accounts")
+           )
 
     assert Enum.sort(Enum.map(state.operations, & &1.function_name)) == [
-             :create_a_token,
-             :create_file,
-             :get_self,
-             :get_users,
-             :upload_file
+             :create_session_token,
+             :create_upload,
+             :get_account_profile,
+             :list_projects,
+             :upload_part
            ]
 
     sources = Bridge.generated_sources(state)
 
-    assert Enum.any?(Map.keys(sources), &String.ends_with?(&1, "/users.ex"))
-    assert Enum.any?(Map.keys(sources), &String.ends_with?(&1, "/file_uploads.ex"))
-    assert Enum.any?(Map.keys(sources), &String.ends_with?(&1, "/o_auth.ex"))
+    assert Enum.any?(Map.keys(sources), &String.ends_with?(&1, "/accounts.ex"))
+    assert Enum.any?(Map.keys(sources), &String.ends_with?(&1, "/projects.ex"))
+    assert Enum.any?(Map.keys(sources), &String.ends_with?(&1, "/uploads.ex"))
+    assert Enum.any?(Map.keys(sources), &String.ends_with?(&1, "/session_tokens.ex"))
 
     assert Enum.any?(
              Map.keys(sources),
-             &String.ends_with?(&1, "/partial_user_object_response.ex")
+             &String.ends_with?(&1, "/account_profile_response.ex")
            )
 
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "Pristine.OpenAPI.Client"))
@@ -90,55 +95,59 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     compile_generated_sources!(sources)
 
-    users_module = Module.concat([base_module, Users])
-    oauth_module = Module.concat([base_module, OAuth])
-    file_uploads_module = Module.concat([base_module, FileUploads])
-    partial_user_module = Module.concat([base_module, PartialUserObjectResponse])
+    accounts_module = Module.concat([base_module, Accounts])
+    projects_module = Module.concat([base_module, Projects])
+    session_tokens_module = Module.concat([base_module, SessionTokens])
+    uploads_module = Module.concat([base_module, Uploads])
+    account_profile_module = Module.concat([base_module, AccountProfileResponse])
 
-    assert function_exported?(users_module, :get_self, 1)
-    assert function_exported?(users_module, :get_self, 2)
-    assert function_exported?(users_module, :get_users, 1)
-    assert function_exported?(users_module, :get_users, 2)
-    assert function_exported?(oauth_module, :create_a_token, 1)
-    assert function_exported?(oauth_module, :create_a_token, 2)
-    assert function_exported?(file_uploads_module, :upload_file, 1)
-    assert function_exported?(file_uploads_module, :upload_file, 2)
-    assert function_exported?(partial_user_module, :__schema__, 1)
-    assert function_exported?(partial_user_module, :decode, 1)
-    assert %Sinter.Schema{} = partial_user_module.__schema__(:t)
+    assert function_exported?(accounts_module, :get_account_profile, 1)
+    assert function_exported?(accounts_module, :get_account_profile, 2)
+    assert function_exported?(projects_module, :list_projects, 1)
+    assert function_exported?(projects_module, :list_projects, 2)
+    assert function_exported?(session_tokens_module, :create_session_token, 1)
+    assert function_exported?(session_tokens_module, :create_session_token, 2)
+    assert function_exported?(uploads_module, :create_upload, 1)
+    assert function_exported?(uploads_module, :create_upload, 2)
+    assert function_exported?(uploads_module, :upload_part, 1)
+    assert function_exported?(uploads_module, :upload_part, 2)
+    assert function_exported?(account_profile_module, :__schema__, 1)
+    assert function_exported?(account_profile_module, :decode, 1)
+    assert %Sinter.Schema{} = account_profile_module.__schema__(:t)
 
-    assert {:ok, decoded_partial_user} =
-             partial_user_module.decode(%{
+    assert {:ok, decoded_account_profile} =
+             account_profile_module.decode(%{
                "id" => "01234567-89ab-cdef-0123-456789abcdef",
-               "object" => "user"
+               "kind" => "account"
              })
 
-    assert decoded_partial_user.__struct__ == partial_user_module
+    assert decoded_account_profile.__struct__ == account_profile_module
 
-    assert {:ok, get_self_request} = users_module.get_self(%{auth: "secret-token"}, [])
+    assert {:ok, profile_request} =
+             accounts_module.get_account_profile(%{auth: "secret-token"}, [])
 
-    assert get_self_request.method == :get
-    assert get_self_request.url == "/v1/users/me"
-    assert get_self_request.args == %{auth: "secret-token"}
-    assert get_self_request.path_params == %{}
-    assert get_self_request.query == %{}
-    assert get_self_request.body == %{}
-    assert get_self_request.form_data == %{}
-    assert get_self_request.auth == "secret-token"
-    assert get_self_request.security == [%{"bearerAuth" => []}]
+    assert profile_request.method == :get
+    assert profile_request.url == "/v1/accounts/me"
+    assert profile_request.args == %{auth: "secret-token"}
+    assert profile_request.path_params == %{}
+    assert profile_request.query == %{}
+    assert profile_request.body == %{}
+    assert profile_request.form_data == %{}
+    assert profile_request.auth == "secret-token"
+    assert profile_request.security == [%{"bearerAuth" => []}]
 
-    assert {:ok, list_users_request} =
-             users_module.get_users(%{start_cursor: "cursor-1", page_size: 50}, [])
+    assert {:ok, list_projects_request} =
+             projects_module.list_projects(%{cursor: "cursor-1", page_size: 50}, [])
 
-    assert list_users_request.method == :get
-    assert list_users_request.url == "/v1/users"
-    assert list_users_request.path_params == %{}
-    assert list_users_request.query == %{"page_size" => 50, "start_cursor" => "cursor-1"}
-    assert list_users_request.body == %{}
-    assert list_users_request.form_data == %{}
+    assert list_projects_request.method == :get
+    assert list_projects_request.url == "/v1/projects"
+    assert list_projects_request.path_params == %{}
+    assert list_projects_request.query == %{"cursor" => "cursor-1", "page_size" => 50}
+    assert list_projects_request.body == %{}
+    assert list_projects_request.form_data == %{}
 
     assert {:ok, token_request} =
-             oauth_module.create_a_token(
+             session_tokens_module.create_session_token(
                %{
                  grant_type: "refresh_token",
                  refresh_token: "refresh-token",
@@ -148,7 +157,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
              )
 
     assert token_request.method == :post
-    assert token_request.url == "/v1/oauth/token"
+    assert token_request.url == "/v1/session_tokens"
     assert token_request.path_params == %{}
     assert token_request.query == %{}
 
@@ -163,9 +172,9 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert token_request.security == [%{"basicAuth" => []}]
 
     assert {:ok, upload_request} =
-             file_uploads_module.upload_file(
+             uploads_module.upload_part(
                %{
-                 file_upload_id: "file-upload-id",
+                 upload_id: "upload-id",
                  file: %{filename: "report.pdf", data: "bytes"},
                  part_number: "1",
                  auth: "secret-token"
@@ -174,8 +183,8 @@ defmodule Pristine.OpenAPI.BridgeTest do
              )
 
     assert upload_request.method == :post
-    assert upload_request.url == "/v1/file_uploads/file-upload-id/send"
-    assert upload_request.path_params == %{"file_upload_id" => "file-upload-id"}
+    assert upload_request.url == "/v1/uploads/upload-id/parts"
+    assert upload_request.path_params == %{"upload_id" => "upload-id"}
     assert upload_request.query == %{}
     assert upload_request.body == %{}
 
@@ -201,7 +210,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     end)
 
     primary_spec =
-      extract_openapi_fixture!(reference_fixture!("get-self.md"), tmp_dir)
+      extract_openapi_fixture!(reference_fixture!("get-account-profile.md"), tmp_dir)
 
     supplemental_spec = write_supplemental_spec!(tmp_dir)
 
@@ -213,17 +222,17 @@ defmodule Pristine.OpenAPI.BridgeTest do
       )
 
     assert Enum.sort(Enum.map(state.operations, & &1.function_name)) == [
-             :get_self,
-             :get_self_alias
+             :get_account_profile,
+             :get_account_profile_alias
            ]
 
     sources = Bridge.generated_sources(state)
     compile_generated_sources!(sources)
 
-    users_module = Module.concat([base_module, Users])
+    accounts_module = Module.concat([base_module, Accounts])
 
-    assert {:ok, alias_request} = users_module.get_self_alias(%{}, [])
-    assert alias_request.url == "/v1/users/me/alias"
+    assert {:ok, alias_request} = accounts_module.get_account_profile_alias(%{}, [])
+    assert alias_request.url == "/v1/accounts/me/alias"
     assert alias_request.method == :get
   end
 
@@ -239,7 +248,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     end)
 
     primary_spec =
-      extract_openapi_fixture!(reference_fixture!("get-self.md"), tmp_dir)
+      extract_openapi_fixture!(reference_fixture!("get-account-profile.md"), tmp_dir)
 
     supplemental_spec = write_supplemental_spec!(tmp_dir, include_components?: false)
 
@@ -264,37 +273,37 @@ defmodule Pristine.OpenAPI.BridgeTest do
     end)
 
     spec_file =
-      extract_openapi_fixture!(reference_fixture!("get-self.md"), tmp_dir)
+      extract_openapi_fixture!(reference_fixture!("get-account-profile.md"), tmp_dir)
 
     state =
       Bridge.run(profile, [spec_file],
         base_module: base_module,
         output_dir: output_dir,
         source_contexts: %{
-          {:get, "/v1/users/me"} => %{
-            title: "Get Self reference",
-            description: "Reference page for retrieving the current user.",
-            url: "https://docs.example.com/get-self"
+          {:get, "/v1/accounts/me"} => %{
+            title: "Get account profile reference",
+            description: "Reference page for retrieving the current account profile.",
+            url: "https://docs.example.com/get-account-profile"
           }
         }
       )
 
-    assert %Pristine.OpenAPI.IR.SourceContext{title: "Get Self reference"} =
-             state.source_contexts[{:get, "/v1/users/me"}]
+    assert %Pristine.OpenAPI.IR.SourceContext{title: "Get account profile reference"} =
+             state.source_contexts[{:get, "/v1/accounts/me"}]
 
     [operation_entry] =
-      Enum.filter(state.docs_manifest["operations"], &(&1["path"] == "/v1/users/me"))
+      Enum.filter(state.docs_manifest["operations"], &(&1["path"] == "/v1/accounts/me"))
 
     assert operation_entry["doc"] =~ "## Source Context"
-    assert operation_entry["doc"] =~ "Get Self reference"
+    assert operation_entry["doc"] =~ "Get account profile reference"
 
-    users_source =
+    accounts_source =
       Enum.find_value(Bridge.generated_sources(state), fn {path, source} ->
-        if String.ends_with?(path, "/users.ex"), do: source
+        if String.ends_with?(path, "/accounts.ex"), do: source
       end)
 
-    assert users_source =~ "## Operations"
-    assert users_source =~ "Get Self reference"
+    assert accounts_source =~ "## Operations"
+    assert accounts_source =~ "Get account profile reference"
   end
 
   test "uses preserved security metadata on the normal path and exposes richer openapi fields" do
@@ -544,19 +553,19 @@ defmodule Pristine.OpenAPI.BridgeTest do
         components_block,
         """
         paths:
-          /v1/users/me/alias:
+          /v1/accounts/me/alias:
             get:
               tags:
-                - Users
-              summary: Retrieve your token's bot user alias
-              operationId: get-self-alias
+                - Accounts
+              summary: Retrieve the current account alias
+              operationId: get-account-profile-alias
               responses:
                 '200':
                   description: ''
                   content:
                     application/json:
                       schema:
-                        $ref: './get-self.yaml#/components/schemas/partialUserObjectResponse'
+                        $ref: './get-account-profile.yaml#/components/schemas/accountProfileResponse'
         """
       ]
     )

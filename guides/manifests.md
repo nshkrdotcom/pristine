@@ -130,14 +130,14 @@ Pristine now supports both the legacy `auth` fields and native OpenAPI-style sec
       "type": "http",
       "scheme": "bearer"
     },
-    "notionOauth": {
+    "exampleOauth": {
       "type": "oauth2",
       "flows": {
         "authorizationCode": {
-          "authorizationUrl": "https://api.notion.com/v1/oauth/authorize",
-          "tokenUrl": "https://api.notion.com/v1/oauth/token",
+          "authorizationUrl": "https://api.example.com/oauth/authorize",
+          "tokenUrl": "https://api.example.com/oauth/token",
           "scopes": {
-            "workspace.read": "Read workspace metadata"
+            "projects.read": "Read project data"
           }
         }
       },
@@ -152,9 +152,9 @@ Pristine now supports both the legacy `auth` fields and native OpenAPI-style sec
     {
       "id": "oauth_token",
       "method": "POST",
-      "path": "/v1/oauth/token",
+      "path": "/oauth/token",
       "security": [
-        {"notionOauth": ["workspace.read"]}
+        {"exampleOauth": ["projects.read"]}
       ]
     }
   ]
@@ -182,7 +182,7 @@ OAuth2-specific vendor extensions supported inside `security_schemes.<name>`:
 You can turn a manifest scheme into a runtime provider directly:
 
 ```elixir
-provider = Pristine.OAuth2.Provider.from_manifest!(manifest, :notionOauth)
+provider = Pristine.OAuth2.Provider.from_manifest!(manifest, :exampleOauth)
 ```
 
 #### Resilience

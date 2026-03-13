@@ -4,8 +4,8 @@ defmodule Pristine.OpenAPI.SecurityTest do
   alias Pristine.OpenAPI.Security
 
   @reference_files [
-    Path.expand("../../fixtures/openapi/security/get-self.yaml", __DIR__),
-    Path.expand("../../fixtures/openapi/security/introspect-token.yaml", __DIR__)
+    Path.expand("../../fixtures/openapi/security/get-account-profile.yaml", __DIR__),
+    Path.expand("../../fixtures/openapi/security/create-session-token.yaml", __DIR__)
   ]
 
   test "extracts security schemes and effective operation security for explicit fallback use" do
@@ -15,7 +15,7 @@ defmodule Pristine.OpenAPI.SecurityTest do
     assert metadata.security_schemes["bearerAuth"] == %{"scheme" => "bearer", "type" => "http"}
     assert metadata.security_schemes["basicAuth"] == %{"scheme" => "basic", "type" => "http"}
 
-    assert metadata.operations[{:get, "/v1/users/me"}] == [%{"bearerAuth" => []}]
-    assert metadata.operations[{:post, "/v1/oauth/introspect"}] == [%{"basicAuth" => []}]
+    assert metadata.operations[{:get, "/v1/accounts/me"}] == [%{"bearerAuth" => []}]
+    assert metadata.operations[{:post, "/v1/session_tokens"}] == [%{"basicAuth" => []}]
   end
 end

@@ -1,9 +1,9 @@
-# Get Users
+# List Projects
 
 ````yaml
 openapi: 3.1.0
 info:
-  title: Bridge fixture get users
+  title: Bridge fixture list projects
   version: 1.0.0
 security:
   - bearerAuth: []
@@ -13,15 +13,15 @@ components:
       type: http
       scheme: bearer
 paths:
-  /v1/users:
+  /v1/projects:
     get:
       tags:
-        - Users
-      summary: List users
-      operationId: get-users
+        - Projects
+      summary: List projects
+      operationId: list-projects
       parameters:
         - in: query
-          name: start_cursor
+          name: cursor
           required: false
           schema:
             type: string
@@ -32,7 +32,7 @@ paths:
             type: integer
       responses:
         '200':
-          description: User list
+          description: Project list
           content:
             application/json:
               schema:

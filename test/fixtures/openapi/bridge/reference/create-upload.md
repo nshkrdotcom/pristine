@@ -1,46 +1,41 @@
-# Create A Token
+# Create Upload
 
 ````yaml
 openapi: 3.1.0
 info:
-  title: Bridge fixture create a token
+  title: Bridge fixture create upload
   version: 1.0.0
+security:
+  - bearerAuth: []
 components:
   securitySchemes:
-    basicAuth:
+    bearerAuth:
       type: http
-      scheme: basic
+      scheme: bearer
 paths:
-  /v1/oauth/token:
+  /v1/uploads:
     post:
       tags:
-        - OAuth
-      summary: Create a token
-      operationId: create-a-token
-      security:
-        - basicAuth: []
+        - Uploads
+      summary: Create an upload
+      operationId: create-upload
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - grant_type
-                - refresh_token
               properties:
-                grant_type:
-                  type: string
-                refresh_token:
+                filename:
                   type: string
       responses:
         '200':
-          description: Token response
+          description: Upload created
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  access_token:
+                  id:
                     type: string
 ````

@@ -1,9 +1,9 @@
-# Send A File Upload
+# Send Upload Part
 
 ````yaml
 openapi: 3.1.0
 info:
-  title: Bridge fixture send a file upload
+  title: Bridge fixture send upload part
   version: 1.0.0
 security:
   - bearerAuth: []
@@ -13,15 +13,15 @@ components:
       type: http
       scheme: bearer
 paths:
-  /v1/file_uploads/{file_upload_id}/send:
+  /v1/uploads/{upload_id}/parts:
     post:
       tags:
-        - FileUploads
+        - Uploads
       summary: Upload a file part
-      operationId: upload-file
+      operationId: upload-part
       parameters:
         - in: path
-          name: file_upload_id
+          name: upload_id
           required: true
           schema:
             type: string
@@ -42,5 +42,5 @@ paths:
                   type: string
       responses:
         '200':
-          description: File upload received
+          description: Upload part received
 ````

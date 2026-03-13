@@ -315,7 +315,7 @@ does not invent expiry policy for providers that omit `expires_at`.
 If your manifest already defines an OAuth2 security scheme, build the provider from that metadata instead of duplicating it in code:
 
 ```elixir
-provider = Pristine.OAuth2.Provider.from_manifest!(manifest, :notionOauth)
+provider = Pristine.OAuth2.Provider.from_manifest!(manifest, :exampleOauth)
 ```
 
 Supported scheme extensions include:

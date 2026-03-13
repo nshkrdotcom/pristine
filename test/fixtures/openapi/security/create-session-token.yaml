@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Security fixture introspect token
+  title: Security fixture create session token
   version: 1.0.0
 components:
   securitySchemes:
@@ -8,11 +8,11 @@ components:
       type: http
       scheme: basic
 paths:
-  /v1/oauth/introspect:
+  /v1/session_tokens:
     post:
-      operationId: introspect-token
+      operationId: create-session-token
       security:
         - basicAuth: []
       responses:
         '200':
-          description: Token details
+          description: Session token created
