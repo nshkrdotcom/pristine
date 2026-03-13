@@ -145,4 +145,18 @@ defmodule Pristine.Architecture.SafetyTest do
     assert request.metadata.pool_type == pool_type
     assert request.metadata.pool_name == :shared_pool
   end
+
+  test "request planning omits pool_name metadata when no pool is resolved" do
+    endpoint = %Endpoint{id: "fetch", method: "GET", path: "/items", resource: nil}
+
+    context = %Context{
+      base_url: "https://example.com",
+      headers: %{}
+    }
+
+    request = Pipeline.build_request(endpoint, nil, nil, context, [])
+
+    assert request.metadata.pool_type == :default
+    refute Map.has_key?(request.metadata, :pool_name)
+  end
 end

@@ -1,0 +1,18 @@
+openapi: 3.1.0
+info:
+  title: Security fixture get self
+  version: 1.0.0
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+paths:
+  /v1/users/me:
+    get:
+      operationId: get-self
+      responses:
+        '200':
+          description: Current user

@@ -611,22 +611,25 @@ defmodule Pristine.Core.Pipeline do
         query_opts
       )
 
-    %Request{
-      method: endpoint.method,
-      url: url,
-      headers: headers,
-      body: body,
-      endpoint_id: endpoint.id,
-      metadata: %{
+    metadata =
+      %{
         endpoint: endpoint,
         pool_type: pool_type,
-        pool_name: pool_name,
         method: endpoint.method,
         path: path,
         base_url: context.base_url,
         url: url,
         timeout: timeout
       }
+      |> maybe_put_metadata(:pool_name, pool_name)
+
+    %Request{
+      method: endpoint.method,
+      url: url,
+      headers: headers,
+      body: body,
+      endpoint_id: endpoint.id,
+      metadata: metadata
     }
   end
 

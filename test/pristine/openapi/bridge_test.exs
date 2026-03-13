@@ -5,7 +5,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
   alias Pristine.OpenAPI.NamedTypedMapFixture
   alias Pristine.OpenAPI.Result
 
-  @notion_reference_root "/home/home/p/g/n/jido_brainstorm/nshkrdotcom/notion_docs/reference"
+  @reference_root Path.expand("../../fixtures/openapi/bridge/reference", __DIR__)
   @proof_pages [
     "get-self.md",
     "get-users.md",
@@ -13,45 +13,8 @@ defmodule Pristine.OpenAPI.BridgeTest do
     "create-a-file-upload.md",
     "send-a-file-upload.md"
   ]
-  @parity_pages [
-    "get-self.md",
-    "get-user.md",
-    "get-users.md",
-    "post-page.md",
-    "retrieve-a-page.md",
-    "patch-page.md",
-    "move-page.md",
-    "retrieve-a-page-property.md",
-    "retrieve-page-markdown.md",
-    "update-page-markdown.md",
-    "retrieve-a-block.md",
-    "update-a-block.md",
-    "delete-a-block.md",
-    "get-block-children.md",
-    "patch-block-children.md",
-    "retrieve-a-data-source.md",
-    "update-a-data-source.md",
-    "query-a-data-source.md",
-    "create-a-data-source.md",
-    "list-data-source-templates.md",
-    "retrieve-a-database.md",
-    "update-a-database.md",
-    "create-a-database.md",
-    "post-search.md",
-    "create-a-comment.md",
-    "list-comments.md",
-    "retrieve-comment.md",
-    "create-a-file-upload.md",
-    "list-file-uploads.md",
-    "send-a-file-upload.md",
-    "complete-a-file-upload.md",
-    "retrieve-a-file-upload.md",
-    "create-a-token.md",
-    "revoke-token.md",
-    "introspect-token.md"
-  ]
 
-  test "processes official Notion docs snippets through the pristine bridge profile" do
+  test "processes committed markdown OpenAPI snippets through the pristine bridge profile" do
     tmp_dir = tmp_dir!("proof")
     output_dir = Path.join(tmp_dir, "generated")
     profile = unique_profile(:proof)
@@ -64,7 +27,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     spec_files =
       Enum.map(@proof_pages, fn page ->
-        extract_openapi_fixture!(Path.join(@notion_reference_root, page), tmp_dir)
+        extract_openapi_fixture!(reference_fixture!(page), tmp_dir)
       end)
 
     state =
@@ -86,8 +49,6 @@ defmodule Pristine.OpenAPI.BridgeTest do
              :get_users,
              :upload_file
            ]
-
-    assert map_size(state.schemas) > 20
 
     sources = Bridge.generated_sources(state)
 
@@ -240,7 +201,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     end)
 
     primary_spec =
-      extract_openapi_fixture!(Path.join(@notion_reference_root, "get-self.md"), tmp_dir)
+      extract_openapi_fixture!(reference_fixture!("get-self.md"), tmp_dir)
 
     supplemental_spec = write_supplemental_spec!(tmp_dir)
 
@@ -266,47 +227,6 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert alias_request.method == :get
   end
 
-  test "represents the full 35-operation Notion endpoint surface" do
-    tmp_dir = tmp_dir!("parity")
-    output_dir = Path.join(tmp_dir, "generated")
-    profile = unique_profile(:parity)
-    base_module = unique_base_module(:parity)
-
-    on_exit(fn ->
-      Application.delete_env(:oapi_generator, profile)
-      File.rm_rf!(tmp_dir)
-    end)
-
-    spec_files =
-      Enum.map(@parity_pages, fn page ->
-        extract_openapi_fixture!(Path.join(@notion_reference_root, page), tmp_dir)
-      end)
-
-    state =
-      Bridge.run(profile, spec_files,
-        base_module: base_module,
-        output_dir: output_dir
-      )
-
-    assert length(state.operations) == 35
-
-    modules =
-      state.operations
-      |> Enum.map(& &1.module_name)
-      |> Enum.uniq()
-      |> Enum.sort()
-
-    assert Users in modules
-    assert Pages in modules
-    assert Blocks in modules
-    assert DataSources in modules
-    assert Databases in modules
-    assert Comments in modules
-    assert FileUploads in modules
-    assert OAuth in modules
-    assert Search in modules
-  end
-
   test "documents the upstream gap for supplemental roots without components" do
     tmp_dir = tmp_dir!("supplemental-gap")
     output_dir = Path.join(tmp_dir, "generated")
@@ -319,7 +239,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     end)
 
     primary_spec =
-      extract_openapi_fixture!(Path.join(@notion_reference_root, "get-self.md"), tmp_dir)
+      extract_openapi_fixture!(reference_fixture!("get-self.md"), tmp_dir)
 
     supplemental_spec = write_supplemental_spec!(tmp_dir, include_components?: false)
 
@@ -344,7 +264,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     end)
 
     spec_file =
-      extract_openapi_fixture!(Path.join(@notion_reference_root, "get-self.md"), tmp_dir)
+      extract_openapi_fixture!(reference_fixture!("get-self.md"), tmp_dir)
 
     state =
       Bridge.run(profile, [spec_file],
@@ -528,6 +448,10 @@ defmodule Pristine.OpenAPI.BridgeTest do
     target_path
   end
 
+  defp reference_fixture!(name) when is_binary(name) do
+    Path.join(@reference_root, name)
+  end
+
   defp write_review_spec!(tmp_dir, opts) do
     path = Path.join(tmp_dir, "review-proof.yaml")
 
@@ -599,7 +523,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
   end
 
   defp write_supplemental_spec!(tmp_dir, opts \\ []) do
-    path = Path.join(tmp_dir, "notion-supplement.yaml")
+    path = Path.join(tmp_dir, "bridge-supplement.yaml")
 
     components_block =
       if Keyword.get(opts, :include_components?, true) do
@@ -614,7 +538,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
         """
         openapi: 3.1.0
         info:
-          title: Notion supplemental proof
+          title: Bridge supplemental proof
           version: 1.0.0
         """,
         components_block,

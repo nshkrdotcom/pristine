@@ -1,0 +1,18 @@
+openapi: 3.1.0
+info:
+  title: Security fixture introspect token
+  version: 1.0.0
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+paths:
+  /v1/oauth/introspect:
+    post:
+      operationId: introspect-token
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Token details
