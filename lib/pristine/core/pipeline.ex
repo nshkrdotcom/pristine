@@ -63,6 +63,7 @@ defmodule Pristine.Core.Pipeline do
     "range" => :range
   }
   @backoff_jitter_strategies Map.values(@backoff_jitter_strategy_aliases)
+  @attempt_outcome_tag :pristine_attempt_outcome
 
   @spec execute(Manifest.t(), String.t() | atom(), term(), Context.t(), keyword()) ::
           {:ok, term()} | {:error, term()}
@@ -137,7 +138,7 @@ defmodule Pristine.Core.Pipeline do
       result =
         with {:ok, {body, content_type}} <-
                encode_body(serializer, endpoint, payload, context, request_schema, opts),
-             result <-
+             attempt_outcome <-
                execute_with_retry(
                  resilience_stack,
                  retry_key,
@@ -146,9 +147,8 @@ defmodule Pristine.Core.Pipeline do
                  content_type,
                  context,
                  opts
-               ),
-             {:ok, %Response{} = response} <- normalize_transport_result(result) do
-          {:ok, response}
+               ) do
+          {normalize_transport_result(attempt_result(attempt_outcome)), attempt_outcome}
         end
 
       telemetry_state = %{
@@ -188,7 +188,7 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp handle_execute_result(
-         {:ok, %Response{} = response},
+         {{:ok, %Response{} = response}, attempt_outcome},
          serializer,
          response_schema,
          endpoint,
@@ -201,7 +201,7 @@ defmodule Pristine.Core.Pipeline do
            opts: opts
          }
        ) do
-    classification = classify_result(context, {:ok, response}, endpoint, opts)
+    classification = attempt_classification(attempt_outcome, context, endpoint, opts)
     telemetry_metadata = Map.merge(telemetry_metadata, classification.telemetry)
 
     case handle_response(response, serializer, response_schema, endpoint, context, opts) do
@@ -257,6 +257,59 @@ defmodule Pristine.Core.Pipeline do
 
         error
     end
+  end
+
+  defp handle_execute_result(
+         {{:error, reason} = error, attempt_outcome},
+         _serializer,
+         _response_schema,
+         endpoint,
+         %{
+           context: context,
+           telemetry: telemetry,
+           metadata: telemetry_metadata,
+           start_time: start_time,
+           retry_key: retry_key,
+           opts: opts
+         }
+       ) do
+    classification = attempt_classification(attempt_outcome, context, endpoint, opts)
+    telemetry_metadata = Map.merge(telemetry_metadata, classification.telemetry)
+    retry_count = current_retry_count(retry_key)
+
+    error =
+      if error_module?(context) do
+        if validation_reason?(reason) do
+          {:error, validation_error(context, reason, nil)}
+        else
+          {:error, connection_error(context, reason)}
+        end
+      else
+        error
+      end
+
+    maybe_log(
+      context,
+      :warn,
+      "request fail",
+      Map.merge(telemetry_metadata, %{
+        reason: log_reason(reason),
+        retry_count: retry_count
+      })
+    )
+
+    emit_request_stop(
+      telemetry,
+      context,
+      telemetry_metadata,
+      nil,
+      start_time,
+      retry_count,
+      :error,
+      reason
+    )
+
+    error
   end
 
   defp handle_execute_result(
@@ -536,7 +589,7 @@ defmodule Pristine.Core.Pipeline do
       fn ->
         rate_limiter.within_limit(
           fn ->
-            result =
+            attempt_outcome =
               execute_with_circuit_breaker(
                 circuit_breaker,
                 transport,
@@ -548,18 +601,25 @@ defmodule Pristine.Core.Pipeline do
                 opts
               )
 
-            maybe_apply_limiter_backoff(rate_limiter, result, endpoint, context, rl_opts, opts)
+            maybe_apply_limiter_backoff(
+              rate_limiter,
+              attempt_outcome,
+              endpoint,
+              context,
+              rl_opts,
+              opts
+            )
 
             maybe_apply_admission_backoff(
               admission_control,
-              result,
+              attempt_outcome,
               endpoint,
               context,
               admission_opts,
               opts
             )
 
-            result
+            attempt_outcome
           end,
           rl_opts
         )
@@ -583,11 +643,25 @@ defmodule Pristine.Core.Pipeline do
         cb_opts,
         :success?,
         fn result ->
-          classify_result(context, result, endpoint, opts).breaker_outcome
+          attempt_classification(result, context, endpoint, opts).breaker_outcome
         end
       )
 
-    circuit_breaker.call(cb_name, fn -> send_request(transport, request, context) end, cb_opts)
+    case circuit_breaker.call(
+           cb_name,
+           fn ->
+             result = send_request(transport, request, context)
+             classification = classify_result(context, result, endpoint, opts)
+             attempt_outcome(result, classification)
+           end,
+           cb_opts
+         ) do
+      {@attempt_outcome_tag, _result, _classification} = attempt_outcome ->
+        attempt_outcome
+
+      result ->
+        attempt_outcome(result, classify_result(context, result, endpoint, opts))
+    end
   end
 
   defp send_request(transport, request, context) do
@@ -1461,7 +1535,7 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp maybe_apply_limiter_backoff(rate_limiter, result, endpoint, context, rl_opts, opts) do
-    classification = classify_result(context, result, endpoint, opts)
+    classification = attempt_classification(result, context, endpoint, opts)
 
     case classification.limiter_backoff_ms do
       duration_ms when is_integer(duration_ms) and duration_ms >= 0 ->
@@ -1490,7 +1564,7 @@ defmodule Pristine.Core.Pipeline do
          admission_opts,
          opts
        ) do
-    classification = classify_result(context, result, endpoint, opts)
+    classification = attempt_classification(result, context, endpoint, opts)
 
     case classification.limiter_backoff_ms do
       duration_ms when is_integer(duration_ms) and duration_ms >= 0 ->
@@ -1506,11 +1580,11 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp classified_retry?(context, endpoint, opts, result) do
-    classify_result(context, result, endpoint, opts).retry?
+    attempt_classification(result, context, endpoint, opts).retry?
   end
 
   defp classified_retry_after_ms(context, endpoint, opts, result) do
-    classify_result(context, result, endpoint, opts).retry_after_ms
+    attempt_classification(result, context, endpoint, opts).retry_after_ms
   end
 
   defp classify_result(%Context{} = context, result, endpoint, opts) do
@@ -1541,6 +1615,26 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp invoke_classifier(_classifier, _result, _endpoint, _context, _opts), do: %{}
+
+  defp attempt_outcome(result, %ResultClassification{} = classification) do
+    {@attempt_outcome_tag, result, classification}
+  end
+
+  defp attempt_result({@attempt_outcome_tag, result, _classification}), do: result
+  defp attempt_result(result), do: result
+
+  defp attempt_classification(
+         {@attempt_outcome_tag, _result, %ResultClassification{} = classification},
+         _context,
+         _endpoint,
+         _opts
+       ) do
+    classification
+  end
+
+  defp attempt_classification(result, context, endpoint, opts) do
+    classify_result(context, result, endpoint, opts)
+  end
 
   defp admission_opts(%Request{} = request, endpoint, %Context{admission_opts: base_opts}) do
     base_opts

@@ -229,6 +229,43 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     defp test_pid(opts), do: Keyword.fetch!(opts, :test_pid)
   end
 
+  defmodule TrackingRetryAdapter do
+    @behaviour Pristine.Ports.Retry
+
+    @impl true
+    def with_retry(fun, opts) when is_function(fun, 0) do
+      before_attempt = Keyword.get(opts, :before_attempt, fn _attempt -> :ok end)
+      before_attempt.(0)
+      first_result = fun.()
+
+      case Keyword.fetch!(opts, :policy) do
+        %{retry_on: retry_on, retry_after_ms_fun: retry_after_ms_fun} ->
+          retry_after_ms_fun.(first_result)
+
+          if retry_on.(first_result) do
+            before_attempt.(1)
+            fun.()
+          else
+            first_result
+          end
+
+        _other ->
+          first_result
+      end
+    end
+
+    @impl true
+    def build_policy(opts \\ []) do
+      %{
+        retry_on: Keyword.fetch!(opts, :retry_on),
+        retry_after_ms_fun: Keyword.fetch!(opts, :retry_after_ms_fun)
+      }
+    end
+
+    @impl true
+    def build_backoff(opts \\ []), do: opts
+  end
+
   test "supports request-level bearer auth override" do
     manifest = runtime_manifest()
     payload = %{"prompt" => "hi"}
@@ -625,6 +662,85 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
 
     assert_received {:admission_backoff, 7_000, backoff_opts}
     assert backoff_opts[:resource] == "core_api"
+  end
+
+  test "classifies each attempt once and reuses the outcome across resilience seams" do
+    manifest = runtime_manifest(resource: "core_api")
+    payload = %{"prompt" => "hi"}
+    parent = self()
+    breaker_registry = Foundation.CircuitBreaker.Registry.new_registry()
+
+    classifier = fn result, endpoint, context, opts ->
+      send(parent, {:classification_call, result})
+      TestHTTPClassifier.classify(result, endpoint, context, opts)
+    end
+
+    context =
+      runtime_context(
+        retry: TrackingRetryAdapter,
+        retry_opts: [
+          max_retries: 1,
+          base_delay_ms: 1,
+          max_delay_ms: 1
+        ],
+        rate_limiter: TrackingRateLimiter,
+        rate_limit_opts: [key: {:integration, :demo}, test_pid: self()],
+        circuit_breaker: Pristine.Adapters.CircuitBreaker.Foundation,
+        circuit_breaker_opts: [
+          registry: breaker_registry,
+          failure_threshold: 5,
+          reset_timeout_ms: 60_000
+        ],
+        admission_control: TrackingAdmissionControl,
+        admission_opts: [test_pid: self()],
+        result_classifier: classifier
+      )
+
+    expect(Pristine.SerializerMock, :encode, fn ^payload, _opts ->
+      {:ok, "{\"prompt\":\"hi\"}"}
+    end)
+
+    expect(Pristine.TransportMock, :send, 2, fn %Request{}, _context ->
+      attempt = Process.get(:classification_attempt, 0)
+      Process.put(:classification_attempt, attempt + 1)
+
+      case attempt do
+        0 ->
+          {:ok,
+           %Response{
+             status: 429,
+             headers: %{"retry-after" => "0"},
+             body: "{\"code\":\"rate_limited\",\"message\":\"Slow down\"}"
+           }}
+
+        _ ->
+          {:ok, %Response{status: 200, body: "{\"ok\":true}"}}
+      end
+    end)
+
+    expect(
+      Pristine.SerializerMock,
+      :decode,
+      fn body, _schema, _opts ->
+        case body do
+          "{\"code\":\"rate_limited\",\"message\":\"Slow down\"}" ->
+            {:ok, %{"code" => "rate_limited", "message" => "Slow down"}}
+
+          "{\"ok\":true}" ->
+            {:ok, %{"ok" => true}}
+        end
+      end
+    )
+
+    expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas ->
+      :ok
+    end)
+
+    assert {:ok, %{"ok" => true}} = Pipeline.execute(manifest, "ping", payload, context)
+
+    assert_received {:classification_call, {:ok, %Response{status: 429}}}
+    assert_received {:classification_call, {:ok, %Response{status: 200}}}
+    refute_receive {:classification_call, _result}
   end
 
   test "validates request payloads from direct OpenAPI schema refs" do

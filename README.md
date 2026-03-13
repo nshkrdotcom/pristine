@@ -198,6 +198,10 @@ outside the transport call. This is where adapters such as
 `Pristine.Adapters.AdmissionControl.Dispatch` can coordinate `Foundation.Dispatch`
 with classified backoff signals.
 
+When you enable that adapter, pass a real `Foundation.Dispatch` server handle
+through `admission_opts`. Registered names are supported, and invalid explicit
+dispatch config raises instead of silently falling back to noop behavior.
+
 ## Security Metadata And OAuth2
 
 Pristine manifests and OpenAPI-generated request maps now carry native security metadata:

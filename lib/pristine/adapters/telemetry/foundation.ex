@@ -7,7 +7,10 @@ defmodule Pristine.Adapters.Telemetry.Foundation do
   - Function timing with automatic duration measurement
   - Counter and gauge metrics
 
-  Events are emitted under the `[:pristine, event_name]` prefix.
+  Event naming follows a small normalization rule:
+
+  - atom shorthand is prefixed as `[:pristine, event]`
+  - caller-supplied event paths are emitted unchanged
 
   ## Usage
 
@@ -27,16 +30,20 @@ defmodule Pristine.Adapters.Telemetry.Foundation do
 
   ## Event Naming
 
-  All events are prefixed with `[:pristine]`. For example:
+  Examples:
   - `emit(:request, ...)` emits `[:pristine, :request]`
   - `measure(:query, ...)` emits `[:pristine, :query]`
+  - `emit([:my_sdk, :request, :stop], ...)` emits that exact path
   """
 
   @behaviour Pristine.Ports.Telemetry
 
   @impl true
   @doc """
-  Emit a telemetry event under the [:pristine, event] prefix.
+  Emit a telemetry event.
+
+  Atom shorthand is normalized under `[:pristine, ...]`. List paths are
+  preserved as-is.
   """
   def emit(event, metadata, measurements)
       when (is_atom(event) or is_list(event)) and is_map(metadata) and is_map(measurements) do
