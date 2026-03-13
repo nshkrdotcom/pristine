@@ -4,6 +4,7 @@ defmodule Pristine.RuntimeTest do
 
   alias Pristine.Core.{Context, Request, Response}
   alias Pristine.Manifest.Endpoint
+  alias Pristine.OpenAPI.Client, as: OpenAPIClient
   alias Pristine.Runtime
 
   setup :set_mox_from_context
@@ -153,5 +154,170 @@ defmodule Pristine.RuntimeTest do
 
     assert {:ok, %{"ok" => true}} =
              Runtime.execute_endpoint(endpoint, nil, context, body_type: "raw")
+  end
+
+  test "execute_request/3 runs a raw request spec through the shared endpoint pipeline" do
+    request_spec = %{
+      method: :get,
+      path: "/v1/users/{id}",
+      path_params: %{id: "user-123"},
+      query: %{include: "workspace"},
+      body: nil,
+      form_data: nil,
+      headers: %{"X-Request-Source" => "raw"},
+      auth: "secret-token",
+      security: nil,
+      request_schema: nil,
+      response_schema: nil,
+      id: "raw.get_user"
+    }
+
+    context = %Context{
+      base_url: "https://api.example.com",
+      transport: Pristine.TransportMock,
+      serializer: Pristine.SerializerMock,
+      retry: Pristine.RetryMock,
+      telemetry: Pristine.TelemetryMock,
+      circuit_breaker: Pristine.CircuitBreakerMock,
+      rate_limiter: Pristine.RateLimitMock
+    }
+
+    expect(Pristine.RateLimitMock, :within_limit, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.CircuitBreakerMock, :call, fn "raw.get_user", fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TransportMock, :send, fn %Request{url: url, headers: headers},
+                                             runtime_context ->
+      assert url == "https://api.example.com/v1/users/user-123?include=workspace"
+      assert headers["X-Request-Source"] == "raw"
+      assert headers["Authorization"] == "Bearer secret-token"
+      assert runtime_context.base_url == "https://api.example.com"
+      {:ok, %Response{status: 200, body: "{\"ok\":true}"}}
+    end)
+
+    expect(Pristine.SerializerMock, :decode, fn "{\"ok\":true}", _schema, _opts ->
+      {:ok, %{"ok" => true}}
+    end)
+
+    expect(Pristine.RetryMock, :with_retry, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas ->
+      :ok
+    end)
+
+    assert {:ok, %{"ok" => true}} = Pristine.execute_request(request_spec, context)
+  end
+
+  test "execute_request/3 accepts generated OpenAPI request maps" do
+    request =
+      OpenAPIClient.request(%{
+        args: %{},
+        call: {Pristine.RuntimeTest.GeneratedClient, :get_user},
+        method: :post,
+        url: "/v1/users",
+        opts: [],
+        path_params: %{},
+        query: %{},
+        body: %{"name" => "Ada"},
+        form_data: %{},
+        auth: "secret-token",
+        request: [{"application/json", :map}],
+        response: [{200, :map}],
+        security: [%{"bearerAuth" => []}]
+      })
+
+    assert {:ok, request} = request
+
+    context = %Context{
+      base_url: "https://api.example.com",
+      transport: Pristine.TransportMock,
+      serializer: Pristine.SerializerMock,
+      retry: Pristine.RetryMock,
+      telemetry: Pristine.TelemetryMock,
+      circuit_breaker: Pristine.CircuitBreakerMock,
+      rate_limiter: Pristine.RateLimitMock
+    }
+
+    expect(Pristine.SerializerMock, :encode, fn %{"name" => "Ada"}, _opts ->
+      {:ok, "{\"name\":\"Ada\"}"}
+    end)
+
+    expect(Pristine.RateLimitMock, :within_limit, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.CircuitBreakerMock, :call, fn "Pristine.RuntimeTest.GeneratedClient.get_user",
+                                                  fun,
+                                                  _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TransportMock, :send, fn %Request{url: url, headers: headers, body: body},
+                                             _runtime_context ->
+      assert url == "https://api.example.com/v1/users"
+      assert headers["Authorization"] == "Bearer secret-token"
+      assert headers["content-type"] == "application/json"
+      assert body == "{\"name\":\"Ada\"}"
+      {:ok, %Response{status: 200, body: "{\"ok\":true}"}}
+    end)
+
+    expect(Pristine.SerializerMock, :decode, fn "{\"ok\":true}", _schema, _opts ->
+      {:ok, %{"ok" => true}}
+    end)
+
+    expect(Pristine.RetryMock, :with_retry, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas ->
+      :ok
+    end)
+
+    assert {:ok, %{"ok" => true}} = Runtime.execute_request(request, context)
+  end
+
+  test "execute_request/3 preserves path traversal validation for low-level specs" do
+    request_spec = %{
+      method: :get,
+      path: "/v1/users/{id}",
+      path_params: %{id: "../secret"},
+      query: %{},
+      body: nil,
+      form_data: nil,
+      headers: %{},
+      auth: nil,
+      security: nil,
+      request_schema: nil,
+      response_schema: nil,
+      id: nil
+    }
+
+    context = %Context{
+      base_url: "https://api.example.com",
+      transport: Pristine.TransportMock,
+      serializer: Pristine.SerializerMock,
+      retry: Pristine.RetryMock,
+      telemetry: Pristine.TelemetryMock,
+      circuit_breaker: Pristine.CircuitBreakerMock,
+      rate_limiter: Pristine.RateLimitMock
+    }
+
+    expect(Pristine.RetryMock, :with_retry, fn fun, _opts ->
+      fun.()
+    end)
+
+    expect(Pristine.TelemetryMock, :emit, 2, fn _event, _meta, _meas ->
+      :ok
+    end)
+
+    assert_raise ArgumentError, ~r/path traversal/i, fn ->
+      Runtime.execute_request(request_spec, context)
+    end
   end
 end

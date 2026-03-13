@@ -131,6 +131,31 @@ context = Pristine.foundation_context(
 {:ok, result} = Pristine.execute(manifest, :get_user, %{}, context, path_params: %{"id" => "123"})
 ```
 
+When you need a low-level escape hatch, reuse the same runtime with
+`Pristine.execute_request/3`:
+
+```elixir
+request_spec = %{
+  method: :patch,
+  path: "/users/{id}",
+  path_params: %{"id" => "123"},
+  query: %{},
+  body: %{"name" => "Ada"},
+  form_data: nil,
+  headers: %{"X-Request-Source" => "manual"},
+  auth: "your-token",
+  security: nil,
+  request_schema: nil,
+  response_schema: nil,
+  id: "raw.update_user"
+}
+
+{:ok, result} = Pristine.execute_request(request_spec, context)
+```
+
+Generated SDKs should wrap `Pristine.execute_request/3` for their user-facing
+raw-request escape hatch instead of rebuilding request execution locally.
+
 If you are using OpenAPI-generated schema refs in the manifest or generated client, pass `typed_responses: true` per call when you want successful responses materialized through the generated `decode/1,2` helpers instead of returning validated maps.
 
 ## Configuration

@@ -184,6 +184,33 @@ context = Pristine.foundation_context(
 )
 ```
 
+For low-level escape-hatch requests, use `Pristine.execute_request/3` instead of
+rebuilding custom transport logic in each generated SDK:
+
+```elixir
+request_spec = %{
+  method: :get,
+  path: "/users/{id}",
+  path_params: %{"id" => "123"},
+  query: %{"include" => "profile"},
+  body: nil,
+  form_data: nil,
+  headers: %{"X-Trace-ID" => "req-123"},
+  auth: "your-token",
+  security: nil,
+  request_schema: nil,
+  response_schema: nil,
+  id: "raw.get_user"
+}
+
+{:ok, result} = Pristine.execute_request(request_spec, context)
+```
+
+`Pristine.execute_request/3` and `Pristine.execute/5` share the same request
+pipeline, including request-path and path-param traversal validation. Generated
+SDKs should wrap this API instead of inventing their own raw-request execution
+path.
+
 `Pristine.foundation_context/1` is the recommended production entry point. It
 builds a cohesive runtime over the existing ports/adapters surface:
 

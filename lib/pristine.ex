@@ -6,6 +6,7 @@ defmodule Pristine do
   alias Pristine.Core.Context
   alias Pristine.Manifest
   alias Pristine.Manifest.Endpoint
+  alias Pristine.OpenAPI.Client, as: OpenAPIClient
   alias Pristine.Profiles.Foundation, as: FoundationProfile
   alias Pristine.Runtime
 
@@ -48,6 +49,27 @@ defmodule Pristine do
           {:ok, term()} | {:error, term()}
   def execute(manifest, endpoint_id, payload, %Context{} = context, opts \\ []) do
     Runtime.execute(manifest, endpoint_id, payload, context, opts)
+  end
+
+  @doc """
+  Execute a generic request spec without rebuilding a manifest.
+
+  `Pristine.execute_request/3` is the public low-level escape hatch for both:
+
+  - simple ad hoc request specs
+  - OpenAPI-generated request maps emitted by Pristine-generated SDKs
+
+  Request paths and path params still go through the same traversal validation
+  used by manifest-defined endpoints.
+  """
+  @spec execute_request(
+          OpenAPIClient.request_spec_t() | OpenAPIClient.request_t(),
+          Context.t(),
+          keyword()
+        ) ::
+          {:ok, term()} | {:error, term()}
+  def execute_request(request_spec, %Context{} = context, opts \\ []) do
+    Runtime.execute_request(request_spec, context, opts)
   end
 
   @doc """
