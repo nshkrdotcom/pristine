@@ -35,7 +35,7 @@ defmodule Pristine.Adapters.Transport.FinchStream do
 
   @impl true
   def stream(%Request{} = request, %Context{} = context) do
-    finch_name = Map.get(request.metadata, :pool_name, get_finch_name(context))
+    finch_name = get_pool_name(request, context)
     timeout = get_timeout(request, context)
 
     finch_request = build_finch_request(request)
@@ -65,6 +65,13 @@ defmodule Pristine.Adapters.Transport.FinchStream do
     Keyword.get(opts, :finch, Pristine.Finch)
   end
 
+  defp get_pool_name(%Request{metadata: metadata}, %Context{transport_opts: opts}) do
+    metadata
+    |> Map.get(:pool_name)
+    |> fallback_pool(Keyword.get(opts, :pool_name))
+    |> fallback_pool(get_finch_name(%Context{transport_opts: opts}))
+  end
+
   defp get_timeout(%Request{metadata: metadata}, %Context{transport_opts: opts}) do
     case Map.get(metadata, :timeout) do
       timeout when is_integer(timeout) and timeout >= 0 ->
@@ -91,6 +98,9 @@ defmodule Pristine.Adapters.Transport.FinchStream do
     |> String.downcase()
     |> String.to_existing_atom()
   end
+
+  defp fallback_pool(nil, fallback), do: fallback
+  defp fallback_pool(pool, _fallback), do: pool
 
   # Start streaming and return status, headers, and an event stream
   defp start_streaming(finch_request, finch_name, timeout) do

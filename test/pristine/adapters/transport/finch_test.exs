@@ -57,6 +57,39 @@ defmodule Pristine.Adapters.Transport.FinchTest do
     assert String.contains?(inspect(reason), "timeout")
   end
 
+  test "send/2 falls back to the configured Finch instance when metadata pool_name is nil", %{
+    finch: finch,
+    port: port
+  } do
+    request = %Request{
+      method: "GET",
+      url: "http://localhost:#{port}/slow",
+      headers: %{},
+      metadata: %{pool_name: nil, timeout: 500}
+    }
+
+    context = %Context{transport_opts: [finch: finch]}
+
+    assert {:ok, response} = FinchTransport.send(request, context)
+    assert response.status == 200
+    assert response.body == "ok"
+  end
+
+  test "request/5 falls back to the configured Finch instance when opts pool_name is nil", %{
+    finch: finch,
+    port: port
+  } do
+    assert {:ok, response} =
+             FinchTransport.request(:get, "http://localhost:#{port}/slow", [], nil,
+               finch: finch,
+               pool_name: nil,
+               receive_timeout: 500
+             )
+
+    assert response.status == 200
+    assert response.body == "ok"
+  end
+
   defp stop_supervised_pid(pid) when is_pid(pid) do
     if Process.alive?(pid) do
       try do

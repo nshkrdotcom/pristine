@@ -132,6 +132,42 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
 
       assert {:error, :timeout} = FinchStream.stream(request, context)
     end
+
+    test "falls back to the configured Finch instance when metadata pool_name is nil" do
+      finch_name = :"pristine_stream_finch_#{System.unique_integer([:positive])}"
+      {:ok, finch_pid} = Finch.start_link(name: finch_name)
+
+      {:ok, server_pid} =
+        Bandit.start_link(
+          plug: SlowStreamPlug,
+          port: 0,
+          ip: {127, 0, 0, 1},
+          startup_log: false
+        )
+
+      {:ok, {_, port}} = ThousandIsland.listener_info(server_pid)
+
+      on_exit(fn ->
+        stop_supervised_pid(server_pid)
+
+        if Process.alive?(finch_pid) do
+          Process.exit(finch_pid, :normal)
+        end
+      end)
+
+      request = %Request{
+        method: "GET",
+        url: "http://localhost:#{port}/slow",
+        headers: %{},
+        metadata: %{pool_name: nil, timeout: 500}
+      }
+
+      context = %Context{transport_opts: [finch: finch_name]}
+
+      assert {:ok, response} = FinchStream.stream(request, context)
+      assert response.status == 200
+      assert Enum.to_list(response.stream) == [%Event{data: "hello"}]
+    end
   end
 
   defp stop_supervised_pid(pid) when is_pid(pid) do
