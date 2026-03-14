@@ -1,9 +1,6 @@
 defmodule Pristine.Core.Pipeline do
   @moduledoc """
-  Execute manifest-defined endpoints through the request pipeline.
-
-  Provides both synchronous (`execute/5`) and streaming (`execute_stream/5`)
-  execution modes for manifest-defined API endpoints.
+  Execute normalized request metadata through the shared request pipeline.
   """
 
   require Logger
@@ -20,12 +17,10 @@ defmodule Pristine.Core.Pipeline do
     RequestPath,
     Response,
     ResultClassification,
-    StreamResponse,
     TelemetryHeaders,
     Url
   }
 
-  alias Pristine.Manifest
   alias Pristine.OpenAPI.Client, as: OpenAPIClient
   alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
 
@@ -69,16 +64,6 @@ defmodule Pristine.Core.Pipeline do
   @backoff_jitter_strategies Map.values(@backoff_jitter_strategy_aliases)
   @attempt_outcome_tag :pristine_attempt_outcome
 
-  @spec execute(Manifest.t(), String.t() | atom(), term(), Context.t(), keyword()) ::
-          {:ok, term()} | {:error, term()}
-  def execute(%Manifest{} = manifest, endpoint_id, payload, %Context{} = context, opts \\ []) do
-    endpoint =
-      manifest
-      |> Manifest.fetch_endpoint!(endpoint_id)
-
-    execute_endpoint(endpoint, manifest.security, payload, context, opts)
-  end
-
   @doc false
   @spec execute_request(
           OpenAPIClient.request_spec_t() | OpenAPIClient.request_t(),
@@ -105,40 +90,12 @@ defmodule Pristine.Core.Pipeline do
       )
       |> maybe_put_new(:auth, request_spec.auth)
 
-    execute_endpoint(endpoint, nil, payload, context, execute_opts)
+    execute_endpoint(endpoint, payload, context, execute_opts)
   end
 
-  @spec execute_endpoint(
-          Pristine.Manifest.Endpoint.t() | EndpointMetadata.t(),
-          [map()] | nil,
-          term(),
-          Context.t(),
-          keyword()
-        ) ::
+  @spec execute_endpoint(EndpointMetadata.t(), term(), Context.t(), keyword()) ::
           {:ok, term()} | {:error, term()}
-  def execute_endpoint(endpoint, manifest_security, payload, context, opts \\ [])
-
-  def execute_endpoint(
-        %Pristine.Manifest.Endpoint{} = endpoint,
-        manifest_security,
-        payload,
-        %Context{} = context,
-        opts
-      ) do
-    endpoint
-    |> EndpointMetadata.from_endpoint()
-    |> execute_endpoint(manifest_security, payload, context, opts)
-  end
-
-  def execute_endpoint(
-        %EndpointMetadata{} = endpoint,
-        manifest_security,
-        payload,
-        %Context{} = context,
-        opts
-      ) do
-    endpoint = hydrate_endpoint_security(endpoint, manifest_security)
-
+  def execute_endpoint(%EndpointMetadata{} = endpoint, payload, %Context{} = context, opts \\ []) do
     serializer = context.serializer || raise ArgumentError, "serializer is required"
     transport = context.transport || raise ArgumentError, "transport is required"
     retry = context.retry || Pristine.Adapters.Retry.Noop
@@ -411,166 +368,6 @@ defmodule Pristine.Core.Pipeline do
 
     error
   end
-
-  @doc """
-  Execute a streaming endpoint and return a StreamResponse.
-
-  This is used for SSE (Server-Sent Events) and other streaming endpoints
-  where the response body is delivered incrementally.
-
-  ## Parameters
-
-    * `manifest` - The loaded manifest
-    * `endpoint_id` - Endpoint identifier
-    * `payload` - Request payload
-    * `context` - Runtime context (must have `stream_transport` configured)
-    * `opts` - Additional options (headers, query, path_params)
-
-  ## Returns
-
-    * `{:ok, StreamResponse.t()}` - Streaming response with enumerable events
-    * `{:error, term()}` - Error during request setup or connection
-
-  ## Example
-
-      {:ok, response} = Pipeline.execute_stream(manifest, :sample_stream, payload, context)
-
-      response.stream
-      |> Stream.each(fn event ->
-        IO.puts("Event: \#{event.data}")
-      end)
-      |> Stream.run()
-  """
-  @spec execute_stream(Manifest.t(), String.t() | atom(), term(), Context.t(), keyword()) ::
-          {:ok, StreamResponse.t()} | {:error, term()}
-  def execute_stream(
-        %Manifest{} = manifest,
-        endpoint_id,
-        payload,
-        %Context{} = context,
-        opts \\ []
-      ) do
-    endpoint =
-      manifest
-      |> Manifest.fetch_endpoint!(endpoint_id)
-      |> hydrate_endpoint_security(manifest.security)
-
-    serializer = context.serializer || raise ArgumentError, "serializer is required"
-
-    stream_transport =
-      context.stream_transport || raise ArgumentError, "stream_transport is required"
-
-    telemetry = context.telemetry || Pristine.Adapters.Telemetry.Noop
-
-    request_schema = OpenAPIRuntime.resolve_schema(endpoint.request, context.type_schemas)
-
-    telemetry_metadata = build_telemetry_metadata(context, endpoint, opts)
-
-    telemetry.emit(
-      telemetry_event(context, :stream_start),
-      telemetry_metadata,
-      %{system_time: System.system_time()}
-    )
-
-    start_time = System.monotonic_time()
-
-    with {:ok, {body, content_type}} <-
-           encode_body(serializer, endpoint, payload, context, request_schema, opts),
-         request <- build_request(endpoint, body, content_type, context, opts),
-         {:ok, %StreamResponse{} = response} <- stream_transport.stream(request, context) do
-      # Add timing metadata to the response
-      response_with_metadata = %{
-        response
-        | metadata: Map.put(response.metadata, :start_time, start_time)
-      }
-
-      telemetry.emit(
-        telemetry_event(context, :stream_connected),
-        Map.merge(telemetry_metadata, %{status: response.status, result: :ok}),
-        %{duration: System.monotonic_time() - start_time}
-      )
-
-      {:ok, response_with_metadata}
-    else
-      {:error, reason} = error ->
-        telemetry.emit(
-          telemetry_event(context, :stream_error),
-          Map.merge(telemetry_metadata, %{result: :error, reason: reason}),
-          %{duration: System.monotonic_time() - start_time}
-        )
-
-        error
-    end
-  end
-
-  @doc """
-  Execute a request and poll for a future result.
-
-  This is used for long-running operations where the server returns
-  a request ID that can be polled for the final result.
-
-  ## Parameters
-
-    * `manifest` - The loaded manifest
-    * `endpoint_id` - Endpoint identifier for the initial request
-    * `payload` - Request payload
-    * `context` - Runtime context (must have `future` adapter configured)
-    * `opts` - Additional options including future polling options
-
-  ## Future Options
-
-    * `:poll_interval_ms` - Base interval between polls (default: 1000)
-    * `:max_poll_time_ms` - Maximum polling duration (default: 300000)
-    * `:backoff` - Backoff strategy: `:none`, `:linear`, `:exponential`
-
-  ## Returns
-
-    * `{:ok, Task.t()}` - A task that will resolve to the final result
-    * `{:error, term()}` - Error during initial request
-
-  ## Example
-
-      {:ok, task} = Pipeline.execute_future(manifest, :long_operation, payload, context)
-      {:ok, result} = Future.await(task, 600_000)
-  """
-  @spec execute_future(Manifest.t(), String.t() | atom(), term(), Context.t(), keyword()) ::
-          {:ok, Task.t()} | {:error, term()}
-  def execute_future(
-        %Manifest{} = manifest,
-        endpoint_id,
-        payload,
-        %Context{} = context,
-        opts \\ []
-      ) do
-    endpoint = Manifest.fetch_endpoint!(manifest, endpoint_id)
-    future = context.future || raise ArgumentError, "future adapter is required"
-
-    future_opts =
-      context.future_opts
-      |> Keyword.merge(Keyword.get(opts, :future_opts, []))
-      |> maybe_put_retrieve_endpoint(endpoint.poll_endpoint)
-
-    # First, execute the initial request to get the request_id
-    case execute(manifest, endpoint_id, payload, context, opts) do
-      {:ok, %{"request_id" => request_id}} ->
-        future.poll(request_id, context, future_opts)
-
-      {:ok, %{request_id: request_id}} ->
-        future.poll(request_id, context, future_opts)
-
-      {:ok, response} ->
-        # Response doesn't contain a request_id - return it directly
-        {:ok, Task.async(fn -> {:ok, response} end)}
-
-      {:error, _} = error ->
-        error
-    end
-  end
-
-  defp maybe_put_retrieve_endpoint(opts, nil), do: opts
-
-  defp maybe_put_retrieve_endpoint(opts, poll_endpoint),
-    do: Keyword.put_new(opts, :retrieve_endpoint, poll_endpoint)
 
   defp build_resilience_stack(
          transport,
@@ -1419,14 +1216,6 @@ defmodule Pristine.Core.Pipeline do
   defp normalize_configured_auth_modules!(modules) do
     normalize_auth_override!(modules)
   end
-
-  defp hydrate_endpoint_security(endpoint, nil), do: endpoint
-
-  defp hydrate_endpoint_security(%{security: nil} = endpoint, manifest_security) do
-    %{endpoint | security: manifest_security}
-  end
-
-  defp hydrate_endpoint_security(endpoint, _manifest_security), do: endpoint
 
   defp normalize_auth_override!(nil), do: []
   defp normalize_auth_override!(false), do: []

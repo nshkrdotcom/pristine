@@ -2,44 +2,14 @@ defmodule Pristine.Core.PipelineResponseTest do
   use ExUnit.Case, async: true
   import Mox
 
-  alias Pristine.Core.{Context, Pipeline, Request, Response}
+  alias Pristine.Core.{Context, EndpointMetadata, Pipeline, Request, Response}
   alias Pristine.Error
-  alias Pristine.Manifest
 
   setup :set_mox_from_context
   setup :verify_on_exit!
 
   test "wraps non-2xx responses with Pristine.Error" do
-    manifest = %{
-      name: "tinkex",
-      version: "0.3.4",
-      endpoints: [
-        %{
-          id: "ping",
-          method: "POST",
-          path: "/ping",
-          request: "PingRequest",
-          response: "PingResponse"
-        }
-      ],
-      types: %{
-        "PingRequest" => %{fields: %{prompt: %{type: "string", required: true}}},
-        "PingResponse" => %{fields: %{ok: %{type: "boolean", required: true}}}
-      }
-    }
-
-    {:ok, manifest} = Manifest.load(manifest)
-
-    context = %Context{
-      base_url: "https://example.com",
-      transport: Pristine.TransportMock,
-      serializer: Pristine.SerializerMock,
-      retry: Pristine.RetryMock,
-      telemetry: Pristine.TelemetryMock,
-      circuit_breaker: Pristine.CircuitBreakerMock,
-      rate_limiter: Pristine.RateLimitMock
-    }
-
+    context = context()
     payload = %{"prompt" => "hi"}
 
     expect(Pristine.SerializerMock, :encode, fn ^payload, _opts ->
@@ -71,40 +41,11 @@ defmodule Pristine.Core.PipelineResponseTest do
     end)
 
     assert {:error, %Error{type: :rate_limit, status: 429, body: %{"error" => "nope"}}} =
-             Pipeline.execute(manifest, "ping", payload, context)
+             Pipeline.execute_endpoint(endpoint(), payload, context)
   end
 
   test "preserves serializer errors for non-2xx responses" do
-    manifest = %{
-      name: "tinkex",
-      version: "0.3.4",
-      endpoints: [
-        %{
-          id: "ping",
-          method: "POST",
-          path: "/ping",
-          request: "PingRequest",
-          response: "PingResponse"
-        }
-      ],
-      types: %{
-        "PingRequest" => %{fields: %{prompt: %{type: "string", required: true}}},
-        "PingResponse" => %{fields: %{ok: %{type: "boolean", required: true}}}
-      }
-    }
-
-    {:ok, manifest} = Manifest.load(manifest)
-
-    context = %Context{
-      base_url: "https://example.com",
-      transport: Pristine.TransportMock,
-      serializer: Pristine.SerializerMock,
-      retry: Pristine.RetryMock,
-      telemetry: Pristine.TelemetryMock,
-      circuit_breaker: Pristine.CircuitBreakerMock,
-      rate_limiter: Pristine.RateLimitMock
-    }
-
+    context = context()
     payload = %{"prompt" => "hi"}
 
     expect(Pristine.SerializerMock, :encode, fn ^payload, _opts ->
@@ -135,42 +76,11 @@ defmodule Pristine.Core.PipelineResponseTest do
       :ok
     end)
 
-    assert {:error, :invalid_json} = Pipeline.execute(manifest, "ping", payload, context)
+    assert {:error, :invalid_json} = Pipeline.execute_endpoint(endpoint(), payload, context)
   end
 
   test "unwraps responses before validation" do
-    manifest = %{
-      name: "tinkex",
-      version: "0.3.4",
-      endpoints: [
-        %{
-          id: "ping",
-          method: "POST",
-          path: "/ping",
-          request: "PingRequest",
-          response: "PingResponse",
-          response_unwrap: "data.result"
-        }
-      ],
-      types: %{
-        "PingRequest" => %{fields: %{prompt: %{type: "string", required: true}}},
-        "PingResponse" => %{fields: %{ok: %{type: "boolean", required: true}}}
-      }
-    }
-
-    {:ok, manifest} = Manifest.load(manifest)
-
-    context = %Context{
-      base_url: "https://example.com",
-      transport: Pristine.TransportMock,
-      serializer: Pristine.SerializerMock,
-      retry: Pristine.RetryMock,
-      telemetry: Pristine.TelemetryMock,
-      type_schemas: %{"PingResponse" => :string},
-      circuit_breaker: Pristine.CircuitBreakerMock,
-      rate_limiter: Pristine.RateLimitMock
-    }
-
+    context = %Context{context() | type_schemas: %{"PingResponse" => :string}}
     payload = %{"prompt" => "hi"}
 
     expect(Pristine.SerializerMock, :encode, fn ^payload, _opts ->
@@ -201,6 +111,39 @@ defmodule Pristine.Core.PipelineResponseTest do
       :ok
     end)
 
-    assert {:ok, "ok"} = Pipeline.execute(manifest, "ping", payload, context)
+    assert {:ok, "ok"} =
+             Pipeline.execute_endpoint(
+               endpoint(response: "PingResponse", response_unwrap: "data.result"),
+               payload,
+               context
+             )
+  end
+
+  defp endpoint(overrides \\ []) do
+    struct(
+      EndpointMetadata,
+      Keyword.merge(
+        [
+          id: "ping",
+          method: "POST",
+          path: "/ping",
+          headers: %{},
+          query: %{}
+        ],
+        overrides
+      )
+    )
+  end
+
+  defp context do
+    %Context{
+      base_url: "https://example.com",
+      transport: Pristine.TransportMock,
+      serializer: Pristine.SerializerMock,
+      retry: Pristine.RetryMock,
+      telemetry: Pristine.TelemetryMock,
+      circuit_breaker: Pristine.CircuitBreakerMock,
+      rate_limiter: Pristine.RateLimitMock
+    }
   end
 end

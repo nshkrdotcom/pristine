@@ -76,9 +76,9 @@ defmodule Pristine.MixProject do
 
   defp description do
     """
-    Manifest-driven hexagonal core for generating Elixir SDKs and services.
-    Separates domain logic from transport, retries, telemetry, and serialization
-    via ports and adapters, then renders SDK surfaces from declarative manifests.
+    Shared runtime substrate and build-time bridge for first-party OpenAPI-based
+    Elixir SDKs, including request execution, Foundation runtime wiring, and
+    OAuth2 helpers.
     """
   end
 
@@ -97,12 +97,7 @@ defmodule Pristine.MixProject do
         "LICENSE",
         "guides/getting-started.md",
         "guides/foundation-runtime.md",
-        "guides/architecture.md",
-        "guides/manifests.md",
-        "guides/ports-and-adapters.md",
-        "guides/code-generation.md",
-        "guides/streaming.md",
-        "guides/pipeline.md"
+        "guides/code-generation.md"
       ],
       groups_for_extras: [
         Introduction: [
@@ -111,21 +106,13 @@ defmodule Pristine.MixProject do
           "guides/getting-started.md",
           "guides/foundation-runtime.md"
         ],
-        Architecture: [
-          "guides/architecture.md",
-          "guides/ports-and-adapters.md",
-          "guides/pipeline.md"
-        ],
-        "API Definition": [
-          "guides/manifests.md",
+        "Build-Time": [
           "guides/code-generation.md"
-        ],
-        Features: [
-          "guides/streaming.md"
         ]
       ],
       groups_for_modules: [
-        "SDK Boundary": [
+        "Public Runtime Boundary": [
+          Pristine,
           Pristine.SDK.Context,
           Pristine.SDK.Response,
           Pristine.SDK.Error,
@@ -140,27 +127,22 @@ defmodule Pristine.MixProject do
           Pristine.SDK.OAuth2.Token,
           Pristine.SDK.OAuth2.Error
         ],
+        "Build-Time OpenAPI": [
+          Pristine.OpenAPI.Bridge,
+          Pristine.OpenAPI.Profile,
+          Pristine.OpenAPI.Result
+        ],
         "Runtime Internals": [
-          Pristine,
           Pristine.Profiles.Foundation,
           Pristine.Core.Pipeline,
           Pristine.Core.Context,
           Pristine.Core.EndpointMetadata,
           Pristine.Core.Request,
           Pristine.Core.Response,
-          Pristine.Core.StreamResponse
-        ],
-        Manifest: [
-          Pristine.Manifest,
-          Pristine.Manifest.Loader,
-          Pristine.Manifest.Schema,
-          Pristine.Manifest.Endpoint
-        ],
-        "Code Generation": [
-          Pristine.Codegen,
-          Pristine.Codegen.Elixir,
-          Pristine.Codegen.Type,
-          Pristine.Codegen.Resource
+          Pristine.Core.StreamResponse,
+          Pristine.OpenAPI.Client,
+          Pristine.OpenAPI.Operation,
+          Pristine.OpenAPI.Runtime
         ],
         OAuth2: [
           Pristine.OAuth2,

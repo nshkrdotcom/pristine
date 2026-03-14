@@ -2,8 +2,7 @@ defmodule Pristine.Core.PipelineTest do
   use ExUnit.Case, async: true
   import Mox
 
-  alias Pristine.Core.{Context, Pipeline, Request, Response}
-  alias Pristine.Manifest
+  alias Pristine.Core.{Context, EndpointMetadata, Pipeline, Request, Response}
 
   setup :set_mox_from_context
   setup :verify_on_exit!
@@ -31,46 +30,7 @@ defmodule Pristine.Core.PipelineTest do
   end
 
   test "executes the request pipeline" do
-    manifest = %{
-      name: "tinkex",
-      version: "0.3.4",
-      endpoints: [
-        %{
-          id: "sample",
-          method: "POST",
-          path: "/sampling",
-          request: "SampleRequest",
-          response: "SampleResponse",
-          retry: "default"
-        }
-      ],
-      types: %{
-        "SampleRequest" => %{
-          fields: %{
-            prompt: %{type: "string", required: true},
-            sampling_params: %{type: "string", required: true}
-          }
-        },
-        "SampleResponse" => %{
-          fields: %{
-            text: %{type: "string", required: true}
-          }
-        }
-      }
-    }
-
-    {:ok, manifest} = Manifest.load(manifest)
-
-    context = %Context{
-      base_url: "https://example.com",
-      transport: Pristine.TransportMock,
-      serializer: Pristine.SerializerMock,
-      retry: Pristine.RetryMock,
-      telemetry: Pristine.TelemetryMock,
-      circuit_breaker: Pristine.CircuitBreakerMock,
-      rate_limiter: Pristine.RateLimitMock
-    }
-
+    context = context()
     payload = %{"prompt" => "hi", "sampling_params" => "params"}
 
     expect(Pristine.SerializerMock, :encode, fn ^payload, _opts ->
@@ -102,50 +62,11 @@ defmodule Pristine.Core.PipelineTest do
       :ok
     end)
 
-    assert {:ok, %{"text" => "hi"}} = Pipeline.execute(manifest, "sample", payload, context)
+    assert {:ok, %{"text" => "hi"}} = Pipeline.execute_endpoint(endpoint(), payload, context)
   end
 
   test "applies auth, query, and path params" do
-    manifest = %{
-      name: "tinkex",
-      version: "0.3.4",
-      endpoints: [
-        %{
-          id: "sample",
-          method: "POST",
-          path: "/sampling/{id}",
-          request: "SampleRequest",
-          response: "SampleResponse",
-          retry: "default"
-        }
-      ],
-      types: %{
-        "SampleRequest" => %{
-          fields: %{
-            prompt: %{type: "string", required: true},
-            sampling_params: %{type: "string", required: true}
-          }
-        },
-        "SampleResponse" => %{
-          fields: %{
-            text: %{type: "string", required: true}
-          }
-        }
-      }
-    }
-
-    {:ok, manifest} = Manifest.load(manifest)
-
-    context = %Context{
-      base_url: "https://example.com",
-      transport: Pristine.TransportMock,
-      serializer: Pristine.SerializerMock,
-      retry: Pristine.RetryMock,
-      telemetry: Pristine.TelemetryMock,
-      circuit_breaker: Pristine.CircuitBreakerMock,
-      rate_limiter: Pristine.RateLimitMock
-    }
-
+    context = context()
     payload = %{"prompt" => "hi", "sampling_params" => "params"}
 
     expect(Pristine.AuthMock, :headers, fn _opts ->
@@ -183,9 +104,8 @@ defmodule Pristine.Core.PipelineTest do
     end)
 
     assert {:ok, %{"text" => "hi"}} =
-             Pipeline.execute(
-               manifest,
-               "sample",
+             Pipeline.execute_endpoint(
+               endpoint(path: "/sampling/{id}"),
                payload,
                context,
                auth: [{Pristine.AuthMock, value: "secret"}],
@@ -194,56 +114,27 @@ defmodule Pristine.Core.PipelineTest do
              )
   end
 
-  test "normalizes manifest retry policies into adapter-ready backoff and policy options" do
-    manifest = %{
-      name: "tinkex",
-      version: "0.3.4",
-      endpoints: [
-        %{
-          id: "sample",
-          method: "POST",
-          path: "/sampling",
-          request: "SampleRequest",
-          response: "SampleResponse",
-          retry: "default"
-        }
-      ],
-      types: %{
-        "SampleRequest" => %{
-          fields: %{
-            prompt: %{type: "string", required: true},
-            sampling_params: %{type: "string", required: true}
-          }
-        },
-        "SampleResponse" => %{
-          fields: %{
-            text: %{type: "string", required: true}
+  test "normalizes retry policies into adapter-ready backoff and policy options" do
+    context =
+      %Context{
+        base_url: "https://example.com",
+        transport: Pristine.TransportMock,
+        serializer: Pristine.SerializerMock,
+        retry: HttpPolicyRetryAdapter,
+        telemetry: Pristine.TelemetryMock,
+        circuit_breaker: Pristine.CircuitBreakerMock,
+        rate_limiter: Pristine.RateLimitMock,
+        retry_policies: %{
+          "default" => %{
+            "max_attempts" => 4,
+            "backoff" => "linear",
+            "base_ms" => 250,
+            "max_ms" => 1_000,
+            "jitter" => 0.5,
+            "jitter_strategy" => "factor"
           }
         }
       }
-    }
-
-    {:ok, manifest} = Manifest.load(manifest)
-
-    context = %Context{
-      base_url: "https://example.com",
-      transport: Pristine.TransportMock,
-      serializer: Pristine.SerializerMock,
-      retry: HttpPolicyRetryAdapter,
-      telemetry: Pristine.TelemetryMock,
-      circuit_breaker: Pristine.CircuitBreakerMock,
-      rate_limiter: Pristine.RateLimitMock,
-      retry_policies: %{
-        "default" => %{
-          "max_attempts" => 4,
-          "backoff" => "linear",
-          "base_ms" => 250,
-          "max_ms" => 1_000,
-          "jitter" => 0.5,
-          "jitter_strategy" => "factor"
-        }
-      }
-    }
 
     payload = %{"prompt" => "hi", "sampling_params" => "params"}
 
@@ -272,7 +163,8 @@ defmodule Pristine.Core.PipelineTest do
       :ok
     end)
 
-    assert {:ok, %{"text" => "hi"}} = Pipeline.execute(manifest, "sample", payload, context)
+    assert {:ok, %{"text" => "hi"}} =
+             Pipeline.execute_endpoint(endpoint(retry: "default"), payload, context)
 
     assert_received {:build_backoff_opts, build_backoff_opts}
     assert Keyword.get(build_backoff_opts, :strategy) == :linear
@@ -293,22 +185,6 @@ defmodule Pristine.Core.PipelineTest do
   end
 
   test "rejects legacy retry aliases in retry policies" do
-    manifest = %{
-      name: "tinkex",
-      version: "0.3.4",
-      endpoints: [
-        %{
-          id: "sample",
-          method: "POST",
-          path: "/sampling",
-          retry: "default"
-        }
-      ],
-      types: %{}
-    }
-
-    {:ok, manifest} = Manifest.load(manifest)
-
     context = %Context{
       base_url: "https://example.com",
       transport: Pristine.TransportMock,
@@ -325,7 +201,35 @@ defmodule Pristine.Core.PipelineTest do
     }
 
     assert_raise ArgumentError, ~r/legacy retry option/, fn ->
-      Pipeline.execute(manifest, "sample", %{}, context)
+      Pipeline.execute_endpoint(endpoint(retry: "default"), %{}, context)
     end
+  end
+
+  defp endpoint(overrides \\ []) do
+    struct(
+      EndpointMetadata,
+      Keyword.merge(
+        [
+          id: "sample",
+          method: "POST",
+          path: "/sampling",
+          headers: %{},
+          query: %{}
+        ],
+        overrides
+      )
+    )
+  end
+
+  defp context do
+    %Context{
+      base_url: "https://example.com",
+      transport: Pristine.TransportMock,
+      serializer: Pristine.SerializerMock,
+      retry: Pristine.RetryMock,
+      telemetry: Pristine.TelemetryMock,
+      circuit_breaker: Pristine.CircuitBreakerMock,
+      rate_limiter: Pristine.RateLimitMock
+    }
   end
 end

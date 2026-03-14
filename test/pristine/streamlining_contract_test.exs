@@ -25,6 +25,20 @@ defmodule Pristine.StreamliningContractTest do
     Path.expand("../integration/tinkex_live_test.exs", __DIR__)
   ]
 
+  @manifest_surface_paths [
+    Path.expand("../../lib/pristine/manifest.ex", __DIR__),
+    Path.expand("../../lib/pristine/manifest", __DIR__),
+    Path.expand("../../lib/pristine/runtime.ex", __DIR__),
+    Path.expand("../../lib/pristine/codegen.ex", __DIR__),
+    Path.expand("../../lib/pristine/codegen", __DIR__),
+    Path.expand("../../lib/pristine/docs.ex", __DIR__),
+    Path.expand("../../lib/pristine/openapi.ex", __DIR__),
+    Path.expand("../../lib/mix/tasks/pristine.generate.ex", __DIR__),
+    Path.expand("../../lib/mix/tasks/pristine.validate.ex", __DIR__),
+    Path.expand("../../lib/mix/tasks/pristine.docs.ex", __DIR__),
+    Path.expand("../../lib/mix/tasks/pristine.openapi.ex", __DIR__)
+  ]
+
   test "docs pin the hardened runtime boundary and retained bridge seam" do
     readme = File.read!(@readme_path)
     getting_started = File.read!(@getting_started_path)
@@ -36,7 +50,7 @@ defmodule Pristine.StreamliningContractTest do
     assert getting_started =~ "`Pristine.execute_request/3`"
     assert getting_started =~ "`Pristine.foundation_context/1`"
     assert code_generation =~ "`Pristine.OpenAPI.Bridge.run/3` is the retained first-party"
-    assert code_generation =~ "build-time seam for"
+    assert code_generation =~ "build-time seam"
     assert code_generation =~ "It is not the normal consumer runtime entry"
   end
 
@@ -59,14 +73,28 @@ defmodule Pristine.StreamliningContractTest do
 
     assert pristine =~ "Pipeline.execute_request(request_spec, context, opts)"
     refute pristine =~ "Runtime.execute_request(request_spec, context, opts)"
+    refute pristine =~ "load_manifest"
+    refute pristine =~ "execute_endpoint"
 
     assert pipeline =~ "EndpointMetadata.from_request_spec("
-    refute pipeline =~ "%Pristine.Manifest.Endpoint{\n        id: request_spec.id"
+    refute pipeline =~ "%Pristine.Manifest.Endpoint"
+    refute pipeline =~ "execute_stream("
+    refute pipeline =~ "execute_future("
 
     assert result_classifier_port =~
              "Pristine.Core.{Context, EndpointMetadata, ResultClassification}"
 
     refute result_classifier_port =~ "Pristine.Manifest.Endpoint"
+  end
+
+  test "repo no longer carries the in-tree tinkex example surface" do
+    lingering_paths = Enum.filter(@tinkex_paths, &File.exists?/1)
+    assert lingering_paths == []
+  end
+
+  test "repo no longer carries the manifest-first runtime and task surface" do
+    lingering_paths = Enum.filter(@manifest_surface_paths, &File.exists?/1)
+    assert lingering_paths == []
   end
 
   test "user-facing docs do not advertise an in-tree tinkex example app" do
@@ -82,10 +110,5 @@ defmodule Pristine.StreamliningContractTest do
       end)
 
     assert mentions == []
-  end
-
-  test "repo no longer carries the in-tree tinkex example surface" do
-    lingering_paths = Enum.filter(@tinkex_paths, &File.exists?/1)
-    assert lingering_paths == []
   end
 end

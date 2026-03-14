@@ -2,34 +2,12 @@ defmodule Pristine.Core.PipelineRetryIdempotencyTest do
   use ExUnit.Case, async: true
   import Mox
 
-  alias Pristine.Core.{Context, Pipeline, Request, Response}
-  alias Pristine.Manifest
+  alias Pristine.Core.{Context, EndpointMetadata, Pipeline, Request, Response}
 
   setup :set_mox_from_context
   setup :verify_on_exit!
 
   test "reuses idempotency key across retries" do
-    manifest = %{
-      name: "tinkex",
-      version: "0.3.4",
-      endpoints: [
-        %{
-          id: "ping",
-          method: "POST",
-          path: "/ping",
-          request: "PingRequest",
-          response: "PingResponse",
-          idempotency: true
-        }
-      ],
-      types: %{
-        "PingRequest" => %{fields: %{prompt: %{type: "string", required: true}}},
-        "PingResponse" => %{fields: %{ok: %{type: "boolean", required: true}}}
-      }
-    }
-
-    {:ok, manifest} = Manifest.load(manifest)
-
     context = %Context{
       base_url: "https://example.com",
       transport: Pristine.TransportMock,
@@ -82,6 +60,23 @@ defmodule Pristine.Core.PipelineRetryIdempotencyTest do
       :ok
     end)
 
-    assert {:ok, %{"ok" => true}} = Pipeline.execute(manifest, "ping", payload, context)
+    assert {:ok, %{"ok" => true}} =
+             Pipeline.execute_endpoint(endpoint(idempotency: true), payload, context)
+  end
+
+  defp endpoint(overrides) do
+    struct(
+      EndpointMetadata,
+      Keyword.merge(
+        [
+          id: "ping",
+          method: "POST",
+          path: "/ping",
+          headers: %{},
+          query: %{}
+        ],
+        overrides
+      )
+    )
   end
 end

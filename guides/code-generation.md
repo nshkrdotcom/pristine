@@ -1,201 +1,83 @@
 # Code Generation
 
-Pristine generates type-safe Elixir SDK code from manifest definitions. This guide covers the code generation system and customization options.
+`Pristine.OpenAPI.Bridge.run/3` is the retained first-party build-time seam for
+provider SDK generation.
 
-## Overview
+It is intentionally separate from the runtime consumer surface:
 
-The code generation pipeline transforms manifests into three types of modules:
+- runtime consumers use `Pristine.execute_request/3`
+- SDKs build contexts through `Pristine.foundation_context/1`
+- SDK-facing types live under `Pristine.SDK.*`
+- `Pristine.OpenAPI.Bridge.run/3` is for first-party build-time generation
+- It is not the normal consumer runtime entry
 
-```
-Manifest
-    │
-    ├─► Type Modules (lib/types/*.ex)
-    │   - Structs with validation schemas
-    │   - encode/decode functions
-    │
-    ├─► Resource Modules (lib/resources/*.ex)
-    │   - Endpoint functions grouped by resource
-    │   - Parameter handling
-    │
-    └─► Client Module (lib/client.ex)
-        - Main entry point
-        - Resource accessors
-        - Embedded manifest
-```
-
-## Running Code Generation
-
-### Mix Task
-
-```bash
-mix pristine.generate \
-  --manifest path/to/manifest.json \
-  --output lib/myapi \
-  --namespace MyAPI
-```
-
-**Options:**
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--manifest` | Path to manifest file | Required |
-| `--output` | Output directory | `lib/generated` |
-| `--namespace` | Module namespace | Derived from manifest name |
-
-### Programmatic
+## Running the Bridge
 
 ```elixir
-{:ok, manifest} = Pristine.load_manifest_file("manifest.json")
-
-{:ok, sources} = Pristine.Codegen.build_sources(manifest,
-  namespace: "MyAPI",
-  output_dir: "lib/myapi"
-)
-
-:ok = Pristine.Codegen.write_sources(sources)
-```
-
-## Generated Modules
-
-### Type Modules
-
-For each type in your manifest, a type module is generated:
-
-**Manifest:**
-```json
-{
-  "types": {
-    "User": {
-      "fields": {
-        "id": {"type": "string", "required": true},
-        "name": {"type": "string", "required": true},
-        "email": {"type": "string"}
+result =
+  Pristine.OpenAPI.Bridge.run(
+    :notion_sdk,
+    ["openapi/notion.json"],
+    source_contexts: %{
+      "Widgets" => %{
+        title: "Widgets",
+        url: "https://docs.example.com/widgets"
       }
     }
-  }
-}
+  )
+
+sources = Pristine.OpenAPI.Bridge.generated_sources(result)
 ```
 
-**Generated (`lib/myapi/types/user.ex`):**
-```elixir
-defmodule MyAPI.Types.User do
-  @moduledoc "User type."
+The result retains the shared build artifacts needed by first-party SDK
+generators:
 
-  defstruct [:id, :name, :email]
+- the OpenAPI IR
+- source context metadata
+- a `docs_manifest` for generated source docs
 
-  @type t :: %__MODULE__{
-    id: String.t(),
-    name: String.t(),
-    email: String.t() | nil
-  }
+## Runtime Contract for Generated SDKs
 
-  @doc "Sinter validation schema."
-  def schema do
-    Sinter.Schema.define([
-      {:id, :string, [required: true]},
-      {:name, :string, [required: true]},
-      {:email, :string, []}
-    ])
-  end
+Generated SDKs should target the hardened runtime boundary instead of any
+manifest-first API:
 
-  @doc "Decode from map with validation."
-  def decode(data) when is_map(data) do
-    with {:ok, validated} <- Sinter.Validator.validate(schema(), data) do
-      {:ok, %__MODULE__{
-        id: validated["id"],
-        name: validated["name"],
-        email: validated["email"]
-      }}
-    end
-  end
+- `Pristine.execute_request/3`
+- `Pristine.foundation_context/1`
+- `Pristine.SDK.*`
 
-  @doc "Encode to map."
-  def encode(%__MODULE__{} = struct) do
-    %{
-      "id" => struct.id,
-      "name" => struct.name,
-      "email" => struct.email
-    }
-    |> Enum.reject(fn {_, v} -> is_nil(v) end)
-    |> Map.new()
-  end
+That keeps generated packages isolated from `Pristine.Core.*` and other runtime
+internals.
 
-  @doc "Create from map (without validation)."
-  def from_map(data) when is_map(data) do
-    %__MODULE__{
-      id: data["id"],
-      name: data["name"],
-      email: data["email"]
-    }
-  end
+## OAuth Security Scheme Metadata
 
-  @doc "Create new instance."
-  def new(attrs \\ []) do
-    struct(__MODULE__, attrs)
-  end
-
-  @doc "Convert to map."
-  def to_map(%__MODULE__{} = struct) do
-    encode(struct)
-  end
-end
-```
-
-## OpenAPI-Generated Runtime Helpers
-
-When you generate from OpenAPI through the bridge, schema modules should expose a small runtime contract in addition to typespecs:
-
-- `__fields__/1` for readable field metadata
-- `__openapi_fields__/1` for richer runtime field descriptors
-- `__schema__/1` for validation-ready `Sinter.Schema` values
-- `decode/1,2` for struct or map materialization
-
-That contract lets the generic pipeline validate direct refs such as `{MySDK.PageObjectResponse, :t}` and, when `typed_responses: true` is enabled by the generated SDK, materialize successful responses without bespoke runtime code in each SDK. Missing helpers are treated as a programming error and fail fast.
-
-`Pristine.OpenAPI.Bridge.run/3` is the retained first-party build-time seam for
-OpenAPI-based SDK generation. It is not the normal consumer runtime entry
-point.
-
-It returns `%Pristine.OpenAPI.Result{}` with:
-
-- `ir` for the canonical OpenAPI docs IR
-- `source_contexts` for provider-neutral source metadata keyed by `{method, path}`
-- `docs_manifest` for the JSON-ready docs artifact produced by `Pristine.OpenAPI.Docs`
-
-OpenAPI-generated operation request maps preserve effective security metadata
-through the normal generator path now that upstream operation metadata carries
-`security`.
-
-For OAuth2 control-plane helpers layered on top of generated SDKs, build
-providers from OpenAPI security scheme data through
-`Pristine.SDK.OAuth2.Provider.from_security_scheme!/3` instead of routing the
-SDK-facing contract through manifests:
+SDK-facing OAuth provider construction comes from OpenAPI security scheme data:
 
 ```elixir
-security_scheme = %{
-  "type" => "oauth2",
-  "flows" => %{
-    "authorizationCode" => %{
-      "authorizationUrl" => "/oauth/authorize",
-      "tokenUrl" => "/oauth/token",
-      "scopes" => %{"users.read" => "Read users"}
-    }
-  },
-  "x-pristine-flow" => "authorizationCode",
-  "x-pristine-client-auth-method" => "basic",
-  "x-pristine-token-method" => "post",
-  "x-pristine-token-content-type" => "application/json"
-}
-
 provider =
   Pristine.SDK.OAuth2.Provider.from_security_scheme!(
-    :exampleOauth,
-    security_scheme,
+    "providerOAuth",
+    %{
+      "type" => "oauth2",
+      "flows" => %{
+        "authorizationCode" => %{
+          "authorizationUrl" => "/oauth/authorize",
+          "tokenUrl" => "/oauth/token",
+          "scopes" => %{"user.read" => "Read users"}
+        }
+      },
+      "x-pristine-flow" => "authorizationCode",
+      "x-pristine-default-scopes" => ["user.read"],
+      "x-pristine-client-auth-method" => "request_body",
+      "x-pristine-token-method" => "post",
+      "x-pristine-token-content-type" => "application/json",
+      "x-pristine-revocation-url" => "/oauth/revoke",
+      "x-pristine-introspection-url" => "/oauth/introspect"
+    },
     site: "https://api.example.com"
   )
 ```
 
-Supported OAuth2 scheme extensions in retained OpenAPI-based SDK flows include:
+The retained `x-pristine-*` extensions are:
 
 - `x-pristine-flow`
 - `x-pristine-default-scopes`
@@ -205,479 +87,5 @@ Supported OAuth2 scheme extensions in retained OpenAPI-based SDK flows include:
 - `x-pristine-revocation-url`
 - `x-pristine-introspection-url`
 
-### Union Types
-
-**Manifest:**
-```json
-{
-  "types": {
-    "Result": {
-      "kind": "union",
-      "discriminator": {
-        "field": "type",
-        "mapping": {
-          "success": "SuccessResult",
-          "error": "ErrorResult"
-        }
-      }
-    }
-  }
-}
-```
-
-**Generated:**
-```elixir
-defmodule MyAPI.Types.Result do
-  @moduledoc "Result union type."
-
-  alias MyAPI.Types.{SuccessResult, ErrorResult}
-
-  @type t :: SuccessResult.t() | ErrorResult.t()
-
-  def schema do
-    {:discriminated_union,
-     discriminator: "type",
-     variants: %{
-       "success" => SuccessResult.schema(),
-       "error" => ErrorResult.schema()
-     }}
-  end
-
-  def decode(data) when is_map(data) do
-    case data["type"] do
-      "success" -> SuccessResult.decode(data)
-      "error" -> ErrorResult.decode(data)
-      other -> {:error, {:unknown_variant, other}}
-    end
-  end
-end
-```
-
-### Resource Modules
-
-Endpoints are grouped by `resource` field:
-
-**Manifest:**
-```json
-{
-  "endpoints": [
-    {
-      "id": "list_users",
-      "method": "GET",
-      "path": "/users",
-      "resource": "users",
-      "response": "UserList"
-    },
-    {
-      "id": "get_user",
-      "method": "GET",
-      "path": "/users/{id}",
-      "resource": "users",
-      "response": "User"
-    },
-    {
-      "id": "create_user",
-      "method": "POST",
-      "path": "/users",
-      "resource": "users",
-      "request": "CreateUserRequest",
-      "response": "User"
-    }
-  ]
-}
-```
-
-**Generated (`lib/myapi/resources/users.ex`):**
-```elixir
-defmodule MyAPI.Users do
-  @moduledoc "Users resource endpoints."
-
-  defstruct [:context]
-
-  @type t :: %__MODULE__{context: Pristine.SDK.Context.t()}
-
-  @doc "Create resource from client."
-  def with_client(%{context: context}) do
-    %__MODULE__{context: context}
-  end
-
-  @doc """
-  List all users.
-
-  ## Parameters
-    * `opts` - Optional parameters:
-      * `:timeout` - Request timeout in milliseconds
-
-  ## Returns
-    * `{:ok, response}` on success
-    * `{:error, Pristine.SDK.Error.t()}` on failure
-  """
-  @spec list(%__MODULE__{}, keyword()) ::
-    {:ok, term()} | {:error, Pristine.SDK.Error.t()}
-  def list(%__MODULE__{context: context}, opts \\ []) do
-    Pristine.Runtime.execute(
-      MyAPI.Client.manifest(),
-      :list_users,
-      %{},
-      context,
-      opts
-    )
-  end
-
-  @doc """
-  Get a user by ID.
-
-  ## Parameters
-    * `id` - User ID (path parameter)
-    * `opts` - Optional parameters
-  """
-  @spec get(%__MODULE__{}, String.t(), keyword()) ::
-    {:ok, term()} | {:error, Pristine.SDK.Error.t()}
-  def get(%__MODULE__{context: context}, id, opts \\ []) do
-    opts = merge_path_params(opts, %{"id" => id})
-
-    Pristine.Runtime.execute(
-      MyAPI.Client.manifest(),
-      :get_user,
-      %{},
-      context,
-      opts
-    )
-  end
-
-  @doc """
-  Create a new user.
-
-  ## Parameters
-    * `name` - User name (required)
-    * `opts` - Optional parameters:
-      * `:email` - User email
-  """
-  @spec create(%__MODULE__{}, String.t(), keyword()) ::
-    {:ok, term()} | {:error, Pristine.SDK.Error.t()}
-  def create(%__MODULE__{context: context}, name, opts \\ []) do
-    payload = %{"name" => name}
-    |> maybe_put("email", Keyword.get(opts, :email))
-
-    Pristine.Runtime.execute(
-      MyAPI.Client.manifest(),
-      :create_user,
-      payload,
-      context,
-      Keyword.drop(opts, [:email])
-    )
-  end
-
-  # Helper functions (generated as needed)
-
-  defp merge_path_params(opts, path_params) do
-    existing = Keyword.get(opts, :path_params, %{})
-    Keyword.put(opts, :path_params, Map.merge(existing, path_params))
-  end
-
-  defp maybe_put(payload, _key, nil), do: payload
-  defp maybe_put(payload, _key, Sinter.NotGiven), do: payload
-  defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
-end
-```
-
-### Client Module
-
-**Generated (`lib/myapi/client.ex`):**
-```elixir
-defmodule MyAPI.Client do
-  @moduledoc """
-  Generated API client for MyAPI v1.0.0.
-
-  This module was generated by Pristine from a manifest definition.
-  """
-
-  alias Pristine.SDK.Context
-
-  defstruct [:context]
-
-  @type t :: %__MODULE__{context: Context.t()}
-
-  # Embedded normalized manifest for runtime access
-  @manifest %Pristine.Manifest{
-    name: "myapi",
-    version: "1.0.0",
-    # ... normalized endpoints and types
-  }
-
-  @doc "Returns the embedded manifest."
-  @spec manifest() :: Pristine.Manifest.t()
-  def manifest, do: @manifest
-
-  @doc """
-  Create a new client instance.
-
-  ## Options
-    * `:base_url` - Override the default base URL
-    * `:headers` - Additional headers to include
-    * `:auth` - Authentication configuration
-    * `:transport` - Transport adapter module
-    * `:timeout` - Request timeout in milliseconds
-
-  ## Examples
-
-      client = MyAPI.Client.new(
-        base_url: "https://api.example.com",
-        auth: [{Pristine.Adapters.Auth.Bearer, token: "..."}]
-      )
-  """
-  @spec new(keyword()) :: t()
-  def new(opts \\ []) do
-    %__MODULE__{context: Pristine.Runtime.build_context!(@manifest, opts)}
-  end
-
-  @doc "Access users resource endpoints."
-  @spec users(t()) :: MyAPI.Users.t()
-  def users(%__MODULE__{} = client) do
-    MyAPI.Users.with_client(client)
-  end
-
-  @doc """
-  Execute any endpoint by ID.
-
-  For advanced use cases where you need direct endpoint access.
-  """
-  @spec execute(String.t() | atom(), map(), keyword()) ::
-    {:ok, term()} | {:error, term()}
-  def execute(%__MODULE__{context: context}, endpoint_id, payload, opts \\ []) do
-    Pristine.Runtime.execute(@manifest, endpoint_id, payload, context, opts)
-  end
-end
-```
-
-## Async and Streaming Endpoints
-
-### Async Endpoints
-
-For endpoints with `async: true`:
-
-**Manifest:**
-```json
-{
-  "id": "generate_report",
-  "async": true,
-  "poll_endpoint": "get_report_status"
-}
-```
-
-**Generated (additional function):**
-```elixir
-@doc "Generate report (async)."
-@spec generate_report_async(%__MODULE__{}, map(), keyword()) ::
-  {:ok, Task.t()} | {:error, term()}
-def generate_report_async(%__MODULE__{context: context}, payload, opts \\ []) do
-  Pristine.Core.Pipeline.execute_future(
-    MyAPI.Client.manifest(),
-    :generate_report,
-    payload,
-    context,
-    opts
-  )
-end
-```
-
-### Streaming Endpoints
-
-For endpoints with `streaming: true`:
-
-**Manifest:**
-```json
-{
-  "id": "stream_events",
-  "streaming": true,
-  "stream_format": "sse"
-}
-```
-
-**Generated (additional function):**
-```elixir
-@doc "Stream events (SSE)."
-@spec stream_events_stream(%__MODULE__{}, map(), keyword()) ::
-  {:ok, Pristine.Core.StreamResponse.t()} | {:error, term()}
-def stream_events_stream(%__MODULE__{context: context}, payload, opts \\ []) do
-  Pristine.Core.Pipeline.execute_stream(
-    MyAPI.Client.manifest(),
-    :stream_events,
-    payload,
-    context,
-    opts
-  )
-end
-```
-
-## Function Signatures
-
-The generator analyzes request types to create ergonomic function signatures:
-
-### Required Parameters
-
-Required fields become positional arguments:
-
-```json
-{
-  "CreateUserRequest": {
-    "fields": {
-      "name": {"type": "string", "required": true},
-      "email": {"type": "string", "required": true}
-    }
-  }
-}
-```
-
-```elixir
-def create(resource, name, email, opts \\ [])
-```
-
-### Optional Parameters
-
-Optional fields go in the `opts` keyword list:
-
-```json
-{
-  "CreateUserRequest": {
-    "fields": {
-      "name": {"type": "string", "required": true},
-      "bio": {"type": "string"},
-      "age": {"type": "integer"}
-    }
-  }
-}
-```
-
-```elixir
-def create(resource, name, opts \\ [])
-# opts can include: :bio, :age
-```
-
-### Path Parameters
-
-Path parameters are extracted from the path pattern:
-
-```json
-{
-  "path": "/users/{user_id}/posts/{post_id}"
-}
-```
-
-```elixir
-def get(resource, user_id, post_id, opts \\ [])
-```
-
-### Literal Fields
-
-Fields with `type: "literal"` are not parameters:
-
-```json
-{
-  "kind": {"type": "literal", "value": "user"}
-}
-```
-
-The literal value is automatically included in the payload.
-
-## Type Reference Handling
-
-When types reference other types:
-
-```json
-{
-  "User": {
-    "fields": {
-      "profile": {"type_ref": "UserProfile"}
-    }
-  }
-}
-```
-
-Generated code includes encoding helpers:
-
-```elixir
-def encode(%__MODULE__{} = struct) do
-  %{
-    "profile" => encode_ref(struct.profile, MyAPI.Types.UserProfile)
-  }
-end
-
-defp encode_ref(nil, _module), do: nil
-defp encode_ref(value, module) do
-  if function_exported?(module, :encode, 1) do
-    module.encode(value)
-  else
-    value
-  end
-end
-```
-
-## Customization
-
-### Namespace
-
-Control the module namespace:
-
-```bash
-mix pristine.generate --namespace MyApp.API.V1
-```
-
-Generates:
-- `MyApp.API.V1.Client`
-- `MyApp.API.V1.Types.User`
-- `MyApp.API.V1.Users`
-
-### Output Structure
-
-Default structure:
-```
-lib/myapi/
-├── client.ex
-├── types/
-│   ├── user.ex
-│   └── user_list.ex
-└── resources/
-    └── users.ex
-```
-
-### Documentation
-
-Generated modules include `@moduledoc` and `@doc` annotations derived from manifest descriptions.
-
-## Validation at Generation Time
-
-The codegen validates:
-
-1. **Manifest structure** - Required fields present
-2. **Type references** - Referenced types exist
-3. **Endpoint consistency** - Request/response types exist
-4. **Path parameters** - Path params have corresponding type fields
-
-Errors are reported before any files are written.
-
-## Regeneration
-
-When your API changes:
-
-1. Update the manifest
-2. Re-run code generation
-3. Generated code is completely replaced
-
-**Best Practice:** Don't manually edit generated files. If you need customization, create wrapper modules.
-
-## Integration with Runtime
-
-Generated code uses `Pristine.Runtime.execute/5` which:
-
-1. Loads the embedded manifest
-2. Resolves the endpoint
-3. Executes through the pipeline
-4. Returns validated results
-
-This means generated SDKs have full access to:
-- Retry policies
-- Circuit breakers
-- Rate limiting
-- Telemetry
-- All other Pristine features
+These extensions let first-party SDK generators preserve provider-specific OAuth
+behavior without exposing manifests through the blessed SDK namespace.

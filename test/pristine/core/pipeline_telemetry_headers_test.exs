@@ -2,41 +2,12 @@ defmodule Pristine.Core.PipelineTelemetryHeadersTest do
   use ExUnit.Case, async: true
   import Mox
 
-  alias Pristine.Core.{Context, Pipeline, Request, Response}
-  alias Pristine.Manifest
+  alias Pristine.Core.{Context, EndpointMetadata, Pipeline, Request, Response}
 
   setup :set_mox_from_context
   setup :verify_on_exit!
 
   test "injects telemetry headers" do
-    manifest = %{
-      name: "tinkex",
-      version: "0.3.4",
-      endpoints: [
-        %{
-          id: "ping",
-          method: "POST",
-          path: "/ping",
-          request: "PingRequest",
-          response: "PingResponse"
-        }
-      ],
-      types: %{
-        "PingRequest" => %{
-          fields: %{
-            prompt: %{type: "string", required: true}
-          }
-        },
-        "PingResponse" => %{
-          fields: %{
-            ok: %{type: "boolean", required: true}
-          }
-        }
-      }
-    }
-
-    {:ok, manifest} = Manifest.load(manifest)
-
     context = %Context{
       base_url: "https://example.com",
       transport: Pristine.TransportMock,
@@ -84,9 +55,19 @@ defmodule Pristine.Core.PipelineTelemetryHeadersTest do
     end)
 
     assert {:ok, %{"ok" => true}} =
-             Pipeline.execute(manifest, "ping", payload, context,
+             Pipeline.execute_endpoint(endpoint(), payload, context,
                retry_count: 2,
                timeout: 5_000
              )
+  end
+
+  defp endpoint do
+    %EndpointMetadata{
+      id: "ping",
+      method: "POST",
+      path: "/ping",
+      headers: %{},
+      query: %{}
+    }
   end
 end

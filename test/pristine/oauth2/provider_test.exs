@@ -1,7 +1,6 @@
 defmodule Pristine.OAuth2.ProviderTest do
   use ExUnit.Case, async: true
 
-  alias Pristine.Manifest
   alias Pristine.OAuth2.Provider
 
   test "builds a provider directly from oauth2 security scheme metadata" do
@@ -72,33 +71,6 @@ defmodule Pristine.OAuth2.ProviderTest do
     assert {:ok, provider} = Provider.from_security_scheme("multiOauth", scheme)
     assert provider.flow == :authorization_code
     assert provider.authorize_url == "/oauth/authorize"
-    assert provider.token_url == "/oauth/token/code"
-  end
-
-  test "manifest-backed construction delegates to security scheme parsing" do
-    {:ok, manifest} =
-      Manifest.load(%{
-        name: "demo",
-        version: "0.1.0",
-        base_url: "https://api.example.com",
-        endpoints: [],
-        types: %{},
-        security_schemes: %{
-          multiOauth: %{
-            type: "oauth2",
-            flows: %{
-              authorizationCode: %{
-                authorizationUrl: "/oauth/authorize",
-                tokenUrl: "/oauth/token/code"
-              }
-            }
-          }
-        }
-      })
-
-    assert {:ok, provider} = Provider.from_manifest(manifest, "multiOauth")
-    assert provider.site == "https://api.example.com"
-    assert provider.flow == :authorization_code
     assert provider.token_url == "/oauth/token/code"
   end
 end
