@@ -3,7 +3,6 @@ defmodule Pristine.SDK.OAuth2.Provider do
   SDK-facing OAuth2 provider configuration contract.
   """
 
-  alias Pristine.Manifest
   alias Pristine.OAuth2.Provider, as: RuntimeProvider
 
   @type t :: RuntimeProvider.t()
@@ -11,10 +10,10 @@ defmodule Pristine.SDK.OAuth2.Provider do
   @spec new(keyword()) :: t()
   defdelegate new(opts \\ []), to: RuntimeProvider
 
-  @spec from_manifest(Manifest.t(), String.t() | atom()) ::
+  @spec from_security_scheme(String.t() | atom(), map(), keyword()) ::
           {:ok, t()} | {:error, Pristine.SDK.OAuth2.Error.t()}
-  defdelegate from_manifest(manifest, scheme_name), to: RuntimeProvider
+  defdelegate from_security_scheme(scheme_name, scheme, opts \\ []), to: RuntimeProvider
 
-  @spec from_manifest!(Manifest.t(), String.t() | atom()) :: t()
-  defdelegate from_manifest!(manifest, scheme_name), to: RuntimeProvider
+  @spec from_security_scheme!(String.t() | atom(), map(), keyword()) :: t()
+  defdelegate from_security_scheme!(scheme_name, scheme, opts \\ []), to: RuntimeProvider
 end

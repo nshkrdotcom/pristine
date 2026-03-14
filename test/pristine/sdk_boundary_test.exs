@@ -5,6 +5,8 @@ defmodule Pristine.SDKBoundaryTest do
   alias Pristine.SDK.OAuth2.Provider, as: OAuth2Provider
   alias Pristine.SDK.OpenAPI.{Client, Operation, Runtime}
 
+  @sdk_source_glob Path.expand("../../lib/pristine/sdk/**/*.ex", __DIR__)
+
   test "sdk namespace exposes the public runtime boundary" do
     assert Code.ensure_loaded?(SDK.Context)
     assert function_exported?(SDK.Context, :new, 0)
@@ -75,6 +77,35 @@ defmodule Pristine.SDKBoundaryTest do
 
     assert provider.name == "example"
     assert is_boolean(SDK.OAuth2.available?())
+  end
+
+  test "sdk oauth provider construction stays manifest-free" do
+    violations =
+      @sdk_source_glob
+      |> Path.wildcard()
+      |> Enum.flat_map(fn path ->
+        source = File.read!(path)
+
+        [
+          {"Pristine.Manifest", "Pristine.Manifest"},
+          {"from_manifest(", "from_manifest/2"},
+          {"from_manifest!(", "from_manifest!/2"}
+        ]
+        |> Enum.flat_map(fn {pattern, label} ->
+          if String.contains?(source, pattern) do
+            ["#{path}: #{label}"]
+          else
+            []
+          end
+        end)
+      end)
+
+    assert violations == []
+    assert Code.ensure_loaded?(OAuth2Provider)
+    assert function_exported?(OAuth2Provider, :from_security_scheme, 3)
+    assert function_exported?(OAuth2Provider, :from_security_scheme!, 3)
+    refute function_exported?(OAuth2Provider, :from_manifest, 2)
+    refute function_exported?(OAuth2Provider, :from_manifest!, 2)
   end
 
   test "top-level execution helpers stay available through the hardened boundary" do
