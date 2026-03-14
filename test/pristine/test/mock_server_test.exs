@@ -18,6 +18,13 @@ defmodule Pristine.Test.MockServerTest do
   end
 
   describe "start/2 and stop/1" do
+    test "returns an error when optional mock server dependencies are unavailable" do
+      manifest = build_test_manifest()
+
+      assert {:error, :mock_server_dependencies_unavailable} =
+               MockServer.start(manifest, dependencies_available?: false)
+    end
+
     test "starts a mock server on specified port" do
       manifest = build_test_manifest()
 

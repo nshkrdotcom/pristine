@@ -50,6 +50,15 @@ defmodule Pristine.OAuth2.CallbackServerTest do
              CallbackServer.start("http://localhost:40071/callback")
   end
 
+  test "returns a structured error when optional callback server dependencies are unavailable" do
+    assert {:error, %Error{reason: :loopback_callback_unavailable, message: message}} =
+             CallbackServer.start("http://127.0.0.1:40071/callback",
+               dependencies_available?: false
+             )
+
+    assert message =~ "requires optional"
+  end
+
   defp free_port do
     {:ok, socket} =
       :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}, reuseaddr: true])

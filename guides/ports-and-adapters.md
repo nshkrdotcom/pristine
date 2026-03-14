@@ -302,7 +302,8 @@ Use `Pristine.OAuth2.Interactive.authorize/2` when you want Pristine to:
 
 `Pristine.OAuth2.CallbackServer` only supports exact `http` loopback redirect
 URIs with literal loopback IPs such as `127.0.0.1` or `::1`. It does not choose
-a random port for you.
+a random port for you, and it requires the optional `:plug` and `:bandit`
+dependencies.
 
 ## Resilience Ports
 
@@ -558,7 +559,8 @@ Directly logs into `TelemetryReporter`.
 This adapter is kept as a compatibility path. For new code, prefer
 `Pristine.Adapters.Telemetry.Foundation` plus
 `Pristine.Profiles.Foundation.attach_reporter/2` so export remains a normal
-telemetry handler concern instead of a separate telemetry implementation.
+telemetry handler concern instead of a separate telemetry implementation. This
+adapter requires the optional `:telemetry_reporter` dependency.
 
 #### Noop Adapter
 
@@ -645,11 +647,19 @@ Pristine.Adapters.Tokenizer.Tiktoken
 
 **Usage:**
 ```elixir
+{:ok, encoding} =
+  TiktokenEx.Encoding.new(
+    pat_str: ~S/./u,
+    mergeable_ranks: %{"Hello" => 1, "," => 2, " world" => 3, "!" => 4}
+  )
+
 {:ok, tokens} = Pristine.Adapters.Tokenizer.Tiktoken.encode(
   "Hello, world!",
-  encoding: "cl100k_base"
+  encoding: encoding
 )
 ```
+
+This adapter requires the optional `:tiktoken_ex` dependency.
 
 ## Semaphore Ports
 

@@ -590,7 +590,8 @@ children = [
 ```
 
 This is preferred over the compatibility-only
-`Pristine.Adapters.Telemetry.Reporter` adapter for new code.
+`Pristine.Adapters.Telemetry.Reporter` adapter for new code, and it requires
+the optional `:telemetry_reporter` dependency.
 
 ### Custom Event Names
 

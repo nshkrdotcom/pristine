@@ -211,9 +211,16 @@ Pristine keeps the runtime transport boundary separate from OAuth2 control-plane
 
 - normal endpoint execution still uses `Pristine.Core.Pipeline` and the configured transport adapter
 - `Pristine.OAuth2` uses the optional `oauth2` dependency only for strategy shaping, authorization URL generation, and token parsing helpers
+- `Pristine.OAuth2.CallbackServer` is a loopback-only helper that additionally requires the optional `plug` and `bandit` dependencies
 - token, revoke, and introspection HTTP still execute through Pristine's transport boundary
 
 Runtime auth can now be resolved from either legacy `auth` keys or OpenAPI-style `security` requirement sets. That lets generated SDKs opt into scheme-scoped auth such as bearer-vs-basic without introducing a client-wide "OAuth mode".
+
+The same dependency boundary applies to the smaller compatibility adapters:
+
+- `Pristine.Adapters.Telemetry.Reporter` remains available for `telemetry_reporter` compatibility, but it is no longer part of the default runtime dependency path
+- `Pristine.Adapters.Tokenizer.Tiktoken` remains available for tokenization experiments, but it requires the optional `tiktoken_ex` dependency
+- `foundation` stays in the core runtime package because the default production profile still depends on it directly
 
 ### Standard Request
 

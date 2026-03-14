@@ -35,7 +35,7 @@ defmodule Pristine.Test.MockServer do
   use GenServer
 
   # Bandit and ThousandIsland are only available in test environment
-  @compile {:no_warn_undefined, [Bandit, ThousandIsland]}
+  @compile {:no_warn_undefined, [Bandit, ThousandIsland, Plug.Conn, Plug.Router, Plug.Parsers]}
 
   alias Pristine.Manifest
   alias Pristine.Test.Fixtures
@@ -88,33 +88,35 @@ defmodule Pristine.Test.MockServer do
       history: []
     }
 
-    {:ok, pid} = GenServer.start_link(__MODULE__, state)
+    if dependencies_available?(opts) do
+      {:ok, pid} = GenServer.start_link(__MODULE__, state)
 
-    # Start Bandit server
-    plug_opts = [server_pid: pid, manifest: manifest]
+      plug_opts = [server_pid: pid, manifest: manifest]
 
-    bandit_opts = [
-      plug: {__MODULE__.Router, plug_opts},
-      port: port,
-      ip: {127, 0, 0, 1},
-      startup_log: false,
-      thousand_island_options: [num_acceptors: 1, silent_terminate_on_error: true]
-    ]
+      bandit_opts = [
+        plug: {__MODULE__.Router, plug_opts},
+        port: port,
+        ip: {127, 0, 0, 1},
+        startup_log: false,
+        thousand_island_options: [num_acceptors: 1, silent_terminate_on_error: true]
+      ]
 
-    bandit_module = Bandit
-    {:ok, bandit_pid} = bandit_module.start_link(bandit_opts)
+      bandit_module = Keyword.get(opts, :bandit_module, Bandit)
+      {:ok, bandit_pid} = bandit_module.start_link(bandit_opts)
 
-    # Get the actual port
-    thousand_island_module = ThousandIsland
-    {:ok, {_, actual_port}} = thousand_island_module.listener_info(bandit_pid)
+      thousand_island_module = Keyword.get(opts, :thousand_island_module, ThousandIsland)
+      {:ok, {_, actual_port}} = thousand_island_module.listener_info(bandit_pid)
 
-    {:ok,
-     %__MODULE__{
-       pid: pid,
-       port: actual_port,
-       manifest: manifest,
-       bandit_pid: bandit_pid
-     }}
+      {:ok,
+       %__MODULE__{
+         pid: pid,
+         port: actual_port,
+         manifest: manifest,
+         bandit_pid: bandit_pid
+       }}
+    else
+      {:error, :mock_server_dependencies_unavailable}
+    end
   end
 
   @doc """
@@ -332,110 +334,125 @@ defmodule Pristine.Test.MockServer do
 
   defp field_required?(_), do: false
 
+  defp dependencies_available?(opts) do
+    bandit_module = Keyword.get(opts, :bandit_module, Bandit)
+    thousand_island_module = Keyword.get(opts, :thousand_island_module, ThousandIsland)
+
+    Keyword.get_lazy(opts, :dependencies_available?, fn ->
+      Code.ensure_loaded?(Plug.Conn) and Code.ensure_loaded?(Plug.Router) and
+        Code.ensure_loaded?(Plug.Parsers) and Code.ensure_loaded?(bandit_module) and
+        function_exported?(bandit_module, :start_link, 1) and
+        Code.ensure_loaded?(thousand_island_module) and
+        function_exported?(thousand_island_module, :listener_info, 1)
+    end)
+  end
+
   # Router module
-  defmodule Router do
-    @moduledoc false
-    use Plug.Router
+  if Code.ensure_loaded?(Plug.Router) and Code.ensure_loaded?(Plug.Parsers) do
+    defmodule Router do
+      @moduledoc false
+      use Plug.Router
 
-    plug(Plug.Parsers,
-      parsers: [:json],
-      json_decoder: Jason,
-      pass: ["application/json"]
-    )
+      plug(Plug.Parsers,
+        parsers: [:json],
+        json_decoder: Jason,
+        pass: ["application/json"]
+      )
 
-    plug(:match)
-    plug(:dispatch)
+      plug(:match)
+      plug(:dispatch)
 
-    match _ do
-      server_pid = conn.private[:server_pid]
-      manifest = conn.private[:manifest]
+      match _ do
+        server_pid = conn.private[:server_pid]
+        manifest = conn.private[:manifest]
 
-      {endpoint, path_params} = match_endpoint(manifest, conn.method, conn.request_path)
+        {endpoint, path_params} = match_endpoint(manifest, conn.method, conn.request_path)
 
-      if endpoint do
-        request = %{
-          endpoint_id: endpoint.id,
-          method: conn.method,
-          path: conn.request_path,
-          path_params: path_params,
-          query_params: conn.query_params,
-          body: conn.body_params,
-          headers: conn.req_headers
-        }
+        if endpoint do
+          request = %{
+            endpoint_id: endpoint.id,
+            method: conn.method,
+            path: conn.request_path,
+            path_params: path_params,
+            query_params: conn.query_params,
+            body: conn.body_params,
+            headers: conn.req_headers
+          }
 
-        response = GenServer.call(server_pid, {:handle_request, request})
+          response = GenServer.call(server_pid, {:handle_request, request})
 
-        body =
-          if is_map(response.body) do
-            Jason.encode!(response.body)
-          else
-            response.body || ""
-          end
+          body =
+            if is_map(response.body) do
+              Jason.encode!(response.body)
+            else
+              response.body || ""
+            end
 
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(response.status, body)
-      else
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(404, Jason.encode!(%{error: "Not found"}))
-      end
-    end
-
-    defp match_endpoint(%Manifest{endpoints: endpoints}, method, path) do
-      method_str = String.upcase(method)
-
-      endpoints
-      |> Map.values()
-      |> Enum.find_value(fn endpoint ->
-        try_match_endpoint(endpoint, method_str, path)
-      end) || {nil, %{}}
-    end
-
-    defp try_match_endpoint(endpoint, method_str, path) do
-      if String.upcase(endpoint.method) == method_str do
-        case match_path(endpoint.path, path) do
-          {:ok, params} -> {endpoint, params}
-          :nomatch -> nil
+          conn
+          |> Plug.Conn.put_resp_content_type("application/json")
+          |> Plug.Conn.send_resp(response.status, body)
+        else
+          conn
+          |> Plug.Conn.put_resp_content_type("application/json")
+          |> Plug.Conn.send_resp(404, Jason.encode!(%{error: "Not found"}))
         end
       end
-    end
 
-    defp match_path(template, actual) do
-      template_parts = String.split(template, "/", trim: true)
-      actual_parts = String.split(actual, "/", trim: true)
+      defp match_endpoint(%Manifest{endpoints: endpoints}, method, path) do
+        method_str = String.upcase(method)
 
-      if length(template_parts) == length(actual_parts) do
-        match_parts(template_parts, actual_parts, %{})
-      else
-        :nomatch
+        endpoints
+        |> Map.values()
+        |> Enum.find_value(fn endpoint ->
+          try_match_endpoint(endpoint, method_str, path)
+        end) || {nil, %{}}
       end
-    end
 
-    defp match_parts([], [], params), do: {:ok, params}
+      defp try_match_endpoint(endpoint, method_str, path) do
+        if String.upcase(endpoint.method) == method_str do
+          case match_path(endpoint.path, path) do
+            {:ok, params} -> {endpoint, params}
+            :nomatch -> nil
+          end
+        end
+      end
 
-    defp match_parts(["{" <> rest | t_rest], [value | a_rest], params) do
-      param_name = String.trim_trailing(rest, "}")
-      match_parts(t_rest, a_rest, Map.put(params, param_name, value))
-    end
+      defp match_path(template, actual) do
+        template_parts = String.split(template, "/", trim: true)
+        actual_parts = String.split(actual, "/", trim: true)
 
-    defp match_parts([same | t_rest], [same | a_rest], params) do
-      match_parts(t_rest, a_rest, params)
-    end
+        if length(template_parts) == length(actual_parts) do
+          match_parts(template_parts, actual_parts, %{})
+        else
+          :nomatch
+        end
+      end
 
-    defp match_parts(_, _, _), do: :nomatch
+      defp match_parts([], [], params), do: {:ok, params}
 
-    @impl Plug
-    def init(opts), do: opts
+      defp match_parts(["{" <> rest | t_rest], [value | a_rest], params) do
+        param_name = String.trim_trailing(rest, "}")
+        match_parts(t_rest, a_rest, Map.put(params, param_name, value))
+      end
 
-    @impl Plug
-    def call(conn, opts) do
-      conn =
-        conn
-        |> put_private(:server_pid, Keyword.fetch!(opts, :server_pid))
-        |> put_private(:manifest, Keyword.fetch!(opts, :manifest))
+      defp match_parts([same | t_rest], [same | a_rest], params) do
+        match_parts(t_rest, a_rest, params)
+      end
 
-      super(conn, opts)
+      defp match_parts(_, _, _), do: :nomatch
+
+      @impl Plug
+      def init(opts), do: opts
+
+      @impl Plug
+      def call(conn, opts) do
+        conn =
+          conn
+          |> Plug.Conn.put_private(:server_pid, Keyword.fetch!(opts, :server_pid))
+          |> Plug.Conn.put_private(:manifest, Keyword.fetch!(opts, :manifest))
+
+        super(conn, opts)
+      end
     end
   end
 end

@@ -5,11 +5,9 @@ defmodule Pristine.OAuth2.CallbackServer do
 
   use GenServer
 
-  import Plug.Conn
-
   alias Pristine.OAuth2.Error
 
-  @compile {:no_warn_undefined, [Bandit]}
+  @compile {:no_warn_undefined, [Bandit, Plug.Conn]}
 
   @callback_message :pristine_oauth2_callback
 
@@ -71,8 +69,8 @@ defmodule Pristine.OAuth2.CallbackServer do
   end
 
   @doc false
-  @spec handle_http_request(pid(), Plug.Conn.t(), redirect_target()) ::
-          {Plug.Conn.t(), non_neg_integer(), iodata()}
+  @spec handle_http_request(pid(), map(), redirect_target()) ::
+          {map(), non_neg_integer(), iodata()}
   def handle_http_request(server, conn, redirect) do
     cond do
       conn.method != "GET" ->
@@ -82,7 +80,7 @@ defmodule Pristine.OAuth2.CallbackServer do
         {conn, 404, failure_page("Not found")}
 
       true ->
-        conn = fetch_query_params(conn)
+        conn = Plug.Conn.fetch_query_params(conn)
         callback_uri = callback_uri(redirect, conn.query_string)
 
         response =
@@ -93,7 +91,7 @@ defmodule Pristine.OAuth2.CallbackServer do
   end
 
   @impl GenServer
-  def init(%{receiver: receiver, redirect: redirect}) do
+  def init(%{bandit_module: bandit_module, receiver: receiver, redirect: redirect}) do
     plug_opts = [server: self(), redirect: redirect]
 
     bandit_opts = [
@@ -104,7 +102,7 @@ defmodule Pristine.OAuth2.CallbackServer do
       thousand_island_options: [num_acceptors: 1, silent_terminate_on_error: true]
     ]
 
-    case Bandit.start_link(bandit_opts) do
+    case bandit_module.start_link(bandit_opts) do
       {:ok, bandit_pid} ->
         {:ok,
          %{bandit_pid: bandit_pid, delivered?: false, receiver: receiver, redirect: redirect}}
@@ -150,13 +148,34 @@ defmodule Pristine.OAuth2.CallbackServer do
 
   defp start_server(redirect, opts) do
     receiver = Keyword.get(opts, :receiver, self())
+    bandit_module = Keyword.get(opts, :bandit_module, Bandit)
 
-    case GenServer.start_link(__MODULE__, %{receiver: receiver, redirect: redirect}) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, %Error{} = error} -> {:error, error}
-      {:error, {:error, %Error{} = error}} -> {:error, error}
-      {:error, reason} -> {:error, Error.new(:loopback_callback_unavailable, body: reason)}
+    if dependencies_available?(opts, bandit_module) do
+      case GenServer.start_link(__MODULE__, %{
+             bandit_module: bandit_module,
+             receiver: receiver,
+             redirect: redirect
+           }) do
+        {:ok, pid} -> {:ok, pid}
+        {:error, %Error{} = error} -> {:error, error}
+        {:error, {:error, %Error{} = error}} -> {:error, error}
+        {:error, reason} -> {:error, Error.new(:loopback_callback_unavailable, body: reason)}
+      end
+    else
+      {:error,
+       Error.new(
+         :loopback_callback_unavailable,
+         message:
+           "loopback callback capture requires optional :plug and :bandit dependencies to be installed"
+       )}
     end
+  end
+
+  defp dependencies_available?(opts, bandit_module) do
+    Keyword.get_lazy(opts, :dependencies_available?, fn ->
+      Code.ensure_loaded?(Plug.Conn) and Code.ensure_loaded?(bandit_module) and
+        function_exported?(bandit_module, :start_link, 1)
+    end)
   end
 
   defp parse_loopback_redirect_uri(redirect_uri) do
@@ -323,8 +342,6 @@ defmodule Pristine.OAuth2.CallbackServer do
   defmodule CallbackPlug do
     @moduledoc false
 
-    import Plug.Conn
-
     alias Pristine.OAuth2.CallbackServer
 
     def init(opts), do: opts
@@ -334,8 +351,8 @@ defmodule Pristine.OAuth2.CallbackServer do
         CallbackServer.handle_http_request(opts[:server], conn, opts[:redirect])
 
       conn
-      |> put_resp_content_type("text/html")
-      |> send_resp(status, body)
+      |> Plug.Conn.put_resp_content_type("text/html")
+      |> Plug.Conn.send_resp(status, body)
     end
   end
 end

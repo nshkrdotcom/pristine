@@ -40,12 +40,19 @@ Add Pristine to your dependencies:
 def deps do
   [
     {:pristine, "~> 0.1.0"},
-    {:oauth2, "~> 2.1"} # Only if you want Pristine.OAuth2 helpers
+    {:oauth2, "~> 2.1"}, # Optional: Pristine.OAuth2 control-plane helpers
+    {:plug, "~> 1.19"}, # Optional: loopback callback capture and mock server helpers
+    {:bandit, "~> 1.10"}, # Optional: loopback callback capture and mock server helpers
+    {:telemetry_reporter, "~> 0.1.0"}, # Optional: reporter compatibility adapter/exporter
+    {:tiktoken_ex, "~> 0.2.0"} # Optional: tokenizer adapter
   ]
 end
 ```
 
-`oauth2` stays optional. Pristine's normal runtime and generated SDK execution path do not depend on Tesla or the `oauth2` request client.
+The core runtime keeps `foundation`, manifest loading, multipart handling, and
+the request pipeline inside `:pristine`. `oauth2`, `plug`, `bandit`,
+`telemetry_reporter`, and `tiktoken_ex` are optional extras that only need to
+be installed when you opt into those specific adapters or helper modules.
 
 ## Quick Start
 
@@ -272,7 +279,8 @@ context =
 
 This is the preferred export path for new code. The legacy
 `Pristine.Adapters.Telemetry.Reporter` adapter still exists as a direct
-compatibility layer, but it bypasses the normal `:telemetry` handler model.
+compatibility layer, but it bypasses the normal `:telemetry` handler model and
+requires the optional `:telemetry_reporter` dependency.
 
 ## Security Metadata And OAuth2
 
@@ -350,8 +358,9 @@ paste-back yourself:
 
 `Pristine.OAuth2.Browser` opens the authorization URL on a best-effort basis.
 `Pristine.OAuth2.CallbackServer` only binds exact literal-loopback `http`
-redirect URIs such as `http://127.0.0.1:40071/callback`. Manual paste-back of
-the full redirect URL or raw code is always available.
+redirect URIs such as `http://127.0.0.1:40071/callback`, and it requires the
+optional `:plug` and `:bandit` dependencies. Manual paste-back of the full
+redirect URL or raw code is always available.
 
 Persist tokens generically with the file-backed token source when a caller
 wants JSON storage outside of any provider-specific SDK:

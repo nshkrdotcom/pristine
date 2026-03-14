@@ -60,6 +60,8 @@ The recommended telemetry model is:
 2. attach handlers locally for metrics and logging
 3. optionally attach `TelemetryReporter` as an exporter
 
+That exporter path requires the optional `:telemetry_reporter` dependency.
+
 Supervise a reporter:
 
 ```elixir

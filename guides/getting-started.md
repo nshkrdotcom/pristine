@@ -11,6 +11,10 @@ def deps do
   [
     {:pristine, "~> 0.1.0"},
     {:oauth2, "~> 2.1"}, # Optional: only needed for Pristine.OAuth2 helpers
+    {:plug, "~> 1.19"}, # Optional: only needed for loopback callback capture
+    {:bandit, "~> 1.10"}, # Optional: only needed for loopback callback capture
+    {:telemetry_reporter, "~> 0.1.0"}, # Optional: reporter compatibility adapter/export
+    {:tiktoken_ex, "~> 0.2.0"}, # Optional: tokenizer adapter
     # Required dependencies
     {:finch, "~> 0.18"},
     {:jason, "~> 1.4"},
@@ -25,7 +29,10 @@ Then fetch dependencies:
 mix deps.get
 ```
 
-`oauth2` is optional. Normal request execution and generated SDK clients continue to use Pristine's transport boundary directly.
+Normal request execution and generated SDK clients continue to use Pristine's
+transport boundary directly. The OAuth loopback callback server, the legacy
+`TelemetryReporter` adapter path, and the tokenizer adapter each stay outside
+the default runtime dependency path until you opt into them explicitly.
 
 ## Quick Start
 
