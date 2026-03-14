@@ -40,7 +40,6 @@ defmodule Pristine.OpenAPI.BridgeTest do
       )
 
     assert %Result{} = state
-    assert Bridge.generator_state(state).operations == state.operations
     assert state.source_contexts == %{}
     assert Enum.any?(state.docs_manifest["operations"], &(&1["path"] == "/v1/accounts/me"))
 
@@ -49,7 +48,10 @@ defmodule Pristine.OpenAPI.BridgeTest do
              &String.ends_with?(&1["module"], ".Accounts")
            )
 
-    assert Enum.sort(Enum.map(state.operations, & &1.function_name)) == [
+    refute Map.has_key?(state, :operations)
+    refute function_exported?(Bridge, :generator_state, 1)
+
+    assert Enum.sort(Enum.map(state.ir.operations, & &1.function_name)) == [
              :create_session_token,
              :create_upload,
              :get_account_profile,
@@ -73,6 +75,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "use Pristine.OpenAPI.Operation"))
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "def __schema__(type \\\\ :t)"))
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "def decode(data, type \\\\ :t)"))
+    refute Enum.any?(Map.values(sources), &String.contains?(&1, "{:url, render_path("))
 
     assert Enum.any?(
              Map.values(sources),
@@ -131,7 +134,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     assert profile_request.method == :get
     assert profile_request.path_template == "/v1/accounts/me"
-    assert profile_request.url == "/v1/accounts/me"
+    refute Map.has_key?(profile_request, :url)
     assert profile_request.args == %{auth: "secret-token"}
     assert profile_request.path_params == %{}
     assert profile_request.query == %{}
@@ -145,7 +148,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     assert list_projects_request.method == :get
     assert list_projects_request.path_template == "/v1/projects"
-    assert list_projects_request.url == "/v1/projects"
+    refute Map.has_key?(list_projects_request, :url)
     assert list_projects_request.path_params == %{}
     assert list_projects_request.query == %{"cursor" => "cursor-1", "page_size" => 50}
     assert list_projects_request.body == %{}
@@ -163,7 +166,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     assert token_request.method == :post
     assert token_request.path_template == "/v1/session_tokens"
-    assert token_request.url == "/v1/session_tokens"
+    refute Map.has_key?(token_request, :url)
     assert token_request.path_params == %{}
     assert token_request.query == %{}
 
@@ -190,7 +193,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     assert upload_request.method == :post
     assert upload_request.path_template == "/v1/uploads/{upload_id}/parts"
-    assert upload_request.url == "/v1/uploads/upload-id/parts"
+    refute Map.has_key?(upload_request, :url)
     assert upload_request.path_params == %{"upload_id" => "upload-id"}
     assert upload_request.query == %{}
     assert upload_request.body == %{}
@@ -216,7 +219,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
              )
 
     assert encoded_upload_request.path_template == "/v1/uploads/{upload_id}/parts"
-    assert encoded_upload_request.url == "/v1/uploads/folder%2Fname/parts"
+    refute Map.has_key?(encoded_upload_request, :url)
 
     spec = OpenAPIClient.to_request_spec(encoded_upload_request)
 
@@ -253,7 +256,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
         supplemental_files: [supplemental_spec]
       )
 
-    assert Enum.sort(Enum.map(state.operations, & &1.function_name)) == [
+    assert Enum.sort(Enum.map(state.ir.operations, & &1.function_name)) == [
              :get_account_profile,
              :get_account_profile_alias
            ]
@@ -264,7 +267,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
     accounts_module = Module.concat([base_module, Accounts])
 
     assert {:ok, alias_request} = accounts_module.get_account_profile_alias(%{}, [])
-    assert alias_request.url == "/v1/accounts/me/alias"
+    assert alias_request.path_template == "/v1/accounts/me/alias"
     assert alias_request.method == :get
   end
 
@@ -409,22 +412,11 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert widgets_source =~ "Widgets reference"
   end
 
-  test "uses explicit security metadata only as a fallback path" do
+  test "ignores explicit security metadata fallback overrides" do
     tmp_dir = tmp_dir!("security-fallback")
     spec_file = write_review_spec!(tmp_dir, include_security?: false)
 
-    without_fallback =
-      generate_review_modules!(spec_file,
-        label: :security_without_fallback,
-        tmp_dir: tmp_dir
-      )
-
-    assert {:ok, request_without_fallback} =
-             without_fallback.operation_module.list_widgets(%{}, [])
-
-    assert Map.get(request_without_fallback, :security) == nil
-
-    with_fallback =
+    generated =
       generate_review_modules!(spec_file,
         label: :security_with_fallback,
         tmp_dir: tmp_dir,
@@ -435,8 +427,8 @@ defmodule Pristine.OpenAPI.BridgeTest do
         }
       )
 
-    assert {:ok, request_with_fallback} = with_fallback.operation_module.list_widgets(%{}, [])
-    assert request_with_fallback.security == [%{"bearerAuth" => []}]
+    assert {:ok, request} = generated.operation_module.list_widgets(%{}, [])
+    assert Map.get(request, :security) == nil
   end
 
   test "compiles named typed-map modules referenced from public operation types" do
@@ -614,8 +606,8 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
   defp widget_schema_module(state, base_module) do
     state
+    |> Map.fetch!(:ir)
     |> Map.fetch!(:schemas)
-    |> Map.values()
     |> Enum.find(&(&1.module_name == Widget))
     |> then(&Module.concat([base_module, &1.module_name]))
   end

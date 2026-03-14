@@ -139,7 +139,6 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
           quote(do: {:args, params}),
           quote(do: {:call, {unquote(module_name), unquote(function_name)}}),
           quote(do: {:path_template, unquote(request_path)}),
-          quote(do: {:url, render_path(unquote(request_path), partition.path_params)}),
           quote(do: {:method, unquote(request_method)}),
           quote(do: {:path_params, partition.path_params}),
           quote(do: {:query, partition.query}),

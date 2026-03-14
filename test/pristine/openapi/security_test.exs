@@ -1,21 +1,7 @@
 defmodule Pristine.OpenAPI.SecurityTest do
   use ExUnit.Case, async: true
 
-  alias Pristine.OpenAPI.Security
-
-  @reference_files [
-    Path.expand("../../fixtures/openapi/security/get-account-profile.yaml", __DIR__),
-    Path.expand("../../fixtures/openapi/security/create-session-token.yaml", __DIR__)
-  ]
-
-  test "extracts security schemes and effective operation security for explicit fallback use" do
-    metadata = Security.read(@reference_files)
-
-    assert metadata.security == [%{"bearerAuth" => []}]
-    assert metadata.security_schemes["bearerAuth"] == %{"scheme" => "bearer", "type" => "http"}
-    assert metadata.security_schemes["basicAuth"] == %{"scheme" => "basic", "type" => "http"}
-
-    assert metadata.operations[{:get, "/v1/accounts/me"}] == [%{"bearerAuth" => []}]
-    assert metadata.operations[{:post, "/v1/session_tokens"}] == [%{"basicAuth" => []}]
+  test "does not ship a fallback-only openapi security reader" do
+    refute Code.ensure_compiled?(Pristine.OpenAPI.Security)
   end
 end

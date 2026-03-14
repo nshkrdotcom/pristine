@@ -643,7 +643,8 @@ defmodule Pristine.Core.Pipeline do
     }
   end
 
-  defp normalize_execute_request_spec(%{url: _path} = request_spec) do
+  defp normalize_execute_request_spec(%{path_template: path_template} = request_spec)
+       when is_binary(path_template) do
     request_spec
     |> OpenAPIClient.to_request_spec()
     |> normalize_execute_request_spec()
@@ -834,7 +835,7 @@ defmodule Pristine.Core.Pipeline do
     RequestPath.validate_path_params!(path_params)
 
     auth_modules =
-      resolve_auth(context.auth, endpoint.security, endpoint.auth, Keyword.fetch(opts, :auth))
+      resolve_auth(context.auth, endpoint.security, Keyword.fetch(opts, :auth))
 
     package_version =
       context.package_version ||
@@ -1325,22 +1326,23 @@ defmodule Pristine.Core.Pipeline do
     end
   end
 
-  defp resolve_auth(auth, security, key, :error), do: resolve_auth(auth, security, key)
+  defp resolve_auth(_auth, nil, :error), do: []
+  defp resolve_auth(_auth, [], :error), do: []
 
-  defp resolve_auth(_auth, _security, _key, {:ok, override}),
-    do: normalize_auth_override!(override)
-
-  defp resolve_auth(_auth, [], _key), do: []
-
-  defp resolve_auth(auth, security, _key) when is_list(security) do
+  defp resolve_auth(auth, security, :error) when is_list(security) do
     resolve_security_auth(auth, security)
   end
 
-  defp resolve_auth(auth, nil, nil) when is_list(auth), do: auth
-  defp resolve_auth(auth, nil, nil) when is_map(auth), do: Map.get(auth, "default", [])
-  defp resolve_auth(auth, nil, key) when is_map(auth), do: Map.get(auth, to_string(key), [])
-  defp resolve_auth(auth, nil, _key) when is_list(auth), do: auth
-  defp resolve_auth(_auth, nil, _key), do: []
+  defp resolve_auth(_auth, _security, {:ok, override}),
+    do: normalize_auth_override!(override)
+
+  defp resolve_auth(_auth, [], _override), do: []
+
+  defp resolve_auth(auth, security, _override) when is_list(security) do
+    resolve_security_auth(auth, security)
+  end
+
+  defp resolve_auth(_auth, nil, _override), do: []
 
   defp resolve_security_auth(auth, security) do
     case find_matching_security_modules(auth, security) do

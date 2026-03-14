@@ -2,12 +2,6 @@
   "name": "Tinkex",
   "version": "2.0.0",
   "base_url": "https://api.tinker.ai/v1",
-  "auth": {
-    "type": "api_key",
-    "header": "X-API-Key",
-    "env_var": "TINKER_API_KEY",
-    "prefix": null
-  },
   "defaults": {
     "timeout": 60000,
     "max_retries": 10,

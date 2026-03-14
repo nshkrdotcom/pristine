@@ -8,7 +8,6 @@ defmodule Pristine.Manifest do
   defstruct name: nil,
             version: nil,
             base_url: nil,
-            auth: nil,
             security_schemes: %{},
             security: nil,
             defaults: %{},
@@ -25,7 +24,6 @@ defmodule Pristine.Manifest do
           name: String.t(),
           version: String.t(),
           base_url: String.t() | nil,
-          auth: map() | nil,
           security_schemes: map(),
           security: [map()] | nil,
           defaults: map(),
@@ -69,7 +67,6 @@ defmodule Pristine.Manifest do
          name: fields.name,
          version: fields.version,
          base_url: fields.base_url,
-         auth: fields.auth,
          security_schemes: fields.security_schemes,
          security: fields.security,
          defaults: fields.defaults,
@@ -92,7 +89,6 @@ defmodule Pristine.Manifest do
       name: normalize_value(validated, :name),
       version: normalize_value(validated, :version),
       base_url: normalize_value(validated, :base_url),
-      auth: normalize_deep_map(validated, :auth),
       security_schemes: normalize_optional_map(validated, :security_schemes),
       security: normalize_security_requirements(validated, :security),
       defaults: normalize_optional_map(validated, :defaults),
@@ -173,6 +169,9 @@ defmodule Pristine.Manifest do
       colon_path_params?(path) ->
         {:error, "endpoint #{normalize_key(id)} path params must use {param} syntax"}
 
+      Map.has_key?(endpoint, :auth) or Map.has_key?(endpoint, "auth") ->
+        {:error, "endpoint #{normalize_key(id)} auth has been removed; use security"}
+
       true ->
         {:ok,
          %Endpoint{
@@ -195,7 +194,6 @@ defmodule Pristine.Manifest do
            query: normalize_map(endpoint, :query),
            body_type: normalize_optional(endpoint, :body_type),
            content_type: normalize_value(endpoint, :content_type),
-           auth: normalize_optional(endpoint, :auth),
            security: normalize_security_requirements(endpoint, :security),
            circuit_breaker: normalize_optional(endpoint, :circuit_breaker),
            rate_limit: normalize_optional(endpoint, :rate_limit),
@@ -561,6 +559,10 @@ defmodule Pristine.Manifest do
     |> maybe_add_contract_error(
       Map.has_key?(input, :policies) or Map.has_key?(input, "policies"),
       "policies has been removed; use retry_policies"
+    )
+    |> maybe_add_contract_error(
+      Map.has_key?(input, :auth) or Map.has_key?(input, "auth"),
+      "manifest auth has been removed; use security_schemes and security"
     )
   end
 

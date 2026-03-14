@@ -225,8 +225,6 @@ When endpoint security metadata is present, auth resolution becomes:
 1. request-level `auth` override
 2. endpoint `security`
 3. manifest `security`
-4. legacy endpoint `auth`
-5. legacy context `auth`
 
 Scheme-scoped clients can therefore opt into different auth adapters per security scheme:
 
@@ -239,7 +237,7 @@ context = Pristine.context(
       )
     ],
     "basicAuth" => [],
-    "default" => [Pristine.Adapters.Auth.Bearer.new("static-fallback")]
+    "default" => [Pristine.Adapters.Auth.Bearer.new("static-default")]
   }
 )
 ```
@@ -589,9 +587,8 @@ children = [
   )
 ```
 
-This is preferred over the compatibility-only
-`Pristine.Adapters.Telemetry.Reporter` adapter for new code, and it requires
-the optional `:telemetry_reporter` dependency.
+This keeps export as a normal `:telemetry` handler concern, and it requires the
+optional `:telemetry_reporter` dependency.
 
 ### Custom Event Names
 

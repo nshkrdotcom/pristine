@@ -43,7 +43,7 @@ def deps do
     {:oauth2, "~> 2.1"}, # Optional: Pristine.OAuth2 control-plane helpers
     {:plug, "~> 1.19"}, # Optional: loopback callback capture and mock server helpers
     {:bandit, "~> 1.10"}, # Optional: loopback callback capture and mock server helpers
-    {:telemetry_reporter, "~> 0.1.0"}, # Optional: reporter compatibility adapter/exporter
+    {:telemetry_reporter, "~> 0.1.0"}, # Optional: reporter export helpers
     {:tiktoken_ex, "~> 0.2.0"} # Optional: tokenizer adapter
   ]
 end
@@ -52,7 +52,7 @@ end
 The core runtime keeps `foundation`, manifest loading, multipart handling, and
 the request pipeline inside `:pristine`. `oauth2`, `plug`, `bandit`,
 `telemetry_reporter`, and `tiktoken_ex` are optional extras that only need to
-be installed when you opt into those specific adapters or helper modules.
+be installed when you opt into those helper modules.
 Declare those extras in the consuming application's dependency list; `:pristine`
 does not start them transitively.
 
@@ -162,7 +162,7 @@ Pristine implements a hexagonal (ports and adapters) architecture:
 | **Circuit Breaker** | Foundation, Noop |
 | **Rate Limit** | BackoffWindow, Noop |
 | **Admission Control** | Dispatch, Noop |
-| **Telemetry** | Foundation, Raw, Reporter, Noop |
+| **Telemetry** | Foundation, Raw, Noop |
 | **Compression** | Gzip |
 | **TokenSource** | File, Refreshable, Static |
 | **Streaming** | SSE |
@@ -279,10 +279,9 @@ context =
   )
 ```
 
-This is the preferred export path for new code. The legacy
-`Pristine.Adapters.Telemetry.Reporter` adapter still exists as a direct
-compatibility layer, but it bypasses the normal `:telemetry` handler model and
-requires the optional `:telemetry_reporter` dependency.
+This is the preferred export path. Pristine emits normal `:telemetry` events
+and keeps external export as a handler concern through the optional
+`:telemetry_reporter` dependency.
 
 ## Security Metadata And OAuth2
 
@@ -297,21 +296,19 @@ At runtime the pipeline resolves auth in this order:
 1. request-level `auth` override
 2. endpoint `security`
 3. manifest `security`
-4. legacy endpoint `auth`
-5. legacy context `auth`
 
 `endpoint.security == []` explicitly disables inherited auth.
 
 OpenAPI-generated operation request maps preserve effective security metadata
-through the normal generator path. `Pristine.OpenAPI.Security.read/1` remains
-available only as an explicit fallback when a caller needs to inject security
-metadata manually.
+through the normal generator path. Callers that build request specs by hand
+should set `security` explicitly when they want scheme-aware auth resolution.
 
 `Pristine.OpenAPI.Bridge.run/3` returns a canonical
-`%Pristine.OpenAPI.Result{}`. The legacy top-level `files`, `operations`, and
-`schemas` fields remain in place, and the result also exposes `ir`,
-`source_contexts`, `generator_state`, and a JSON-ready `docs_manifest` built by
-`Pristine.OpenAPI.Docs`.
+`%Pristine.OpenAPI.Result{}` with:
+
+- `ir` for the canonical OpenAPI docs/runtime IR
+- `source_contexts` for provider-neutral source metadata keyed by `{method, path}`
+- `docs_manifest` for the JSON-ready docs artifact built by `Pristine.OpenAPI.Docs`
 
 For OAuth2 control-plane work, use `Pristine.OAuth2` with a normal Pristine `Context`:
 
@@ -444,7 +441,11 @@ Generated OpenAPI schema modules are expected to expose runtime helpers:
 - `__schema__/1` for validation
 - `decode/1` or `decode/2` for materialization
 
-When an SDK opts into `typed_responses: true`, successful responses are materialized through those helpers. Default runtime behavior stays compatibility-friendly: validated maps when schema refs are present, or raw decoded maps when the SDK chooses not to wire typed refs into the manifest. Broken direct refs now fail fast instead of silently skipping validation.
+When an SDK opts into `typed_responses: true`, successful responses are
+materialized through those helpers. Default runtime behavior stays explicit:
+validated maps when schema refs are present, or raw decoded maps when no schema
+refs are provided. Broken direct refs fail fast instead of silently skipping
+validation.
 
 ## Streaming Support
 

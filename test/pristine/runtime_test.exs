@@ -220,7 +220,7 @@ defmodule Pristine.RuntimeTest do
         args: %{},
         call: {Pristine.RuntimeTest.GeneratedClient, :get_user},
         method: :post,
-        url: "/v1/users",
+        path_template: "/v1/users",
         opts: [],
         path_params: %{},
         query: %{},
@@ -280,6 +280,37 @@ defmodule Pristine.RuntimeTest do
     end)
 
     assert {:ok, %{"ok" => true}} = Runtime.execute_request(request, context)
+  end
+
+  test "execute_request/3 rejects raw request specs that only provide url" do
+    request_spec = %{
+      method: :get,
+      url: "/v1/users",
+      path_params: %{},
+      query: %{},
+      body: nil,
+      form_data: nil,
+      headers: %{},
+      auth: nil,
+      security: nil,
+      request_schema: nil,
+      response_schema: nil,
+      id: nil
+    }
+
+    context = %Context{
+      base_url: "https://api.example.com",
+      transport: Pristine.TransportMock,
+      serializer: Pristine.SerializerMock,
+      retry: Pristine.RetryMock,
+      telemetry: Pristine.TelemetryMock,
+      circuit_breaker: Pristine.CircuitBreakerMock,
+      rate_limiter: Pristine.RateLimitMock
+    }
+
+    assert_raise ArgumentError, ~r/invalid request spec/, fn ->
+      Runtime.execute_request(request_spec, context)
+    end
   end
 
   test "execute_request/3 preserves path traversal validation for low-level specs" do

@@ -109,7 +109,7 @@ defmodule Pristine.ManifestTest do
 
     assert {:ok, %Manifest{} = manifest} = Manifest.load_file(path)
     assert manifest.base_url == "https://api.tinker.ai/v1"
-    assert manifest.auth["type"] == "api_key"
+    assert manifest.security == nil
     assert manifest.defaults["timeout"] == 60_000
     assert manifest.error_types["400"]["name"] == "BadRequestError"
     assert manifest.retry_policies["default"]["max_attempts"] == 3
@@ -178,7 +178,7 @@ defmodule Pristine.ManifestTest do
     assert endpoint.headers["X-Endpoint"] == "1"
   end
 
-  test "loads top-level and endpoint security metadata while preserving auth fields" do
+  test "rejects legacy auth fields in favor of security metadata" do
     input = %{
       name: "demo",
       version: "0.1.0",
@@ -220,18 +220,9 @@ defmodule Pristine.ManifestTest do
       types: %{}
     }
 
-    assert {:ok, manifest} = Manifest.load(input)
-
-    assert manifest.auth == %{"type" => "bearer"}
-    assert manifest.security == [%{"bearerAuth" => []}]
-    assert manifest.security_schemes["bearerAuth"]["scheme"] == "bearer"
-
-    assert manifest.security_schemes["exampleOauth"]["flows"]["authorizationCode"]["tokenUrl"] ==
-             "https://api.example.com/oauth/token"
-
-    assert manifest.endpoints["list_users"].security == [%{"bearerAuth" => []}]
-    assert manifest.endpoints["oauth_token"].auth == "basicAuth"
-    assert manifest.endpoints["oauth_token"].security == [%{"exampleOauth" => ["projects.read"]}]
+    assert {:error, errors} = Manifest.load(input)
+    assert "manifest auth has been removed; use security_schemes and security" in errors
+    assert "endpoint oauth_token auth has been removed; use security" in errors
   end
 
   test "preserves alias array item definitions" do

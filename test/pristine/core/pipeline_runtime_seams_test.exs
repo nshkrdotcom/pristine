@@ -359,8 +359,8 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
     assert {:ok, %{"ok" => true}} = Pipeline.execute(manifest, "ping", payload, context)
   end
 
-  test "falls back to legacy endpoint auth lookup when no security metadata is present" do
-    manifest = runtime_manifest(auth: "basicAuth")
+  test "does not fall back to legacy endpoint auth lookup when no security metadata is present" do
+    manifest = runtime_manifest()
     payload = %{"prompt" => "hi"}
 
     context =
@@ -371,7 +371,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
       )
 
     expect_runtime_success(payload, fn %Request{headers: headers}, _context ->
-      assert headers["Authorization"] == "Basic #{Base.encode64("client-id:client-secret")}"
+      refute Map.has_key?(headers, "Authorization")
       {:ok, %Response{status: 200, body: "{\"ok\":true}"}}
     end)
 
@@ -407,7 +407,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
   end
 
   test "emits structured logger callbacks with redacted request dumps" do
-    manifest = runtime_manifest()
+    manifest = runtime_manifest(security: [%{bearerAuth: []}])
     payload = %{"prompt" => "hi"}
 
     logger = fn level, message, meta ->

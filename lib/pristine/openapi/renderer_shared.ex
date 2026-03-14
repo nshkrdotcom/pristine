@@ -95,17 +95,7 @@ defmodule Pristine.OpenAPI.RendererShared do
   end
 
   def security_requirements(operation, config) when is_map(operation) and is_list(config) do
-    method = Map.get(operation, :request_method)
-    path = Map.get(operation, :request_path)
-
-    if is_nil(Map.get(operation, :security)) do
-      config
-      |> security_metadata()
-      |> Map.get(:operations, %{})
-      |> Map.get({method, path})
-    else
-      Map.get(operation, :security)
-    end
+    Map.get(operation, :security)
     |> normalize_security_requirements()
   end
 
@@ -175,12 +165,6 @@ defmodule Pristine.OpenAPI.RendererShared do
   defp normalize_security_requirements(nil), do: nil
   defp normalize_security_requirements(security) when is_list(security), do: Enum.uniq(security)
   defp normalize_security_requirements(security), do: security
-
-  defp security_metadata(output_config) do
-    Keyword.get(output_config, :security_metadata) ||
-      Keyword.get(output_config, :security_fallback_metadata) ||
-      %{}
-  end
 
   defp stable_schema_term(schema, schemas_by_ref) do
     [
