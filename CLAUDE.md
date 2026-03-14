@@ -94,79 +94,12 @@ mix test --seed 12345
 mix test  # random seed
 ```
 
-## Tinkex Port Workflow
-
-The `examples/tinkex` directory contains an ongoing port of `~/p/g/North-Shore-AI/tinkex`.
-
-### Iterative Development Process
-
-1. **Gap Analysis** - Compare source tinkex with port, identify missing functionality
-2. **Documentation** - Update gap analysis docs and checklist
-3. **TDD/RGR** - Test-driven development with Red-Green-Refactor cycle
-
-### Running the Port Prompt
-
-```bash
-# Start iterative development session
-cat docs/20250105/TINKEX_PORT_PROMPT.md
-```
-
-The prompt is designed for repeated execution - each agent picks up where the previous left off.
-
-## Key Files
-
-- `docs/20250105/TINKEX_PORT_PROMPT.md` - Main iterative development prompt
-- `docs/20250105/GAP_ANALYSIS.md` - Current gap analysis (auto-maintained)
-- `docs/20250105/CHECKLIST.md` - Implementation checklist (auto-maintained)
-- `examples/tinkex/` - The ported tinkex implementation
-
 ## Architecture Notes
 
 - **Hexagonal**: Ports define contracts, adapters implement them
 - **Manifest-driven**: API definitions in JSON/YAML drive code generation
 - **Type-safe**: Sinter schemas validate requests/responses
 - **Observable**: Telemetry throughout the pipeline
-
-## Implementation Status
-
-**Current Phase**: Phase 2 - Infrastructure Replacement (In Progress)
-**Last Updated**: 2026-01-06
-**Goal**: Downsize examples/tinkex from 22,357 lines to ~5,000 lines
-
-### Completed
-- [x] Architecture documentation (docs/20260106/)
-- [x] Phase 0: Test Fixes
-  - [x] Fixed Logger level pollution in LoggingTest (was setting global to :error)
-  - [x] All 1702 tests pass with seed 0, 12345, and random
-- [x] Analysis and Planning (docs/20260106/salvage-assessment/, tdd-downsize-plan/)
-  - [x] Feature inventory: 173 files, 67 types, 5 clients, 8 regularizers
-  - [x] Module mapping: 4 direct replacements, 5 need extensions, 80+ domain-specific
-  - [x] TDD execution plan created
-- [x] Phase 1: Pristine Extensions
-  - [x] BytesSemaphore port + adapter (lib/pristine/ports/bytes_semaphore.ex)
-  - [x] Compression port + adapter (lib/pristine/adapters/compression/gzip.ex)
-  - [x] 33 new tests added to Pristine (387 total tests, all pass)
-- [x] Phase 2 (partial): Infrastructure Replacement
-  - [x] Tinkex.BytesSemaphore → thin wrapper (170 → 49 lines)
-  - [x] Tinkex.API.Compression → delegates to Pristine.Adapters.Compression.Gzip
-
-### In Progress
-- [ ] Phase 2 (continued): More infrastructure replacements
-  - [ ] Tinkex.Semaphore → Pristine.Adapters.Semaphore.Counting
-  - [ ] API layer → Pristine.Core.Pipeline integration
-
-### Next Up
-- [ ] Phase 3: Create tinkex manifest (JSON/YAML API definition)
-- [ ] Phase 4: Generate types from manifest (4,201 lines → generated)
-- [ ] Phase 5: Wire HTTP to Pristine pipeline (2,641 lines API layer)
-- [ ] Phase 6: Final cleanup
-
-### Current Status
-- **Tests**: 1702 passing (all seeds: 0, 12345, random)
-- **Line Count**: 22,237 (reduced from 22,357)
-- **Compilation**: Clean (no warnings)
-- **Dialyzer**: Clean (no errors) for Pristine core
-- **Credo**: Clean (no issues) for Pristine core
 
 ### Line Count Breakdown (Potential Savings)
 | Component | Lines | Can Replace? | Potential |
