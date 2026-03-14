@@ -34,6 +34,18 @@ defmodule Pristine.StreamliningContractTest do
     assert code_generation =~ "It is not the normal consumer runtime entry"
   end
 
+  test "docs pin SDK oauth provider construction to security scheme metadata" do
+    readme = File.read!(@readme_path)
+    code_generation = File.read!(@code_generation_path)
+
+    assert readme =~ "Pristine.SDK.OAuth2.Provider.from_security_scheme!"
+    refute readme =~ "Pristine.OAuth2.Provider.from_manifest!"
+
+    assert code_generation =~ "Pristine.SDK.OAuth2.Provider.from_security_scheme!"
+    assert code_generation =~ "x-pristine-flow"
+    assert code_generation =~ "x-pristine-token-content-type"
+  end
+
   test "user-facing docs do not advertise an in-tree tinkex example app" do
     mentions =
       Enum.flat_map(@user_facing_docs, fn path ->

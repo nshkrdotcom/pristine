@@ -166,6 +166,45 @@ OpenAPI-generated operation request maps preserve effective security metadata
 through the normal generator path now that upstream operation metadata carries
 `security`.
 
+For OAuth2 control-plane helpers layered on top of generated SDKs, build
+providers from OpenAPI security scheme data through
+`Pristine.SDK.OAuth2.Provider.from_security_scheme!/3` instead of routing the
+SDK-facing contract through manifests:
+
+```elixir
+security_scheme = %{
+  "type" => "oauth2",
+  "flows" => %{
+    "authorizationCode" => %{
+      "authorizationUrl" => "/oauth/authorize",
+      "tokenUrl" => "/oauth/token",
+      "scopes" => %{"users.read" => "Read users"}
+    }
+  },
+  "x-pristine-flow" => "authorizationCode",
+  "x-pristine-client-auth-method" => "basic",
+  "x-pristine-token-method" => "post",
+  "x-pristine-token-content-type" => "application/json"
+}
+
+provider =
+  Pristine.SDK.OAuth2.Provider.from_security_scheme!(
+    :exampleOauth,
+    security_scheme,
+    site: "https://api.example.com"
+  )
+```
+
+Supported OAuth2 scheme extensions in retained OpenAPI-based SDK flows include:
+
+- `x-pristine-flow`
+- `x-pristine-default-scopes`
+- `x-pristine-client-auth-method`
+- `x-pristine-token-method`
+- `x-pristine-token-content-type`
+- `x-pristine-revocation-url`
+- `x-pristine-introspection-url`
+
 ### Union Types
 
 **Manifest:**

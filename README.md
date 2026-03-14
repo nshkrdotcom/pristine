@@ -429,10 +429,29 @@ context = Pristine.context(
 `Refreshable` only refreshes when the token already carries real expiry data. It
 does not invent expiry policy for providers that omit `expires_at`.
 
-If your manifest already defines an OAuth2 security scheme, build the provider from that metadata instead of duplicating it in code:
+If your OpenAPI security scheme metadata already defines an OAuth2 provider,
+build it from that data instead of duplicating it in code:
 
 ```elixir
-provider = Pristine.OAuth2.Provider.from_manifest!(manifest, :exampleOauth)
+security_scheme = %{
+  "type" => "oauth2",
+  "flows" => %{
+    "authorizationCode" => %{
+      "authorizationUrl" => "/oauth/authorize",
+      "tokenUrl" => "/oauth/token",
+      "scopes" => %{"users.read" => "Read users"}
+    }
+  },
+  "x-pristine-client-auth-method" => "basic",
+  "x-pristine-token-content-type" => "application/json"
+}
+
+provider =
+  Pristine.SDK.OAuth2.Provider.from_security_scheme!(
+    :exampleOauth,
+    security_scheme,
+    site: "https://api.example.com"
+  )
 ```
 
 Supported scheme extensions include:
