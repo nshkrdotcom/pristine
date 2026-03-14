@@ -3,7 +3,8 @@ defmodule Pristine.OpenAPI.Bridge do
   Generic bridge for invoking `oapi_generator` with a Pristine-targeted profile.
 
   This keeps `pristine` focused on the reusable generation contract instead of
-  reimplementing OpenAPI ingestion.
+  reimplementing OpenAPI ingestion. It is a first-party build-time seam, not a
+  generic runtime consumer API.
   """
 
   @compile {:no_warn_undefined, [OpenAPI, OpenAPI.Call, OpenAPI.State, OpenAPI.Reader]}

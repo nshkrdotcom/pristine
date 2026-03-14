@@ -4,7 +4,6 @@ defmodule Pristine.Adapters.Transport.Finch do
   """
 
   @behaviour Pristine.Ports.Transport
-  @behaviour Pristine.Ports.HTTPTransport
 
   alias Pristine.Core.{Context, Request, Response}
 
@@ -70,29 +69,6 @@ defmodule Pristine.Adapters.Transport.Finch do
 
   defp maybe_override_timeout(opts, _timeout), do: opts
 
-  @impl true
-  def request(method, url, headers, body, opts) do
-    finch = Keyword.get(opts, :finch, Finch)
-    pool = resolve_pool(opts, finch)
-    request = Finch.build(method, url, headers, body)
-    finch_opts = finch_opts(opts)
-
-    case Finch.request(request, pool, finch_opts) do
-      {:ok, %Finch.Response{status: status, headers: resp_headers, body: resp_body}} ->
-        {:ok, %{status: status, headers: resp_headers, body: resp_body}}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  @impl true
-  def stream(method, url, headers, body, opts) do
-    with {:ok, %{body: resp_body}} <- request(method, url, headers, body, opts) do
-      {:ok, Stream.concat([[resp_body]])}
-    end
-  end
-
   defp finch_opts(opts) do
     timeout = Keyword.get(opts, :timeout)
     receive_timeout = Keyword.get(opts, :receive_timeout, timeout)
@@ -110,12 +86,6 @@ defmodule Pristine.Adapters.Transport.Finch do
     metadata
     |> Map.get(:pool_name)
     |> fallback_pool(Keyword.get(transport_opts, :pool_name))
-    |> fallback_pool(finch)
-  end
-
-  defp resolve_pool(opts, finch) when is_list(opts) do
-    opts
-    |> Keyword.get(:pool_name)
     |> fallback_pool(finch)
   end
 

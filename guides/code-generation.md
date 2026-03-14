@@ -152,7 +152,11 @@ When you generate from OpenAPI through the bridge, schema modules should expose 
 
 That contract lets the generic pipeline validate direct refs such as `{MySDK.PageObjectResponse, :t}` and, when `typed_responses: true` is enabled by the generated SDK, materialize successful responses without bespoke runtime code in each SDK. Missing helpers are treated as a programming error and fail fast.
 
-`Pristine.OpenAPI.Bridge.run/3` returns `%Pristine.OpenAPI.Result{}` with:
+`Pristine.OpenAPI.Bridge.run/3` is the retained first-party build-time seam for
+OpenAPI-based SDK generation. It is not the normal consumer runtime entry
+point.
+
+It returns `%Pristine.OpenAPI.Result{}` with:
 
 - `ir` for the canonical OpenAPI docs IR
 - `source_contexts` for provider-neutral source metadata keyed by `{method, path}`

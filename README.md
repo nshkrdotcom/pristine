@@ -314,8 +314,11 @@ OpenAPI-generated operation request maps preserve effective security metadata
 through the normal generator path. Callers that build request specs by hand
 should set `security` explicitly when they want scheme-aware auth resolution.
 
-`Pristine.OpenAPI.Bridge.run/3` returns a canonical
-`%Pristine.OpenAPI.Result{}` with:
+`Pristine.OpenAPI.Bridge.run/3` is the retained first-party build-time seam for
+OpenAPI-based SDK generation. It is not the normal consumer runtime entry
+point.
+
+It returns a canonical `%Pristine.OpenAPI.Result{}` with:
 
 - `ir` for the canonical OpenAPI docs/runtime IR
 - `source_contexts` for provider-neutral source metadata keyed by `{method, path}`
