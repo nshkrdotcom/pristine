@@ -11,15 +11,20 @@ It is intentionally separate from the runtime consumer surface:
 - `Pristine.OpenAPI.Bridge.run/3` is for first-party build-time generation
 - It is not the normal consumer runtime entry
 
+`Pristine.OpenAPI.Bridge.run/3` also requires `oapi_generator` to be present as
+a build-time dependency.
+
 ## Running the Bridge
 
 ```elixir
 result =
   Pristine.OpenAPI.Bridge.run(
-    :notion_sdk,
-    ["openapi/notion.json"],
+    :widgets_sdk,
+    ["openapi/widgets.json"],
+    base_module: WidgetsSDK,
+    output_dir: "lib/widgets_sdk/generated",
     source_contexts: %{
-      "Widgets" => %{
+      {:get, "/v1/widgets"} => %{
         title: "Widgets",
         url: "https://docs.example.com/widgets"
       }
@@ -29,12 +34,16 @@ result =
 sources = Pristine.OpenAPI.Bridge.generated_sources(result)
 ```
 
-The result retains the shared build artifacts needed by first-party SDK
-generators:
+The bridge result is a `%Pristine.OpenAPI.Result{}` that retains the shared
+build artifacts needed by first-party SDK generators:
 
-- the OpenAPI IR
-- source context metadata
-- a `docs_manifest` for generated source docs
+- `ir`
+- `source_contexts`
+- `docs_manifest`
+
+The generated source files themselves still come from the configured
+`output_dir`, and `Pristine.OpenAPI.Bridge.generated_sources/1` lets you read
+those rendered files back for verification.
 
 ## Runtime Contract for Generated SDKs
 
@@ -44,6 +53,13 @@ manifest-first API:
 - `Pristine.execute_request/3`
 - `Pristine.foundation_context/1`
 - `Pristine.SDK.*`
+
+In practice that means generated providers should lean on:
+
+- `Pristine.SDK.OpenAPI.Client`
+- `Pristine.SDK.OpenAPI.Operation`
+- `Pristine.SDK.OpenAPI.Runtime`
+- `Pristine.SDK.OAuth2.*`
 
 That keeps generated packages isolated from `Pristine.Core.*` and other runtime
 internals.
