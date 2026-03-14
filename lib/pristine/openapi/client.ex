@@ -16,7 +16,8 @@ defmodule Pristine.OpenAPI.Client do
           required(:call) => {module(), atom()},
           required(:method) => atom(),
           required(:opts) => keyword(),
-          required(:url) => String.t(),
+          optional(:path_template) => String.t(),
+          optional(:url) => String.t(),
           required(:path_params) => map(),
           required(:query) => map(),
           required(:body) => term(),
@@ -58,20 +59,31 @@ defmodule Pristine.OpenAPI.Client do
   """
   @spec to_request_spec(request_t()) :: request_spec_t()
   def to_request_spec(request) when is_map(request) do
-    %{
-      method: Map.get(request, :method),
-      path: Map.get(request, :url),
-      path_params: normalize_map(Map.get(request, :path_params)),
-      query: normalize_map(Map.get(request, :query)),
-      body: request_body(request),
-      form_data: request_form_data(request),
-      headers: Map.get(request, :headers),
-      auth: Map.get(request, :auth),
-      security: Map.get(request, :security),
-      request_schema: request_schema(request),
-      response_schema: response_schema(request),
-      id: request_id(request)
-    }
+    request
+    |> then(fn request ->
+      %{
+        method: Map.get(request, :method),
+        path: Map.get(request, :path_template) || Map.get(request, :url),
+        path_params: normalize_map(Map.get(request, :path_params)),
+        query: normalize_map(Map.get(request, :query)),
+        body: request_body(request),
+        form_data: request_form_data(request),
+        headers: Map.get(request, :headers),
+        auth: Map.get(request, :auth),
+        security: Map.get(request, :security),
+        request_schema: request_schema(request),
+        response_schema: response_schema(request),
+        id: request_id(request)
+      }
+    end)
+    |> forward_optional_fields(request, [
+      :circuit_breaker,
+      :rate_limit,
+      :resource,
+      :retry,
+      :telemetry,
+      :timeout
+    ])
   end
 
   @doc false
@@ -160,4 +172,14 @@ defmodule Pristine.OpenAPI.Client do
   end
 
   defp normalize_map(_map), do: %{}
+
+  defp forward_optional_fields(spec, request, fields) do
+    Enum.reduce(fields, spec, fn field, acc ->
+      if Map.has_key?(request, field) do
+        Map.put(acc, field, Map.get(request, field))
+      else
+        acc
+      end
+    end)
+  end
 end

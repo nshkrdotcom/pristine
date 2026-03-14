@@ -42,7 +42,7 @@ defmodule Pristine.Core.Url do
 
   defp apply_path_params(path, params) when is_map(params) do
     Enum.reduce(params, path, fn {key, value}, acc ->
-      value = URI.encode(to_string(value))
+      value = URI.encode(to_string(value), &URI.char_unreserved?/1)
 
       String.replace(acc, "{" <> normalize_key(key) <> "}", value)
     end)

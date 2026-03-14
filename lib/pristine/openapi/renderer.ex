@@ -11,19 +11,17 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     use OpenAPI.Renderer
 
     alias OpenAPI.Processor.Operation
-    alias OpenAPI.Processor.Operation.Param
     alias OpenAPI.Processor.Schema, as: ProcessedSchema
     alias OpenAPI.Renderer.File
-    alias OpenAPI.Renderer.Operation, as: OperationRenderer
     alias OpenAPI.Renderer.Schema, as: SchemaRenderer
     alias OpenAPI.Renderer.State
     alias OpenAPI.Renderer.Util
     alias Pristine.OpenAPI.DocComposer
     alias Pristine.OpenAPI.RendererMetadata
+    alias Pristine.OpenAPI.RendererShared
     alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
     alias Pristine.OpenAPI.SchemaMaterialization
 
-    @multipart_content_type "multipart/form-data"
     @nested_module_alias_rewrites [
       {[:Pristine, :OAuth2], [:OAuth2], quote(do: alias(Pristine.OAuth2, as: OAuth2))},
       {[:Pristine, :OpenAPI, :Runtime], [:OpenAPIRuntime],
@@ -62,6 +60,13 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
 
     @impl OpenAPI.Renderer
     def render_operation_doc(state, operation) do
+      operation =
+        Map.put(
+          operation,
+          :security,
+          RendererShared.security_requirements(operation, config(state))
+        )
+
       docstring = DocComposer.operation_doc(operation, source_contexts: source_contexts(state))
       quote do: @doc(unquote(docstring))
     end
@@ -121,7 +126,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
         responses: responses
       } = operation
 
-      partition_spec = request_partition_spec(state, operation)
+      partition_spec = RendererShared.request_partition_spec(state, operation)
 
       module_name =
         Module.concat([
@@ -133,6 +138,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
         [
           quote(do: {:args, params}),
           quote(do: {:call, {unquote(module_name), unquote(function_name)}}),
+          quote(do: {:path_template, unquote(request_path)}),
           quote(do: {:url, render_path(unquote(request_path), partition.path_params)}),
           quote(do: {:method, unquote(request_method)}),
           quote(do: {:path_params, partition.path_params}),
@@ -140,13 +146,13 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
           quote(do: {:body, partition.body}),
           quote(do: {:form_data, partition.form_data}),
           quote(do: {:auth, partition.auth}),
-          render_security_info(state, operation),
-          OperationRenderer.render_call_request_info(
+          RendererShared.render_security_info(operation, config(state)),
+          RendererShared.render_request_info(
             state,
             request_body,
             config(state)[:operation_call][:request]
           ),
-          render_response_info(state, responses),
+          RendererShared.render_response_info(state, responses),
           quote(do: {:opts, opts})
         ]
         |> Enum.reject(&is_nil/1)
@@ -171,7 +177,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
       structured_schemas =
         schemas
         |> Enum.filter(&(&1.output_format == :struct))
-        |> merge_schema_groups(state)
+        |> RendererShared.merge_schema_groups(state.schemas)
 
       runtime_schemas =
         schemas
@@ -185,7 +191,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
           _other ->
             false
         end)
-        |> merge_schema_groups(state)
+        |> RendererShared.merge_schema_groups(state.schemas)
 
       types =
         cond do
@@ -238,116 +244,6 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
         end
 
       Util.clean_list([default, runtime_helpers])
-    end
-
-    defp request_partition_spec(state, operation) do
-      %Operation{
-        request_body: request_body,
-        request_path_parameters: path_params,
-        request_query_parameters: query_params
-      } = operation
-
-      {multipart_request_body, standard_request_body} =
-        Enum.split_with(request_body, fn {content_type, _type} ->
-          String.starts_with?(content_type, @multipart_content_type)
-        end)
-
-      %{
-        auth: {"auth", :auth},
-        path: key_specs(path_params),
-        query: key_specs(query_params),
-        body: payload_spec(state, standard_request_body, {"body", :body}),
-        form_data: payload_spec(state, multipart_request_body, {"form_data", :form_data})
-      }
-    end
-
-    defp payload_spec(_state, [], _fallback_key), do: %{mode: :none}
-
-    defp payload_spec(state, request_body, fallback_key) do
-      keys =
-        request_body
-        |> Enum.reduce(MapSet.new(), fn {_content_type, type}, keys ->
-          MapSet.union(keys, request_field_names(state, type))
-        end)
-        |> MapSet.to_list()
-        |> Enum.sort()
-
-      if keys == [] do
-        %{mode: :key, key: fallback_key}
-      else
-        %{mode: :keys, keys: Enum.map(keys, &{&1, String.to_atom(&1)})}
-      end
-    end
-
-    defp key_specs(params) do
-      Enum.map(params, fn %Param{name: name} -> {name, String.to_atom(name)} end)
-    end
-
-    defp request_field_names(state, {:union, types}) do
-      Enum.reduce(types, MapSet.new(), fn type, names ->
-        MapSet.union(names, request_field_names(state, type))
-      end)
-    end
-
-    defp request_field_names(state, ref) when is_reference(ref) do
-      case Map.get(state.schemas, ref) do
-        %{fields: fields} ->
-          Enum.reduce(fields, MapSet.new(), fn field, names -> MapSet.put(names, field.name) end)
-
-        nil ->
-          MapSet.new()
-      end
-    end
-
-    defp request_field_names(_state, _type), do: MapSet.new()
-
-    defp render_security_info(
-           state,
-           %Operation{request_method: method, request_path: path} = operation
-         ) do
-      security =
-        if is_nil(Map.get(operation, :security)) do
-          fallback_security_for_operation(state, method, path)
-        else
-          Map.get(operation, :security)
-        end
-        |> normalize_security_requirements()
-
-      case security do
-        nil -> nil
-        security -> quote(do: {:security, unquote(Macro.escape(security))})
-      end
-    end
-
-    defp fallback_security_for_operation(state, method, path) do
-      state
-      |> config()
-      |> security_metadata()
-      |> Map.get(:operations, %{})
-      |> Map.get({method, path})
-    end
-
-    defp normalize_security_requirements(nil), do: nil
-    defp normalize_security_requirements(security) when is_list(security), do: Enum.uniq(security)
-    defp normalize_security_requirements(security), do: security
-
-    defp render_response_info(_state, []), do: nil
-
-    defp render_response_info(state, responses) do
-      items =
-        responses
-        |> Enum.sort_by(fn {status_or_default, _schemas} -> status_or_default end)
-        |> Enum.map(fn {status_or_default, schemas} ->
-          type = Util.to_readable_type(state, {:union, Map.values(schemas)})
-
-          quote do
-            {unquote(status_or_default), unquote(type)}
-          end
-        end)
-
-      quote do
-        {:response, unquote(items)}
-      end
     end
 
     defp render_return_type(_state, []), do: quote(do: :ok)
@@ -628,98 +524,6 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
       end
     end
 
-    defp merge_schema_groups(schemas, state) do
-      schemas
-      |> Enum.group_by(&{&1.module_name, &1.type_name})
-      |> Enum.map(fn {_module_and_type, grouped} ->
-        grouped
-        |> Enum.sort_by(&schema_group_sort_key(&1, state.schemas))
-        |> Enum.reduce(&ProcessedSchema.merge/2)
-      end)
-      |> List.flatten()
-      |> Enum.sort_by(& &1.type_name)
-    end
-
-    defp schema_group_sort_key(%ProcessedSchema{} = schema, schemas_by_ref) do
-      [
-        module_name: module_name_string(schema.module_name),
-        type_name: atom_to_string(schema.type_name),
-        output_format: atom_to_string(schema.output_format),
-        context:
-          schema.context
-          |> Enum.map(&normalize_schema_term(&1, schemas_by_ref))
-          |> Enum.sort(),
-        fields:
-          schema.fields
-          |> Enum.map(&normalize_schema_field(&1, schemas_by_ref))
-          |> Enum.sort()
-      ]
-    end
-
-    defp normalize_schema_field(field, schemas_by_ref) do
-      [
-        name: field.name,
-        default: normalize_schema_term(field.default, schemas_by_ref),
-        type: normalize_schema_term(field.type, schemas_by_ref),
-        required: field.required,
-        nullable: field.nullable,
-        private: field.private
-      ]
-    end
-
-    defp normalize_schema_term(reference, schemas_by_ref) when is_reference(reference) do
-      case Map.get(schemas_by_ref, reference) do
-        %ProcessedSchema{} = schema ->
-          {:schema_ref, shallow_schema_identity(schema)}
-
-        nil ->
-          {:schema_ref, "missing"}
-      end
-    end
-
-    defp normalize_schema_term(%_{} = struct, schemas_by_ref) do
-      struct
-      |> Map.from_struct()
-      |> normalize_schema_term(schemas_by_ref)
-    end
-
-    defp normalize_schema_term(map, schemas_by_ref) when is_map(map) do
-      map
-      |> Enum.map(fn {key, value} ->
-        {normalize_schema_term(key, schemas_by_ref), normalize_schema_term(value, schemas_by_ref)}
-      end)
-      |> Enum.sort()
-    end
-
-    defp normalize_schema_term(tuple, schemas_by_ref) when is_tuple(tuple) do
-      tuple
-      |> Tuple.to_list()
-      |> Enum.map(&normalize_schema_term(&1, schemas_by_ref))
-      |> List.to_tuple()
-    end
-
-    defp normalize_schema_term(list, schemas_by_ref) when is_list(list) do
-      Enum.map(list, &normalize_schema_term(&1, schemas_by_ref))
-    end
-
-    defp normalize_schema_term(atom, _schemas_by_ref) when is_atom(atom), do: Atom.to_string(atom)
-    defp normalize_schema_term(value, _schemas_by_ref), do: value
-
-    defp shallow_schema_identity(%ProcessedSchema{} = schema) do
-      [
-        module_name: module_name_string(schema.module_name),
-        type_name: atom_to_string(schema.type_name),
-        output_format: atom_to_string(schema.output_format),
-        field_names: schema.fields |> Enum.map(& &1.name) |> Enum.sort()
-      ]
-    end
-
-    defp module_name_string(nil), do: nil
-    defp module_name_string(module_name) when is_atom(module_name), do: inspect(module_name)
-
-    defp atom_to_string(nil), do: nil
-    defp atom_to_string(atom) when is_atom(atom), do: Atom.to_string(atom)
-
     @doc false
     def rewrite_nested_module_aliases(nil), do: nil
 
@@ -903,12 +707,6 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
         |> Keyword.get(:output, [])
 
       Keyword.merge(output, RendererMetadata.get(profile))
-    end
-
-    defp security_metadata(output_config) do
-      Keyword.get(output_config, :security_metadata) ||
-        Keyword.get(output_config, :security_fallback_metadata) ||
-        %{}
     end
 
     defp first_non_nil(nil, fallback), do: fallback

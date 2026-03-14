@@ -67,6 +67,19 @@ defmodule Pristine.OpenAPI.OperationTest do
            ) == "/v1/file_uploads/upload-123/send"
   end
 
+  test "render_path/2 URI-encodes reserved path characters" do
+    assert Operation.render_path("/v1/widgets/{id}", %{"id" => "a b"}) == "/v1/widgets/a%20b"
+
+    assert Operation.render_path("/v1/widgets/{id}", %{"id" => "folder/name"}) ==
+             "/v1/widgets/folder%2Fname"
+
+    assert Operation.render_path("/v1/widgets/{id}", %{"id" => "50%"}) ==
+             "/v1/widgets/50%25"
+
+    assert Operation.render_path("/v1/widgets/{id}", %{"id" => "cafe-\u2615"}) ==
+             "/v1/widgets/cafe-%E2%98%95"
+  end
+
   test "render_path/2 raises when a required path param is missing" do
     assert_raise KeyError, fn ->
       Operation.render_path("/v1/users/{user_id}", %{})

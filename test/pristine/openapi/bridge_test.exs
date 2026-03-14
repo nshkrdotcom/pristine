@@ -1,7 +1,9 @@
 defmodule Pristine.OpenAPI.BridgeTest do
   use ExUnit.Case, async: true
 
+  alias Pristine.Core.Url
   alias Pristine.OpenAPI.Bridge
+  alias Pristine.OpenAPI.Client, as: OpenAPIClient
   alias Pristine.OpenAPI.NamedTypedMapFixture
   alias Pristine.OpenAPI.RendererMetadata
   alias Pristine.OpenAPI.Result
@@ -128,6 +130,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
              accounts_module.get_account_profile(%{auth: "secret-token"}, [])
 
     assert profile_request.method == :get
+    assert profile_request.path_template == "/v1/accounts/me"
     assert profile_request.url == "/v1/accounts/me"
     assert profile_request.args == %{auth: "secret-token"}
     assert profile_request.path_params == %{}
@@ -141,6 +144,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
              projects_module.list_projects(%{cursor: "cursor-1", page_size: 50}, [])
 
     assert list_projects_request.method == :get
+    assert list_projects_request.path_template == "/v1/projects"
     assert list_projects_request.url == "/v1/projects"
     assert list_projects_request.path_params == %{}
     assert list_projects_request.query == %{"cursor" => "cursor-1", "page_size" => 50}
@@ -158,6 +162,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
              )
 
     assert token_request.method == :post
+    assert token_request.path_template == "/v1/session_tokens"
     assert token_request.url == "/v1/session_tokens"
     assert token_request.path_params == %{}
     assert token_request.query == %{}
@@ -184,6 +189,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
              )
 
     assert upload_request.method == :post
+    assert upload_request.path_template == "/v1/uploads/{upload_id}/parts"
     assert upload_request.url == "/v1/uploads/upload-id/parts"
     assert upload_request.path_params == %{"upload_id" => "upload-id"}
     assert upload_request.query == %{}
@@ -197,6 +203,31 @@ defmodule Pristine.OpenAPI.BridgeTest do
     assert upload_request.auth == "secret-token"
     assert upload_request.request == [{"multipart/form-data", :map}]
     assert upload_request.security == [%{"bearerAuth" => []}]
+
+    assert {:ok, encoded_upload_request} =
+             uploads_module.upload_part(
+               %{
+                 upload_id: "folder/name",
+                 file: %{filename: "report.pdf", data: "bytes"},
+                 part_number: "1",
+                 auth: "secret-token"
+               },
+               []
+             )
+
+    assert encoded_upload_request.path_template == "/v1/uploads/{upload_id}/parts"
+    assert encoded_upload_request.url == "/v1/uploads/folder%2Fname/parts"
+
+    spec = OpenAPIClient.to_request_spec(encoded_upload_request)
+
+    assert spec.path == "/v1/uploads/{upload_id}/parts"
+
+    assert Url.build(
+             "https://example.com",
+             spec.path,
+             spec.path_params,
+             spec.query
+           ) == "https://example.com/v1/uploads/folder%2Fname/parts"
   end
 
   test "accepts supplemental OpenAPI fragments through the bridge profile" do
