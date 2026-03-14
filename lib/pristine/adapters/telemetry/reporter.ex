@@ -10,17 +10,20 @@ defmodule Pristine.Adapters.Telemetry.Reporter do
   """
 
   @behaviour Pristine.Ports.Telemetry
-  @compile {:no_warn_undefined, [TelemetryReporter]}
+  alias Pristine.TelemetryReporterSupport
 
   @impl true
   def emit(event, meta, meas) do
-    reporter = reporter_module()
+    case TelemetryReporterSupport.fetch() do
+      {:ok, reporter} ->
+        if function_exported?(reporter, :log, 3) do
+          reporter.log(reporter, format_event(event), %{meta: meta, meas: meas})
+        else
+          TelemetryReporterSupport.raise_missing!()
+        end
 
-    if Code.ensure_loaded?(reporter) and function_exported?(reporter, :log, 3) do
-      reporter.log(reporter, format_event(event), %{meta: meta, meas: meas})
-    else
-      raise RuntimeError,
-            "telemetry_reporter dependency is not available; add {:telemetry_reporter, \"~> 0.1.0\"} to use Pristine.Adapters.Telemetry.Reporter"
+      {:error, :missing_dependency} ->
+        TelemetryReporterSupport.raise_missing!()
     end
 
     :ok
@@ -51,10 +54,6 @@ defmodule Pristine.Adapters.Telemetry.Reporter do
   @impl true
   def emit_gauge(event, value, metadata) do
     emit(event, metadata, %{value: value})
-  end
-
-  defp reporter_module do
-    Application.get_env(:pristine, :telemetry_reporter_module, TelemetryReporter)
   end
 
   defp format_event(event) when is_atom(event), do: Atom.to_string(event)
