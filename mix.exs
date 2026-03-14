@@ -54,17 +54,17 @@ defmodule Pristine.MixProject do
       {:sinter, "~> 0.2.0"},
       {:foundation, "~> 0.2.1"},
       {:multipart_ex, "~> 0.1.0"},
-      {:telemetry_reporter, "~> 0.1.0"},
-      {:tiktoken_ex, "~> 0.2.0"},
+      {:telemetry_reporter, "~> 0.1.0", optional: true},
+      {:tiktoken_ex, "~> 0.2.0", optional: true},
 
       ### OpenAPI Generator
       {:oapi_generator,
        github: "nshkrdotcom/open-api-generator", only: [:dev, :test], runtime: false},
       {:uuid, "~> 1.1"},
       {:mox, "~> 1.2", only: :test},
-      {:plug, "~> 1.19"},
+      {:plug, "~> 1.19", optional: true},
       {:plug_cowboy, "~> 2.8", only: [:dev, :test]},
-      {:bandit, "~> 1.10"},
+      {:bandit, "~> 1.10", optional: true},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false}
