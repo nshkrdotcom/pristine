@@ -3,40 +3,25 @@ defmodule Pristine.Core.PipelineMultipartTest do
   import Mox
 
   alias Pristine.Core.{Context, Pipeline, Request, Response}
-  alias Pristine.Manifest
 
   setup :set_mox_from_context
   setup :verify_on_exit!
 
-  test "encodes multipart payloads" do
-    manifest = %{
-      name: "tinkex",
-      version: "0.3.4",
-      endpoints: [
-        %{
-          id: "upload",
-          method: "POST",
-          path: "/upload",
-          request: "UploadRequest",
-          response: "UploadResponse",
-          body_type: "multipart"
-        }
-      ],
-      types: %{
-        "UploadRequest" => %{
-          fields: %{
-            file: %{type: "string", required: true}
-          }
-        },
-        "UploadResponse" => %{
-          fields: %{
-            ok: %{type: "boolean", required: true}
-          }
-        }
-      }
+  test "encodes multipart payloads from low-level request specs" do
+    request_spec = %{
+      id: "upload",
+      method: :post,
+      path: "/upload",
+      path_params: %{},
+      query: %{},
+      headers: %{},
+      body: nil,
+      form_data: %{file: "hello"},
+      auth: nil,
+      security: nil,
+      request_schema: nil,
+      response_schema: nil
     }
-
-    {:ok, manifest} = Manifest.load(manifest)
 
     context = %Context{
       base_url: "https://example.com",
@@ -48,9 +33,7 @@ defmodule Pristine.Core.PipelineMultipartTest do
       circuit_breaker: Pristine.Adapters.CircuitBreaker.Noop
     }
 
-    payload = %{file: "hello"}
-
-    expect(Pristine.MultipartMock, :encode, fn ^payload, _opts ->
+    expect(Pristine.MultipartMock, :encode, fn %{file: "hello"}, _opts ->
       {"multipart/form-data; boundary=abc", "--abc"}
     end)
 
@@ -71,6 +54,6 @@ defmodule Pristine.Core.PipelineMultipartTest do
       :ok
     end)
 
-    assert {:ok, %{"ok" => true}} = Pipeline.execute(manifest, "upload", payload, context)
+    assert {:ok, %{"ok" => true}} = Pipeline.execute_request(request_spec, context)
   end
 end

@@ -121,5 +121,9 @@ defmodule Pristine.SDKBoundaryTest do
 
     assert context.__struct__ == Pristine.SDK.Context.new().__struct__
     assert function_exported?(Pristine, :execute_request, 3)
+    refute function_exported?(Pristine, :load_manifest, 1)
+    refute function_exported?(Pristine, :load_manifest_file, 1)
+    refute function_exported?(Pristine, :execute, 5)
+    refute function_exported?(Pristine, :execute_endpoint, 4)
   end
 end

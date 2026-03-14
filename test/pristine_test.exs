@@ -2,11 +2,15 @@ defmodule PristineTest do
   use ExUnit.Case
   doctest Pristine
 
-  test "loads a manifest" do
-    input = %{name: "demo", version: "0.1.0", endpoints: [], types: %{}}
+  test "top-level API keeps the narrowed runtime boundary" do
+    assert function_exported?(Pristine, :context, 1)
+    assert function_exported?(Pristine, :foundation_context, 1)
+    assert function_exported?(Pristine, :execute_request, 3)
 
-    assert {:ok, manifest} = Pristine.load_manifest(input)
-    assert manifest.name == "demo"
+    refute function_exported?(Pristine, :load_manifest, 1)
+    refute function_exported?(Pristine, :load_manifest_file, 1)
+    refute function_exported?(Pristine, :execute, 5)
+    refute function_exported?(Pristine, :execute_endpoint, 4)
   end
 
   test "builds a Foundation-backed context via the public helper" do

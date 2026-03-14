@@ -3,7 +3,6 @@ defmodule Pristine.OAuth2.Provider do
   Normalized OAuth2 provider configuration.
   """
 
-  alias Pristine.Manifest
   alias Pristine.OAuth2.Error
 
   @flow_preference ["authorizationCode", "clientCredentials", "password", "refreshToken"]
@@ -67,27 +66,6 @@ defmodule Pristine.OAuth2.Provider do
   @spec from_security_scheme!(String.t() | atom(), map(), keyword()) :: t()
   def from_security_scheme!(scheme_name, scheme, opts \\ []) do
     case from_security_scheme(scheme_name, scheme, opts) do
-      {:ok, provider} -> provider
-      {:error, error} -> raise error
-    end
-  end
-
-  @spec from_manifest(Manifest.t(), String.t() | atom()) :: {:ok, t()} | {:error, Error.t()}
-  def from_manifest(%Manifest{} = manifest, scheme_name) do
-    key = to_string(scheme_name)
-
-    case Map.get(manifest.security_schemes, key) do
-      %{} = scheme ->
-        from_security_scheme(key, scheme, site: manifest.base_url)
-
-      nil ->
-        {:error, Error.new(:unknown_security_scheme, message: "unknown oauth2 scheme #{key}")}
-    end
-  end
-
-  @spec from_manifest!(Manifest.t(), String.t() | atom()) :: t()
-  def from_manifest!(%Manifest{} = manifest, scheme_name) do
-    case from_manifest(manifest, scheme_name) do
       {:ok, provider} -> provider
       {:error, error} -> raise error
     end

@@ -2,12 +2,9 @@ defmodule Pristine.Core.EndpointMetadata do
   @moduledoc """
   Internal endpoint metadata contract used by the request pipeline.
 
-  This struct lets request-only execution and manifest-backed execution share
-  the same downstream pipeline steps without exposing `Pristine.Manifest` at
-  the SDK-facing boundary.
+  This struct carries the normalized request metadata that survives the
+  streamlined public runtime boundary.
   """
-
-  alias Pristine.Manifest.Endpoint
 
   defstruct id: nil,
             method: nil,
@@ -52,34 +49,6 @@ defmodule Pristine.Core.EndpointMetadata do
           idempotency: boolean() | nil,
           idempotency_header: String.t() | nil
         }
-
-  @spec from_endpoint(Endpoint.t() | t()) :: t()
-  def from_endpoint(%__MODULE__{} = endpoint), do: endpoint
-
-  def from_endpoint(%Endpoint{} = endpoint) do
-    %__MODULE__{
-      id: endpoint.id,
-      method: endpoint.method,
-      path: endpoint.path,
-      circuit_breaker: endpoint.circuit_breaker,
-      headers: endpoint.headers || %{},
-      query: endpoint.query || %{},
-      rate_limit: endpoint.rate_limit,
-      resource: endpoint.resource,
-      body_type: endpoint.body_type,
-      content_type: endpoint.content_type,
-      retry: endpoint.retry,
-      security: endpoint.security,
-      telemetry: endpoint.telemetry,
-      timeout: endpoint.timeout,
-      request: endpoint.request,
-      response: endpoint.response,
-      response_unwrap: endpoint.response_unwrap,
-      transform: endpoint.transform,
-      idempotency: endpoint.idempotency,
-      idempotency_header: endpoint.idempotency_header
-    }
-  end
 
   @spec from_request_spec(map(), keyword()) :: t()
   def from_request_spec(request_spec, opts \\ []) when is_map(request_spec) and is_list(opts) do
