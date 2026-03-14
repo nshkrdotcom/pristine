@@ -108,6 +108,15 @@ defmodule Pristine.OpenAPI.Operation do
     Map.new(value, fn {key, item} -> {to_string(key), item} end)
   end
 
-  defp encode_path_value(value) when is_list(value), do: Enum.map_join(value, ",", &to_string/1)
-  defp encode_path_value(value), do: to_string(value)
+  defp encode_path_value(value) when is_list(value) do
+    value
+    |> Enum.map_join(",", &to_string/1)
+    |> URI.encode(&URI.char_unreserved?/1)
+  end
+
+  defp encode_path_value(value) do
+    value
+    |> to_string()
+    |> URI.encode(&URI.char_unreserved?/1)
+  end
 end

@@ -13,6 +13,11 @@ defmodule Pristine.Core.UrlTest do
              "https://example.com/v1/models/abc"
   end
 
+  test "percent-encodes reserved characters in path params" do
+    assert Url.build("https://example.com", "/v1/models/{id}", %{"id" => "folder/name"}, %{}) ==
+             "https://example.com/v1/models/folder%2Fname"
+  end
+
   test "does not treat colon-prefixed segments as path params" do
     assert Url.build("https://example.com", "/v1/models/:id", %{id: "abc"}, %{}) ==
              "https://example.com/v1/models/:id"
