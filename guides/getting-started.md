@@ -1,10 +1,13 @@
 # Getting Started
 
-Pristine now exposes a narrow runtime boundary for first-party SDKs:
+Pristine exposes a narrow provider-SDK boundary:
 
 - `Pristine.execute_request/3`
 - `Pristine.foundation_context/1`
 - `Pristine.SDK.*`
+
+`Pristine.context/1` also stays available when you want full manual control of
+the raw runtime ports and adapters.
 
 ## 1. Build a Runtime Context
 
@@ -17,11 +20,12 @@ context =
     transport: Pristine.Adapters.Transport.Finch,
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
-    auth: [{Pristine.Adapters.Auth.Bearer, token: System.fetch_env!("API_TOKEN")}]
+    auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
   )
 ```
 
-If you need full manual control, use `Pristine.context/1` directly.
+If you need full manual control instead of the curated Foundation profile, use
+`Pristine.context/1` directly.
 
 ## 2. Execute a Request Spec
 
@@ -74,6 +78,10 @@ maps built through `Pristine.SDK.OpenAPI.*`.
 {:ok, response} = Pristine.execute_request(request, context)
 ```
 
+The generated request map keeps the `path_template`. `Pristine.execute_request/3`
+normalizes it before transport so path encoding and traversal checks still
+happen in one place.
+
 ## 4. Use the SDK Runtime Types
 
 Downstream SDKs should surface the stable SDK-facing types instead of exposing
@@ -93,6 +101,6 @@ layers, and manual paste-back remains available when those adapters are absent.
 ## Next
 
 - Use [Foundation Runtime](foundation-runtime.md) when you need more control
-  over retries, rate limiting, circuit breaking, or telemetry.
+  over retries, rate limiting, circuit breaking, telemetry, or admission control.
 - Use [Code Generation](code-generation.md) when you are working on a
   first-party SDK generator that needs the retained OpenAPI bridge.

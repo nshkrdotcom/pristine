@@ -1,9 +1,9 @@
 # Pristine
 
-Pristine is the shared runtime substrate for first-party OpenAPI-based Elixir
-SDKs.
+Pristine is the shared runtime and build-time bridge for first-party
+OpenAPI-based Elixir SDKs.
 
-The retained public runtime boundary is:
+The recommended provider-SDK boundary is:
 
 - `Pristine.execute_request/3`
 - `Pristine.foundation_context/1`
@@ -11,10 +11,12 @@ The retained public runtime boundary is:
 
 The retained build-time seam is `Pristine.OpenAPI.Bridge.run/3`.
 
-## Runtime Boundary
+`Pristine.context/1` also remains available when you want full manual
+ports-and-adapters control, but provider SDKs should treat `Pristine.Core.*`
+and `Pristine.OpenAPI.*` as internal implementation detail rather than as the
+blessed SDK contract.
 
-Provider SDKs should depend on the hardened boundary above instead of reaching
-into `Pristine.Core.*` or `Pristine.OpenAPI.*` internals directly.
+## Runtime Boundary
 
 Use `Pristine.foundation_context/1` for the recommended production runtime:
 
@@ -25,7 +27,7 @@ context =
     transport: Pristine.Adapters.Transport.Finch,
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
-    auth: [{Pristine.Adapters.Auth.Bearer, token: System.fetch_env!("API_TOKEN")}]
+    auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
   )
 ```
 
@@ -55,6 +57,11 @@ request_spec = %{
 {:ok, response} = Pristine.execute_request(request_spec, context)
 ```
 
+`Pristine.execute_request/3` also accepts the generated request maps emitted by
+`Pristine.SDK.OpenAPI.Client`. In both cases, the same runtime path validation,
+serialization, auth, retry, telemetry, rate-limit, and circuit-breaker wiring
+still applies.
+
 `Pristine.SDK.*` exposes the stable runtime-facing types used by downstream SDKs:
 
 - `Pristine.SDK.Context`
@@ -64,6 +71,27 @@ request_spec = %{
 - `Pristine.SDK.OpenAPI.*`
 - `Pristine.SDK.OAuth2.*`
 - `Pristine.SDK.Profiles.Foundation`
+
+## Manual Context Construction
+
+Use `Pristine.context/1` when you want complete control over the raw runtime
+ports and adapters:
+
+```elixir
+context =
+  Pristine.context(
+    base_url: "https://api.example.com",
+    transport: Pristine.Adapters.Transport.Finch,
+    transport_opts: [finch: MyApp.Finch],
+    serializer: Pristine.Adapters.Serializer.JSON,
+    retry: Pristine.Adapters.Retry.Noop,
+    telemetry: Pristine.Adapters.Telemetry.Noop
+  )
+```
+
+That lower-level constructor is useful for bespoke clients and tests. The
+Foundation profile exists so production callers do not have to hand-wire the
+same resilience and telemetry stack repeatedly.
 
 ## OAuth Provider Construction
 
@@ -90,35 +118,50 @@ provider =
   )
 ```
 
+`Pristine.SDK.OAuth2` uses the in-tree
+`Pristine.Adapters.OAuthBackend.Native` backend by default. Browser launch and
+loopback callback capture stay optional adapter seams:
+
+- `Pristine.Adapters.OAuthBrowser.SystemCmd`
+- `Pristine.Adapters.OAuthCallbackListener.Bandit`
+
+Manual paste-back still works without those adapters, and persisted token
+load/save/refresh orchestration lives in `Pristine.OAuth2.SavedToken` on top of
+the token-source boundary.
+
 ## Build-Time Bridge
 
 `Pristine.OpenAPI.Bridge.run/3` is the retained first-party build-time seam for
 SDK generation. It is not the normal consumer runtime entry.
 
+The bridge needs at least a base module and output directory:
+
 ```elixir
 result =
   Pristine.OpenAPI.Bridge.run(
-    :notion_sdk,
-    ["openapi/notion.json"],
-    source_contexts: %{}
+    :widgets_sdk,
+    ["openapi/widgets.json"],
+    base_module: WidgetsSDK,
+    output_dir: "lib/widgets_sdk/generated",
+    source_contexts: %{
+      {:get, "/v1/widgets"} => %{
+        title: "Widgets",
+        url: "https://docs.example.com/widgets"
+      }
+    }
   )
 
 sources = Pristine.OpenAPI.Bridge.generated_sources(result)
 ```
 
-## OAuth Runtime Architecture
+The returned `%Pristine.OpenAPI.Result{}` contains:
 
-`Pristine.SDK.OAuth2` now runs through the in-tree
-`Pristine.Adapters.OAuthBackend.Native` backend by default.
+- `ir`
+- `source_contexts`
+- `docs_manifest`
 
-Interactive convenience features remain optional adapters:
-
-- browser launch via `Pristine.Adapters.OAuthBrowser.SystemCmd`
-- loopback callback capture via `Pristine.Adapters.OAuthCallbackListener.Bandit`
-
-Manual paste-back still works without those adapters, and persisted token
-load/save/refresh orchestration lives in `Pristine.OAuth2.SavedToken` on top of
-the token-source port.
+That lets first-party SDK generators reuse the same IR, generated files, and
+docs manifest without exposing a manifest-shaped runtime API.
 
 ## Guides
 
