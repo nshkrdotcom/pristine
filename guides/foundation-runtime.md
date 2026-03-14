@@ -61,6 +61,8 @@ The recommended telemetry model is:
 3. optionally attach `TelemetryReporter` as an exporter
 
 That exporter path requires the optional `:telemetry_reporter` dependency.
+Add it directly to the consuming application's dependencies when you use this
+exporter path; `:pristine` no longer starts it as a transitive runtime app.
 
 Supervise a reporter:
 

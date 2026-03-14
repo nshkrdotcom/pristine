@@ -18,6 +18,7 @@ defmodule Pristine.Profiles.Foundation do
   """
 
   alias Pristine.Core.Context
+  alias Pristine.TelemetryReporterSupport
 
   @feature_keys [:retry, :rate_limit, :circuit_breaker, :telemetry, :admission_control]
   @default_telemetry_namespace [:pristine]
@@ -82,7 +83,17 @@ defmodule Pristine.Profiles.Foundation do
   """
   @spec reporter_child_spec([option()]) :: Supervisor.child_spec()
   def reporter_child_spec(opts) when is_list(opts) do
-    TelemetryReporter.child_spec(opts)
+    case TelemetryReporterSupport.fetch() do
+      {:ok, reporter} ->
+        if function_exported?(reporter, :child_spec, 1) do
+          reporter.child_spec(opts)
+        else
+          TelemetryReporterSupport.raise_missing!()
+        end
+
+      {:error, :missing_dependency} ->
+        TelemetryReporterSupport.raise_missing!()
+    end
   end
 
   @doc """

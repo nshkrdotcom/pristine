@@ -53,6 +53,8 @@ The core runtime keeps `foundation`, manifest loading, multipart handling, and
 the request pipeline inside `:pristine`. `oauth2`, `plug`, `bandit`,
 `telemetry_reporter`, and `tiktoken_ex` are optional extras that only need to
 be installed when you opt into those specific adapters or helper modules.
+Declare those extras in the consuming application's dependency list; `:pristine`
+does not start them transitively.
 
 ## Quick Start
 

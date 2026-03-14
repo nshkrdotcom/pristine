@@ -19,6 +19,7 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     alias OpenAPI.Renderer.State
     alias OpenAPI.Renderer.Util
     alias Pristine.OpenAPI.DocComposer
+    alias Pristine.OpenAPI.RendererMetadata
     alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
     alias Pristine.OpenAPI.SchemaMaterialization
 
@@ -897,8 +898,11 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     end
 
     defp config(%State{profile: profile}) do
-      Application.get_env(:oapi_generator, profile, [])
-      |> Keyword.get(:output, [])
+      output =
+        Application.get_env(:oapi_generator, profile, [])
+        |> Keyword.get(:output, [])
+
+      Keyword.merge(output, RendererMetadata.get(profile))
     end
 
     defp security_metadata(output_config) do

@@ -341,6 +341,7 @@ defmodule Pristine.OAuth2.CallbackServer do
 
   defmodule CallbackPlug do
     @moduledoc false
+    @compile {:no_warn_undefined, [Plug.Conn]}
 
     alias Pristine.OAuth2.CallbackServer
 

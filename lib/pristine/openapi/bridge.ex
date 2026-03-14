@@ -9,6 +9,7 @@ defmodule Pristine.OpenAPI.Bridge do
   @compile {:no_warn_undefined, [OpenAPI, OpenAPI.Call, OpenAPI.State, OpenAPI.Reader]}
 
   alias Pristine.OpenAPI.Profile
+  alias Pristine.OpenAPI.RendererMetadata
   alias Pristine.OpenAPI.Result
   alias Pristine.OpenAPI.Security
 
@@ -24,13 +25,17 @@ defmodule Pristine.OpenAPI.Bridge do
     reader_state = reader_state(profile, spec_files)
     install_renderer_metadata(profile, opts, reader_state, security_metadata)
 
-    generator_state = open_api.run(Atom.to_string(profile), spec_files)
+    try do
+      generator_state = open_api.run(Atom.to_string(profile), spec_files)
 
-    Result.from_generator_state(
-      generator_state,
-      source_contexts: Keyword.get(opts, :source_contexts, %{}),
-      security_metadata: security_metadata
-    )
+      Result.from_generator_state(
+        generator_state,
+        source_contexts: Keyword.get(opts, :source_contexts, %{}),
+        security_metadata: security_metadata
+      )
+    after
+      RendererMetadata.delete(profile)
+    end
   end
 
   @spec generated_sources(map()) :: %{String.t() => String.t()}
@@ -76,22 +81,12 @@ defmodule Pristine.OpenAPI.Bridge do
   end
 
   defp install_renderer_metadata(profile, opts, reader_state, security_metadata) do
-    config = Application.get_env(:oapi_generator, profile, [])
-    output = Keyword.get(config, :output, [])
-
-    output =
-      output
-      |> Keyword.merge(install_security_fallback(profile, opts, security_metadata))
+    metadata =
+      install_security_fallback(profile, opts, security_metadata)
       |> Keyword.put(:schema_specs_by_path, Map.get(reader_state, :schema_specs_by_path, %{}))
       |> Keyword.put(:spec_metadata_source, Map.get(reader_state, :spec))
 
-    :ok =
-      :application.set_env(
-        :oapi_generator,
-        profile,
-        Keyword.put(config, :output, output),
-        timeout: :infinity
-      )
+    RendererMetadata.put(profile, metadata)
   end
 
   defp ensure_generator_available! do

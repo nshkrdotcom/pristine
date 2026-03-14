@@ -3,6 +3,7 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
   alias Pristine.OpenAPI.Bridge
   alias Pristine.OpenAPI.NamedTypedMapFixture
+  alias Pristine.OpenAPI.RendererMetadata
   alias Pristine.OpenAPI.Result
 
   @reference_root Path.expand("../../fixtures/openapi/bridge/reference", __DIR__)
@@ -333,6 +334,9 @@ defmodule Pristine.OpenAPI.BridgeTest do
       )
 
     assert Application.get_env(:oapi_generator, profile)[:output][:security_metadata] == nil
+    assert Application.get_env(:oapi_generator, profile)[:output][:schema_specs_by_path] == nil
+    assert Application.get_env(:oapi_generator, profile)[:output][:spec_metadata_source] == nil
+    assert RendererMetadata.get(profile) == []
 
     sources = Bridge.generated_sources(state)
     compile_generated_sources!(sources)

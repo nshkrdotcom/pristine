@@ -33,6 +33,8 @@ Normal request execution and generated SDK clients continue to use Pristine's
 transport boundary directly. The OAuth loopback callback server, the legacy
 `TelemetryReporter` adapter path, and the tokenizer adapter each stay outside
 the default runtime dependency path until you opt into them explicitly.
+List those optional dependencies in the consuming app when you need them;
+Pristine does not start them for you as transitive runtime applications.
 
 ## Quick Start
 
