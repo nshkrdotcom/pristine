@@ -14,6 +14,8 @@ defmodule Pristine.OAuth2 do
     Token
   }
 
+  alias Pristine.Ports.OAuthBackend.Request, as: BackendRequest
+
   @type result(value) :: {:ok, value} | {:error, Error.t()}
 
   @spec available?() :: boolean()
@@ -23,13 +25,12 @@ defmodule Pristine.OAuth2 do
   def authorization_request(%Provider{} = provider, opts \\ []) do
     with :ok <- ensure_available(provider),
          {:ok, client_id} <- fetch_required(opts, :client_id, provider, :missing_client_id),
-         {:ok, client} <-
-           Backend.new_client(
-             :authorization_code,
-             authorize_client_opts(provider, opts, client_id)
-           ),
          {:ok, request, params} <- build_authorization_request(provider, opts),
-         {:ok, url} <- Backend.authorize_url(client, params) do
+         {:ok, url} <-
+           Backend.authorization_url(
+             provider,
+             authorization_backend_opts(opts, client_id, params)
+           ) do
       {:ok, %AuthorizationRequest{request | url: url}}
     end
   end
@@ -55,7 +56,7 @@ defmodule Pristine.OAuth2 do
       |> maybe_put(:code_verifier, Keyword.get(opts, :pkce_verifier))
       |> Keyword.merge(normalize_keyword(Keyword.get(opts, :token_params, [])))
 
-    token_request(provider, provider.token_url, :authorization_code, params, opts)
+    token_request(provider, :authorization_code, params, opts)
   end
 
   @spec refresh_token(Provider.t(), String.t(), keyword()) :: result(Token.t())
@@ -65,13 +66,13 @@ defmodule Pristine.OAuth2 do
       [refresh_token: refresh_token]
       |> Keyword.merge(normalize_keyword(Keyword.get(opts, :token_params, [])))
 
-    token_request(provider, provider.token_url, :refresh_token, params, opts)
+    token_request(provider, :refresh_token, params, opts)
   end
 
   @spec client_credentials(Provider.t(), keyword()) :: result(Token.t())
   def client_credentials(%Provider{} = provider, opts \\ []) do
     params = normalize_keyword(Keyword.get(opts, :token_params, []))
-    token_request(provider, provider.token_url, :client_credentials, params, opts)
+    token_request(provider, :client_credentials, params, opts)
   end
 
   @spec password_token(Provider.t(), String.t(), String.t(), keyword()) :: result(Token.t())
@@ -81,17 +82,17 @@ defmodule Pristine.OAuth2 do
       [username: username, password: password]
       |> Keyword.merge(normalize_keyword(Keyword.get(opts, :token_params, [])))
 
-    token_request(provider, provider.token_url, :password, params, opts)
+    token_request(provider, :password, params, opts)
   end
 
   @spec revoke_token(Provider.t(), String.t(), keyword()) :: result(map())
   def revoke_token(%Provider{} = provider, token, opts \\ []) when is_binary(token) do
-    control_request(provider, provider.revocation_url, %{token: token}, opts)
+    control_request(provider, :revoke, %{token: token}, opts)
   end
 
   @spec introspect_token(Provider.t(), String.t(), keyword()) :: result(map())
   def introspect_token(%Provider{} = provider, token, opts \\ []) when is_binary(token) do
-    control_request(provider, provider.introspection_url, %{token: token}, opts)
+    control_request(provider, :introspect, %{token: token}, opts)
   end
 
   defp build_authorization_request(provider, opts) do
@@ -116,244 +117,56 @@ defmodule Pristine.OAuth2 do
      }, params}
   end
 
-  defp token_request(provider, nil, _strategy, _params, _opts) do
+  defp token_request(%Provider{} = provider, _grant_type, _params, _opts)
+       when is_nil(provider.token_url) do
     {:error, Error.new(:missing_token_url, provider: provider.name)}
   end
 
-  defp token_request(%Provider{} = provider, path, strategy, params, opts) do
+  defp token_request(%Provider{} = provider, grant_type, params, opts) do
     with :ok <- ensure_available(provider),
          {:ok, context} <- fetch_context(opts, provider),
          {:ok, client_id} <- fetch_required(opts, :client_id, provider, :missing_client_id),
-         {:ok, client} <-
-           Backend.new_client(strategy, token_client_opts(provider, opts, client_id)),
-         {:ok, prepared_client} <-
-           Backend.prepare_token_request(client, strategy, params, request_headers(opts)),
-         {:ok, request} <- build_token_request(provider, path, prepared_client, context, opts),
+         {:ok, backend_request} <-
+           Backend.build_request(
+             provider,
+             {:token, grant_type},
+             params,
+             backend_request_opts(opts, context, client_id)
+           ),
+         {:ok, request} <- to_transport_request(backend_request),
          {:ok, %Response{} = response} <- context.transport.send(request, context),
          {:ok, body} <- decode_response_body(response, context),
-         :ok <- ensure_success(response, body, provider),
-         {:ok, backend_token} <- Backend.access_token(body) do
-      {:ok, Token.from_backend_token(backend_token)}
+         :ok <- ensure_success(response, body, provider) do
+      Backend.normalize_token_response(provider, body)
     end
   end
 
-  defp control_request(provider, nil, _params, _opts) do
-    {:error, Error.new(:missing_control_url, provider: provider.name)}
+  defp control_request(%Provider{} = provider, :revoke, _params, _opts)
+       when is_nil(provider.revocation_url) do
+    {:error, Error.new(:missing_revocation_url, provider: provider.name)}
   end
 
-  defp control_request(%Provider{} = provider, path, params, opts) do
-    with {:ok, context} <- fetch_context(opts, provider),
-         {:ok, request} <- build_control_request(provider, path, params, context, opts),
+  defp control_request(%Provider{} = provider, :introspect, _params, _opts)
+       when is_nil(provider.introspection_url) do
+    {:error, Error.new(:missing_introspection_url, provider: provider.name)}
+  end
+
+  defp control_request(%Provider{} = provider, kind, params, opts) do
+    with :ok <- ensure_available(provider),
+         {:ok, context} <- fetch_context(opts, provider),
+         {:ok, client_id} <- fetch_required(opts, :client_id, provider, :missing_client_id),
+         {:ok, backend_request} <-
+           Backend.build_request(
+             provider,
+             kind,
+             params,
+             backend_request_opts(opts, context, client_id)
+           ),
+         {:ok, request} <- to_transport_request(backend_request),
          {:ok, %Response{} = response} <- context.transport.send(request, context),
          {:ok, body} <- decode_response_body(response, context),
          :ok <- ensure_success(response, body, provider) do
       {:ok, body}
-    end
-  end
-
-  defp authorize_client_opts(provider, opts, client_id) do
-    [
-      authorize_url: provider.authorize_url || "",
-      client_id: client_id,
-      client_secret: Keyword.get(opts, :client_secret, ""),
-      redirect_uri: Keyword.get(opts, :redirect_uri, ""),
-      site: provider.site || "",
-      token_method: provider.token_method,
-      token_url: provider.token_url || ""
-    ]
-  end
-
-  defp token_client_opts(provider, opts, client_id) do
-    [
-      authorize_url: provider.authorize_url || "",
-      client_id: client_id,
-      client_secret: Keyword.get(opts, :client_secret, ""),
-      redirect_uri: Keyword.get(opts, :redirect_uri, ""),
-      site: provider.site || "",
-      token_method: provider.token_method,
-      token_url: provider.token_url || ""
-    ]
-  end
-
-  defp build_token_request(provider, path, prepared_client, context, opts) do
-    params =
-      prepared_client
-      |> Map.get(:params, %{})
-      |> stringify_keys()
-      |> reject_blank_values()
-
-    headers = prepared_client |> Map.get(:headers, []) |> normalize_headers()
-
-    with {:ok, {headers, params}} <- apply_client_auth_method(provider, headers, params, opts),
-         {:ok, body} <-
-           encode_request_body(
-             provider.token_method,
-             provider.token_content_type,
-             params,
-             context
-           ),
-         {:ok, url} <- request_url(provider.site, path, provider.token_method, params) do
-      {:ok,
-       %Request{
-         method: provider.token_method,
-         url: url,
-         headers:
-           headers
-           |> maybe_put_header("accept", "application/json")
-           |> maybe_put_header(
-             "content-type",
-             body_content_type(provider.token_method, provider.token_content_type)
-           ),
-         body: body,
-         endpoint_id: "oauth2.token",
-         metadata: %{provider: provider.name}
-       }}
-    end
-  end
-
-  defp build_control_request(provider, path, params, context, opts) do
-    params = params |> stringify_keys() |> reject_blank_values()
-    headers = normalize_headers(request_headers(opts))
-
-    with {:ok, {headers, params}} <- apply_client_auth_method(provider, headers, params, opts),
-         {:ok, body} <-
-           encode_request_body(
-             provider.token_method,
-             provider.token_content_type,
-             params,
-             context
-           ),
-         {:ok, url} <- request_url(provider.site, path, provider.token_method, params) do
-      {:ok,
-       %Request{
-         method: provider.token_method,
-         url: url,
-         headers:
-           headers
-           |> maybe_put_header("accept", "application/json")
-           |> maybe_put_header(
-             "content-type",
-             body_content_type(provider.token_method, provider.token_content_type)
-           ),
-         body: body,
-         endpoint_id: "oauth2.control",
-         metadata: %{provider: provider.name}
-       }}
-    end
-  end
-
-  defp request_url(site, path, :get, params) do
-    {:ok, append_query(build_url(site, path), params)}
-  end
-
-  defp request_url(site, path, _method, _params), do: {:ok, build_url(site, path)}
-
-  defp encode_request_body(:get, _content_type, _params, _context), do: {:ok, nil}
-
-  defp encode_request_body(_method, content_type, _params, _context) when is_nil(content_type),
-    do: {:ok, nil}
-
-  defp encode_request_body(_method, _content_type, params, _context) when params == %{},
-    do: {:ok, nil}
-
-  defp encode_request_body(_method, "application/json", params, %Context{serializer: serializer}) do
-    serializer = serializer || Pristine.Adapters.Serializer.JSON
-
-    case serializer.encode(params, []) do
-      {:ok, body} -> {:ok, body}
-      {:error, reason} -> {:error, Error.new(:request_encoding_failed, body: reason)}
-    end
-  end
-
-  defp encode_request_body(
-         _method,
-         "application/x-www-form-urlencoded",
-         params,
-         _context
-       ) do
-    {:ok, URI.encode_query(params)}
-  end
-
-  defp encode_request_body(_method, _content_type, params, _context) do
-    {:ok, params}
-  end
-
-  defp decode_response_body(%Response{body: nil}, _context), do: {:ok, %{}}
-  defp decode_response_body(%Response{body: ""}, _context), do: {:ok, %{}}
-
-  defp decode_response_body(%Response{body: body}, _context) when is_map(body),
-    do: {:ok, stringify_keys(body)}
-
-  defp decode_response_body(%Response{body: body, headers: headers}, %Context{
-         serializer: serializer
-       }) do
-    serializer = serializer || Pristine.Adapters.Serializer.JSON
-    content_type = response_content_type(headers)
-
-    cond do
-      String.contains?(content_type, "application/x-www-form-urlencoded") ->
-        {:ok, URI.decode_query(body)}
-
-      String.contains?(content_type, "application/json") ->
-        serializer.decode(body, nil, [])
-
-      true ->
-        case serializer.decode(body, nil, []) do
-          {:ok, decoded} -> {:ok, decoded}
-          {:error, _reason} -> {:ok, %{"body" => body}}
-        end
-    end
-  end
-
-  defp ensure_success(%Response{status: status}, _body, _provider) when status in 200..299,
-    do: :ok
-
-  defp ensure_success(%Response{} = response, body, provider) do
-    {:error,
-     Error.new(
-       :token_request_failed,
-       status: response.status,
-       body: body,
-       headers: normalize_header_map(response.headers),
-       provider: provider.name
-     )}
-  end
-
-  defp apply_client_auth_method(provider, headers, params, opts) do
-    client_id = Keyword.get(opts, :client_id)
-    client_secret = Keyword.get(opts, :client_secret)
-
-    case provider.client_auth_method do
-      :basic ->
-        with {:ok, client_id} <- present(client_id, provider, :missing_client_id),
-             {:ok, client_secret} <- present(client_secret, provider, :missing_client_secret) do
-          auth = Base.encode64("#{client_id}:#{client_secret}")
-
-          {:ok,
-           {headers
-            |> Map.delete("authorization")
-            |> Map.put("authorization", "Basic #{auth}"),
-            Map.drop(params, ["client_id", "client_secret"])}}
-        end
-
-      :request_body ->
-        with {:ok, client_id} <- present(client_id, provider, :missing_client_id),
-             {:ok, client_secret} <- present(client_secret, provider, :missing_client_secret) do
-          {:ok,
-           {Map.delete(headers, "authorization"),
-            params
-            |> Map.put("client_id", client_id)
-            |> Map.put("client_secret", client_secret)}}
-        end
-
-      :none ->
-        with {:ok, client_id} <- present(client_id, provider, :missing_client_id) do
-          {:ok,
-           {Map.delete(headers, "authorization"),
-            params
-            |> Map.delete("client_secret")
-            |> Map.put("client_id", client_id)}}
-        end
     end
   end
 
@@ -403,6 +216,75 @@ defmodule Pristine.OAuth2 do
     end
   end
 
+  defp authorization_backend_opts(opts, client_id, params) do
+    []
+    |> Keyword.put(:client_id, client_id)
+    |> maybe_put(:redirect_uri, Keyword.get(opts, :redirect_uri))
+    |> Keyword.put(:params, params)
+  end
+
+  defp backend_request_opts(opts, context, client_id) do
+    []
+    |> Keyword.put(:context, context)
+    |> Keyword.put(:client_id, client_id)
+    |> maybe_put(:client_secret, Keyword.get(opts, :client_secret))
+    |> maybe_put(:redirect_uri, Keyword.get(opts, :redirect_uri))
+    |> maybe_put(:headers, Keyword.get(opts, :headers))
+  end
+
+  defp to_transport_request(%BackendRequest{} = request) do
+    {:ok,
+     %Request{
+       method: request.method,
+       url: request.url,
+       headers: request.headers,
+       body: request.body,
+       endpoint_id: request.id,
+       metadata: request.metadata
+     }}
+  end
+
+  defp decode_response_body(%Response{body: nil}, _context), do: {:ok, %{}}
+  defp decode_response_body(%Response{body: ""}, _context), do: {:ok, %{}}
+
+  defp decode_response_body(%Response{body: body}, _context) when is_map(body),
+    do: {:ok, stringify_keys(body)}
+
+  defp decode_response_body(%Response{body: body, headers: headers}, %Context{
+         serializer: serializer
+       }) do
+    serializer = serializer || Pristine.Adapters.Serializer.JSON
+    content_type = response_content_type(headers)
+
+    cond do
+      String.contains?(content_type, "application/x-www-form-urlencoded") ->
+        {:ok, URI.decode_query(body)}
+
+      String.contains?(content_type, "application/json") ->
+        serializer.decode(body, nil, [])
+
+      true ->
+        case serializer.decode(body, nil, []) do
+          {:ok, decoded} -> {:ok, decoded}
+          {:error, _reason} -> {:ok, %{"body" => body}}
+        end
+    end
+  end
+
+  defp ensure_success(%Response{status: status}, _body, _provider) when status in 200..299,
+    do: :ok
+
+  defp ensure_success(%Response{} = response, body, provider) do
+    {:error,
+     Error.new(
+       :token_request_failed,
+       status: response.status,
+       body: body,
+       headers: normalize_header_map(response.headers),
+       provider: provider.name
+     )}
+  end
+
   defp fetch_context(opts, provider) do
     case Keyword.get(opts, :context) do
       %Context{transport: transport} = context when not is_nil(transport) ->
@@ -418,16 +300,6 @@ defmodule Pristine.OAuth2 do
       value when is_binary(value) and value != "" -> {:ok, value}
       _other -> {:error, Error.new(reason, provider: provider.name)}
     end
-  end
-
-  defp present(value, _provider, _reason) when is_binary(value) and value != "", do: {:ok, value}
-  defp present(_value, provider, reason), do: {:error, Error.new(reason, provider: provider.name)}
-
-  defp request_headers(opts) do
-    opts
-    |> Keyword.get(:headers, [])
-    |> normalize_headers()
-    |> Enum.into([])
   end
 
   defp normalize_headers(headers) when is_list(headers) do
@@ -454,50 +326,18 @@ defmodule Pristine.OAuth2 do
     Map.new(map, fn {key, value} -> {to_string(key), value} end)
   end
 
-  defp stringify_keys(other), do: other
-
   defp response_content_type(headers) do
     headers = normalize_headers(headers)
     Map.get(headers, "content-type", "")
   end
 
-  defp append_query(url, params) when params == %{}, do: url
-  defp append_query(url, params), do: url <> "?" <> URI.encode_query(params)
-
-  defp build_url(site, path) when is_binary(path) do
-    if String.starts_with?(path, "http://") or String.starts_with?(path, "https://") do
-      path
-    else
-      to_string(site || "") <> path
-    end
-  end
-
-  defp build_url(site, nil), do: to_string(site || "")
-  defp build_url(site, path), do: to_string(site || "") <> to_string(path)
-
-  defp body_content_type(:get, _content_type), do: nil
-  defp body_content_type(_method, content_type), do: content_type
-
   defp maybe_put(keyword, _key, nil), do: keyword
+  defp maybe_put(keyword, _key, []), do: keyword
   defp maybe_put(keyword, key, value), do: Keyword.put(keyword, key, value)
-
-  defp maybe_put_header(headers, _key, nil), do: headers
-
-  defp maybe_put_header(headers, key, value) do
-    Map.put_new(headers, key, value)
-  end
 
   defp normalize_keyword(map) when is_map(map), do: Enum.into(map, [])
   defp normalize_keyword(list) when is_list(list), do: list
   defp normalize_keyword(_other), do: []
-
-  defp reject_blank_values(map) when is_map(map) do
-    map
-    |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
-    |> Map.new()
-  end
-
-  defp reject_blank_values(other), do: other
 
   defp pkce_method_param(nil), do: nil
   defp pkce_method_param(method), do: method |> to_string() |> String.upcase()

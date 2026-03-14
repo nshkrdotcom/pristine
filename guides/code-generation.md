@@ -89,3 +89,7 @@ The retained `x-pristine-*` extensions are:
 
 These extensions let first-party SDK generators preserve provider-specific OAuth
 behavior without exposing manifests through the blessed SDK namespace.
+
+At runtime, generated SDKs use `Pristine.SDK.OAuth2` against Pristine's native
+default OAuth backend. Browser launch and loopback callback capture stay
+optional adapter layers for SDKs that offer interactive onboarding flows.

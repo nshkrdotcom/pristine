@@ -48,7 +48,6 @@ defmodule Pristine.MixProject do
       {:jason, "~> 1.4"},
       {:nimble_options, "~> 1.1"},
       {:yaml_elixir, "~> 2.12"},
-      {:oauth2, "~> 2.1", optional: true, runtime: false},
       {:telemetry, "~> 1.4"},
       {:finch, "~> 0.21"},
       {:sinter, "~> 0.2.0"},
@@ -153,6 +152,7 @@ defmodule Pristine.MixProject do
           Pristine.OAuth2.Interactive,
           Pristine.OAuth2.PKCE,
           Pristine.OAuth2.Provider,
+          Pristine.OAuth2.SavedToken,
           Pristine.OAuth2.Token
         ],
         Streaming: [
@@ -170,6 +170,9 @@ defmodule Pristine.MixProject do
           Pristine.Ports.Telemetry,
           Pristine.Ports.Compression,
           Pristine.Ports.Multipart,
+          Pristine.Ports.OAuthBackend,
+          Pristine.Ports.OAuthBrowser,
+          Pristine.Ports.OAuthCallbackListener,
           Pristine.Ports.Tokenizer,
           Pristine.Ports.Semaphore,
           Pristine.Ports.BytesSemaphore,
@@ -186,7 +189,10 @@ defmodule Pristine.MixProject do
         "Auth Adapters": [
           Pristine.Adapters.Auth.Bearer,
           Pristine.Adapters.Auth.ApiKey,
-          Pristine.Adapters.Auth.OAuth2
+          Pristine.Adapters.Auth.OAuth2,
+          Pristine.Adapters.OAuthBackend.Native,
+          Pristine.Adapters.OAuthBrowser.SystemCmd,
+          Pristine.Adapters.OAuthCallbackListener.Bandit
         ],
         "Token Sources": [
           Pristine.Adapters.TokenSource.File,

@@ -3,8 +3,10 @@ defmodule Pristine.OAuth2.Interactive do
   Interactive authorization-code orchestration for OAuth2 providers.
   """
 
+  alias Pristine.Adapters.OAuthBrowser.SystemCmd, as: SystemBrowser
+  alias Pristine.Adapters.OAuthCallbackListener.Bandit, as: BanditCallbackListener
   alias Pristine.OAuth2
-  alias Pristine.OAuth2.{Browser, CallbackServer, Error, Provider}
+  alias Pristine.OAuth2.{Error, Provider}
 
   @default_timeout_ms 120_000
 
@@ -120,7 +122,7 @@ defmodule Pristine.OAuth2.Interactive do
   end
 
   defp maybe_start_loopback_callback_server(redirect_uri, callback_server) do
-    if CallbackServer.loopback_redirect_uri?(redirect_uri) do
+    if loopback_redirect_uri?(callback_server, redirect_uri) do
       case callback_server.start(redirect_uri, receiver: self()) do
         {:ok, server} ->
           {server, "Waiting for the OAuth callback on #{redirect_uri}"}
@@ -265,8 +267,8 @@ defmodule Pristine.OAuth2.Interactive do
     end
   end
 
-  defp callback_server(opts), do: Keyword.get(opts, :callback_server, CallbackServer)
-  defp browser(opts), do: Keyword.get(opts, :browser, Browser)
+  defp callback_server(opts), do: Keyword.get(opts, :callback_server, BanditCallbackListener)
+  defp browser(opts), do: Keyword.get(opts, :browser, SystemBrowser)
   defp timeout_ms(opts), do: Keyword.get(opts, :timeout_ms, @default_timeout_ms)
   defp input(opts), do: Keyword.get(opts, :input, :stdio)
   defp output(opts), do: Keyword.get(opts, :output, :stdio)
@@ -310,6 +312,14 @@ defmodule Pristine.OAuth2.Interactive do
 
   defp callback_error_message(error, description) do
     "authorization callback returned error #{inspect(error)}: #{description}"
+  end
+
+  defp loopback_redirect_uri?(callback_server, redirect_uri) do
+    if function_exported?(callback_server, :loopback_redirect_uri?, 1) do
+      callback_server.loopback_redirect_uri?(redirect_uri)
+    else
+      BanditCallbackListener.loopback_redirect_uri?(redirect_uri)
+    end
   end
 
   defp format_reason({:command_failed, command, status, output}) do

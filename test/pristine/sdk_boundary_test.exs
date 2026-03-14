@@ -6,6 +6,9 @@ defmodule Pristine.SDKBoundaryTest do
   alias Pristine.SDK.OpenAPI.{Client, Operation, Runtime}
 
   @sdk_source_glob Path.expand("../../lib/pristine/sdk/**/*.ex", __DIR__)
+  @oauth_backend_port_path Path.expand("../../lib/pristine/ports/oauth_backend.ex", __DIR__)
+  @oauth_backend_path Path.expand("../../lib/pristine/oauth2/backend.ex", __DIR__)
+  @interactive_path Path.expand("../../lib/pristine/oauth2/interactive.ex", __DIR__)
 
   test "sdk namespace exposes the public runtime boundary" do
     assert Code.ensure_loaded?(SDK.Context)
@@ -106,6 +109,28 @@ defmodule Pristine.SDKBoundaryTest do
     assert function_exported?(OAuth2Provider, :from_security_scheme!, 3)
     refute function_exported?(OAuth2Provider, :from_manifest, 2)
     refute function_exported?(OAuth2Provider, :from_manifest!, 2)
+  end
+
+  test "oauth control-plane routes through a real pristine-native backend port" do
+    backend_port = File.read!(@oauth_backend_port_path)
+    backend = File.read!(@oauth_backend_path)
+
+    assert backend_port =~ "defmodule Pristine.Ports.OAuthBackend"
+    assert backend_port =~ "@callback authorization_url"
+    assert backend_port =~ "@callback build_request"
+    assert backend_port =~ "@callback normalize_token_response"
+
+    assert backend =~ "Pristine.Ports.OAuthBackend"
+    refute backend =~ "new_client"
+    refute backend =~ "prepare_token_request"
+    refute backend =~ "access_token"
+  end
+
+  test "interactive oauth defaults through explicit browser and callback adapter seams" do
+    interactive = File.read!(@interactive_path)
+
+    assert interactive =~ "Pristine.Adapters.OAuthBrowser.SystemCmd"
+    assert interactive =~ "Pristine.Adapters.OAuthCallbackListener.Bandit"
   end
 
   test "top-level execution helpers stay available through the hardened boundary" do

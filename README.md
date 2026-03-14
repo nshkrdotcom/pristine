@@ -106,6 +106,20 @@ result =
 sources = Pristine.OpenAPI.Bridge.generated_sources(result)
 ```
 
+## OAuth Runtime Architecture
+
+`Pristine.SDK.OAuth2` now runs through the in-tree
+`Pristine.Adapters.OAuthBackend.Native` backend by default.
+
+Interactive convenience features remain optional adapters:
+
+- browser launch via `Pristine.Adapters.OAuthBrowser.SystemCmd`
+- loopback callback capture via `Pristine.Adapters.OAuthCallbackListener.Bandit`
+
+Manual paste-back still works without those adapters, and persisted token
+load/save/refresh orchestration lives in `Pristine.OAuth2.SavedToken` on top of
+the token-source port.
+
 ## Guides
 
 - [Getting Started](guides/getting-started.md)

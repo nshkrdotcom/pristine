@@ -20,7 +20,7 @@ defmodule Pristine.Adapters.TokenSource.Refreshable do
   @behaviour Pristine.Ports.TokenSource
 
   alias Pristine.OAuth2
-  alias Pristine.OAuth2.{Provider, Token}
+  alias Pristine.OAuth2.{Provider, SavedToken, Token}
 
   @impl true
   def fetch(opts) do
@@ -57,7 +57,7 @@ defmodule Pristine.Adapters.TokenSource.Refreshable do
          {:ok, %Token{} = refreshed_token} <-
            oauth2_module(opts).refresh_token(provider, refresh_token, refresh_opts(opts)),
          :ok <- ensure_access_token(refreshed_token),
-         merged_token = merge_tokens(current_token, refreshed_token),
+         merged_token = SavedToken.merge_tokens(current_token, refreshed_token),
          :ok <- persist_token(source_module, source_opts, merged_token) do
       {:ok, merged_token}
     end
@@ -108,38 +108,6 @@ defmodule Pristine.Adapters.TokenSource.Refreshable do
       :ok -> :ok
       {:error, reason} -> {:error, {:token_refresh_persist_failed, reason}}
     end
-  end
-
-  defp merge_tokens(%Token{} = current_token, %Token{} = refreshed_token) do
-    %Token{
-      access_token: refreshed_token.access_token,
-      refresh_token: merged_refresh_token(current_token, refreshed_token),
-      expires_at: refreshed_token.expires_at,
-      token_type: merged_token_type(current_token, refreshed_token),
-      other_params:
-        Map.merge(current_token.other_params || %{}, refreshed_token.other_params || %{})
-    }
-  end
-
-  defp merged_refresh_token(
-         %Token{refresh_token: _current_refresh_token},
-         %Token{refresh_token: refresh_token}
-       )
-       when is_binary(refresh_token) and refresh_token != "" do
-    refresh_token
-  end
-
-  defp merged_refresh_token(%Token{refresh_token: current_refresh_token}, _refreshed_token) do
-    current_refresh_token
-  end
-
-  defp merged_token_type(%Token{token_type: _current_token_type}, %Token{token_type: token_type})
-       when is_binary(token_type) and token_type != "" do
-    token_type
-  end
-
-  defp merged_token_type(%Token{token_type: current_token_type}, _refreshed_token) do
-    current_token_type
   end
 
   defp refresh_opts(opts) do
