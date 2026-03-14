@@ -12,6 +12,7 @@ defmodule Pristine.Core.Pipeline do
 
   alias Pristine.Core.{
     Context,
+    EndpointMetadata,
     Headers,
     HTTPMethod,
     PoolRouting,
@@ -90,24 +91,11 @@ defmodule Pristine.Core.Pipeline do
     {payload, body_type, content_type} = request_payload(request_spec)
 
     endpoint =
-      %Pristine.Manifest.Endpoint{
-        id: request_spec.id,
-        method: request_spec.method,
-        path: request_spec.path,
-        circuit_breaker: request_spec.circuit_breaker,
-        headers: request_spec.headers,
-        query: request_spec.query,
-        rate_limit: request_spec.rate_limit,
-        resource: request_spec.resource,
+      EndpointMetadata.from_request_spec(
+        request_spec,
         body_type: body_type,
-        content_type: content_type,
-        retry: request_spec.retry,
-        security: request_spec.security,
-        telemetry: request_spec.telemetry,
-        timeout: request_spec.timeout,
-        request: request_spec.request_schema,
-        response: request_spec.response_schema
-      }
+        content_type: content_type
+      )
 
     execute_opts =
       opts
@@ -121,19 +109,33 @@ defmodule Pristine.Core.Pipeline do
   end
 
   @spec execute_endpoint(
-          Pristine.Manifest.Endpoint.t(),
+          Pristine.Manifest.Endpoint.t() | EndpointMetadata.t(),
           [map()] | nil,
           term(),
           Context.t(),
           keyword()
         ) ::
           {:ok, term()} | {:error, term()}
+  def execute_endpoint(endpoint, manifest_security, payload, context, opts \\ [])
+
   def execute_endpoint(
         %Pristine.Manifest.Endpoint{} = endpoint,
         manifest_security,
         payload,
         %Context{} = context,
-        opts \\ []
+        opts
+      ) do
+    endpoint
+    |> EndpointMetadata.from_endpoint()
+    |> execute_endpoint(manifest_security, payload, context, opts)
+  end
+
+  def execute_endpoint(
+        %EndpointMetadata{} = endpoint,
+        manifest_security,
+        payload,
+        %Context{} = context,
+        opts
       ) do
     endpoint = hydrate_endpoint_security(endpoint, manifest_security)
 

@@ -3,9 +3,8 @@ defmodule Pristine.Ports.ResultClassifier do
   Classification boundary for normalized request outcomes.
   """
 
-  alias Pristine.Core.{Context, ResultClassification}
-  alias Pristine.Manifest.Endpoint
+  alias Pristine.Core.{Context, EndpointMetadata, ResultClassification}
 
-  @callback classify(term(), Endpoint.t(), Context.t(), keyword()) ::
+  @callback classify(term(), EndpointMetadata.t(), Context.t(), keyword()) ::
               ResultClassification.t() | map()
 end

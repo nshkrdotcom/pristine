@@ -4,6 +4,7 @@ defmodule Pristine do
   """
 
   alias Pristine.Core.Context, as: RuntimeContext
+  alias Pristine.Core.Pipeline
   alias Pristine.Manifest
   alias Pristine.Manifest.Endpoint
   alias Pristine.Runtime
@@ -65,12 +66,12 @@ defmodule Pristine do
   """
   @spec execute_request(
           OpenAPIClient.request_spec_t() | OpenAPIClient.request_t(),
-          Context.t(),
+          Pristine.SDK.Context.t(),
           keyword()
         ) ::
           {:ok, term()} | {:error, term()}
   def execute_request(request_spec, %RuntimeContext{} = context, opts \\ []) do
-    Runtime.execute_request(request_spec, context, opts)
+    Pipeline.execute_request(request_spec, context, opts)
   end
 
   @doc """
