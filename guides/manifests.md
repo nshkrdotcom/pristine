@@ -32,7 +32,6 @@ Pristine supports two manifest file formats:
   "base_url": "string (optional)",
   "endpoints": "[array] (required)",
   "types": "{object} (required)",
-  "auth": "{object} (optional)",
   "security_schemes": "{object} (optional)",
   "security": "[array] (optional)",
   "defaults": "{object} (optional)",
@@ -56,7 +55,6 @@ Pristine supports two manifest file formats:
 | Field | Type | Description |
 |-------|------|-------------|
 | `base_url` | string | Default base URL for all endpoints |
-| `auth` | object | Default authentication configuration |
 | `security_schemes` | object | OpenAPI-style named security schemes |
 | `security` | array | OpenAPI-style default security requirements |
 | `defaults` | object | Default values (timeout, headers, etc.) |
@@ -116,12 +114,11 @@ Each endpoint defines an API operation:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `auth` | object | Override authentication for this endpoint |
 | `security` | array | OpenAPI-style security requirement sets for this endpoint |
 
 ### Security Metadata
 
-Pristine now supports both the legacy `auth` fields and native OpenAPI-style security fields.
+Pristine supports OpenAPI-style security fields only.
 
 ```json
 {
@@ -483,13 +480,13 @@ Define named retry policies:
     "default": {
       "max_attempts": 3,
       "backoff": "exponential",
-      "base_delay_ms": 1000,
-      "max_delay_ms": 30000
+      "base_ms": 1000,
+      "max_ms": 30000
     },
     "aggressive": {
       "max_attempts": 5,
       "backoff": "linear",
-      "base_delay_ms": 500
+      "base_ms": 500
     },
     "none": {
       "max_attempts": 1
@@ -504,8 +501,8 @@ Define named retry policies:
 |-------|------|-------------|
 | `max_attempts` | integer | Maximum retry attempts |
 | `backoff` | string | Backoff strategy: `"exponential"`, `"linear"`, `"constant"` |
-| `base_delay_ms` | integer | Initial delay in milliseconds |
-| `max_delay_ms` | integer | Maximum delay cap |
+| `base_ms` | integer | Initial delay in milliseconds |
+| `max_ms` | integer | Maximum delay cap |
 | `jitter` | boolean | Add randomization to delays |
 
 Reference in endpoints:
@@ -600,7 +597,7 @@ Set default values:
     "default": {
       "max_attempts": 3,
       "backoff": "exponential",
-      "base_delay_ms": 1000
+      "base_ms": 1000
     }
   },
 

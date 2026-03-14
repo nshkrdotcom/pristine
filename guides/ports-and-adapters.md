@@ -14,7 +14,7 @@ and are not part of the default `Pristine.execute/5` request path.
 | Transport | HTTP request/response | Finch |
 | StreamTransport | Streaming responses | FinchStream |
 | Serializer | Payload encoding | JSON |
-| Auth | Authentication | Bearer, APIKey, OAuth2 |
+| Auth | Authentication | Bearer, ApiKey, OAuth2 |
 | TokenSource | OAuth2 token retrieval | File, Refreshable, Static |
 | Retry | Retry logic | Foundation, Noop |
 | ResultClassifier | HTTP outcome classification | HTTP |
@@ -158,17 +158,17 @@ context = %Context{
 # Produces: Authorization: Bearer your-token
 ```
 
-#### APIKey Adapter
+#### ApiKey Adapter
 
 ```elixir
-Pristine.Adapters.Auth.APIKey
+Pristine.Adapters.Auth.ApiKey
 ```
 
 **Usage:**
 ```elixir
 context = %Context{
   auth: [
-    {Pristine.Adapters.Auth.APIKey,
+    {Pristine.Adapters.Auth.ApiKey,
       value: "your-api-key",
       header: "X-API-Key"  # Default header name
     }
@@ -181,7 +181,7 @@ context = %Context{
 context = %Context{
   auth: [
     {Pristine.Adapters.Auth.Bearer, token: "token"},
-    {Pristine.Adapters.Auth.APIKey, value: "key", header: "X-Custom-Key"}
+    {Pristine.Adapters.Auth.ApiKey, value: "key", header: "X-Custom-Key"}
   ]
 }
 ```
@@ -332,8 +332,8 @@ context = %Context{
     "default" => %{
       max_attempts: 3,
       backoff: :exponential,
-      base_delay_ms: 1000,
-      max_delay_ms: 30_000
+      base_ms: 1000,
+      max_ms: 30_000
     }
   }
 }

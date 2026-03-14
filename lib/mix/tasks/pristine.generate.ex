@@ -31,7 +31,10 @@ defmodule Mix.Tasks.Pristine.Generate do
          {:ok, sources} <-
            Codegen.build_sources(manifest, output_dir: output_dir, namespace: namespace) do
       Codegen.write_sources(sources)
-      Mix.shell().info("Generated #{map_size(sources)} files in #{output_dir}")
+
+      if Mix.env() != :test do
+        Mix.shell().info("Generated #{map_size(sources)} files in #{output_dir}")
+      end
     else
       {:error, reason} ->
         Mix.raise("generation failed: #{inspect(reason)}")

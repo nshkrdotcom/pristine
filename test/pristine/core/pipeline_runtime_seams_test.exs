@@ -453,7 +453,7 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
       runtime_context(
         error_module: ErrorHookModule,
         retry: Pristine.Adapters.Retry.Foundation,
-        retry_opts: [max_retries: 0]
+        retry_opts: [max_attempts: 0]
       )
 
     expect(Pristine.SerializerMock, :encode, fn ^payload, _opts ->
@@ -679,9 +679,9 @@ defmodule Pristine.Core.PipelineRuntimeSeamsTest do
       runtime_context(
         retry: TrackingRetryAdapter,
         retry_opts: [
-          max_retries: 1,
-          base_delay_ms: 1,
-          max_delay_ms: 1
+          max_attempts: 1,
+          base_ms: 1,
+          max_ms: 1
         ],
         rate_limiter: TrackingRateLimiter,
         rate_limit_opts: [key: {:integration, :demo}, test_pid: self()],

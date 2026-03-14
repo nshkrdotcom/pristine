@@ -616,7 +616,7 @@ defmodule Tinkex.Client do
         base_url: base_url,
         transport: Pristine.Adapters.Transport.Finch,
         serializer: Pristine.Adapters.Serializer.JSON,
-        auth: [Pristine.Adapters.Auth.APIKey.new(api_key, header: "X-API-Key")]
+        auth: [Pristine.Adapters.Auth.ApiKey.new(api_key, header: "X-API-Key")]
       )
 
       {:ok, %__MODULE__{

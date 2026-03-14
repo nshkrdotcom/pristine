@@ -213,7 +213,7 @@ Auth modules are applied in order:
 context = %Context{
   auth: [
     {Pristine.Adapters.Auth.Bearer, token: "..."},
-    {Pristine.Adapters.Auth.APIKey, value: "...", header: "X-API-Key"}
+    {Pristine.Adapters.Auth.ApiKey, value: "...", header: "X-API-Key"}
   ]
 }
 ```

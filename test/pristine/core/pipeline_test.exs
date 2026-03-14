@@ -237,8 +237,8 @@ defmodule Pristine.Core.PipelineTest do
         "default" => %{
           "max_attempts" => 4,
           "backoff" => "linear",
-          "base_delay_ms" => 250,
-          "max_delay_ms" => 1_000,
+          "base_ms" => 250,
+          "max_ms" => 1_000,
           "jitter" => 0.5,
           "jitter_strategy" => "factor"
         }
@@ -290,5 +290,42 @@ defmodule Pristine.Core.PipelineTest do
     assert_received {:with_retry_opts, with_retry_opts}
     assert Keyword.get(with_retry_opts, :max_attempts) == 4
     assert Keyword.get(with_retry_opts, :policy) == :http_retry_policy
+  end
+
+  test "rejects legacy retry aliases in retry policies" do
+    manifest = %{
+      name: "tinkex",
+      version: "0.3.4",
+      endpoints: [
+        %{
+          id: "sample",
+          method: "POST",
+          path: "/sampling",
+          retry: "default"
+        }
+      ],
+      types: %{}
+    }
+
+    {:ok, manifest} = Manifest.load(manifest)
+
+    context = %Context{
+      base_url: "https://example.com",
+      transport: Pristine.TransportMock,
+      serializer: Pristine.SerializerMock,
+      retry: HttpPolicyRetryAdapter,
+      telemetry: Pristine.Adapters.Telemetry.Noop,
+      circuit_breaker: Pristine.Adapters.CircuitBreaker.Noop,
+      rate_limiter: Pristine.Adapters.RateLimit.Noop,
+      retry_policies: %{
+        "default" => %{
+          "max_retries" => 1
+        }
+      }
+    }
+
+    assert_raise ArgumentError, ~r/legacy retry option/, fn ->
+      Pipeline.execute(manifest, "sample", %{}, context)
+    end
   end
 end
