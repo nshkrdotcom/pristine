@@ -24,19 +24,17 @@ defmodule Pristine.OpenAPI.ClientTest do
              "https://example.com/v1/widgets/a%20b"
   end
 
-  test "to_request_spec/1 keeps url as a backward-compatible path fallback" do
-    spec =
+  test "to_request_spec/1 rejects generated requests without path_template" do
+    assert_raise KeyError, fn ->
       Client.to_request_spec(%{
         args: %{},
         call: {__MODULE__, :request},
         method: :get,
-        url: "/v1/widgets/fallback",
         path_params: %{},
         query: %{},
         body: %{},
         form_data: %{}
       })
-
-    assert spec.path == "/v1/widgets/fallback"
+    end
   end
 end

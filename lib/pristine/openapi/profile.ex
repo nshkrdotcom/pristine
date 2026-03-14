@@ -18,7 +18,6 @@ defmodule Pristine.OpenAPI.Profile do
           | {:error_type, module() | {module(), atom()}}
           | {:processor, module()}
           | {:renderer, module()}
-          | {:security_metadata, map()}
           | {:source_contexts, map()}
           | {:supplemental_files, [String.t()]}
           | {:profile_overrides, keyword()}
@@ -39,7 +38,6 @@ defmodule Pristine.OpenAPI.Profile do
           error: Keyword.get(opts, :error_type, Pristine.Error)
         ]
       ]
-      |> maybe_put(:security_metadata, Keyword.get(opts, :security_metadata))
 
     defaults = [
       processor: Keyword.get(opts, :processor, OpenAPI.Processor),
@@ -70,7 +68,4 @@ defmodule Pristine.OpenAPI.Profile do
   end
 
   defp deep_merge(_left, right), do: right
-
-  defp maybe_put(keyword, _key, nil), do: keyword
-  defp maybe_put(keyword, key, value), do: Keyword.put(keyword, key, value)
 end

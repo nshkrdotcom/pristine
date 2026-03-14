@@ -12,7 +12,6 @@ defmodule Pristine.Manifest.Schema do
             name: [type: :string, required: true],
             version: [type: :string, required: true],
             base_url: [type: :string],
-            auth: [type: @any_map],
             security_schemes: [type: @any_map],
             security: [type: @map_list],
             error_types: [type: @any_map],

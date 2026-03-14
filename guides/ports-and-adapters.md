@@ -21,7 +21,7 @@ and are not part of the default `Pristine.execute/5` request path.
 | CircuitBreaker | Failure isolation | Foundation, Noop |
 | RateLimit | Request throttling | BackoffWindow, Noop |
 | AdmissionControl | Optional high-throughput request shaping | Dispatch, Noop |
-| Telemetry | Observability | Foundation, Raw, Reporter, Noop |
+| Telemetry | Observability | Foundation, Raw, Noop |
 | Compression | Payload compression | Gzip |
 | Multipart | Form encoding | Ex |
 | Tokenizer | LLM tokens | Tiktoken |
@@ -548,19 +548,13 @@ Pristine.Adapters.Telemetry.Raw
 Direct `:telemetry` emission without event prefixing. Caller-supplied event
 paths are emitted exactly as provided.
 
-#### Reporter Adapter
+#### Reporter Export
 
-```elixir
-Pristine.Adapters.Telemetry.Reporter
-```
-
-Directly logs into `TelemetryReporter`.
-
-This adapter is kept as a compatibility path. For new code, prefer
-`Pristine.Adapters.Telemetry.Foundation` plus
-`Pristine.Profiles.Foundation.attach_reporter/2` so export remains a normal
-telemetry handler concern instead of a separate telemetry implementation. This
-adapter requires the optional `:telemetry_reporter` dependency.
+Use `Pristine.Adapters.Telemetry.Foundation` or `Pristine.Adapters.Telemetry.Raw`
+to emit normal `:telemetry` events, then attach `TelemetryReporter` through
+`Pristine.Profiles.Foundation.attach_reporter/2`. Export stays a handler
+concern rather than a separate telemetry adapter, and it requires the optional
+`:telemetry_reporter` dependency.
 
 #### Noop Adapter
 

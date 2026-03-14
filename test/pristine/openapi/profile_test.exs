@@ -41,7 +41,7 @@ defmodule Pristine.OpenAPI.ProfileTest do
     assert config |> Keyword.get(:naming) |> Keyword.get(:rename) == [{"OAuth", "OAuth"}]
   end
 
-  test "build/1 keeps explicit security metadata as an opt-in fallback" do
+  test "build/1 ignores explicit security metadata fallback hooks" do
     fallback = %{operations: %{{:get, "/widgets"} => [%{"bearerAuth" => []}]}}
 
     output =
@@ -52,6 +52,6 @@ defmodule Pristine.OpenAPI.ProfileTest do
       )
       |> Keyword.get(:output)
 
-    assert Keyword.get(output, :security_metadata) == fallback
+    assert Keyword.get(output, :security_metadata) == nil
   end
 end

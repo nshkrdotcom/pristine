@@ -152,19 +152,15 @@ When you generate from OpenAPI through the bridge, schema modules should expose 
 
 That contract lets the generic pipeline validate direct refs such as `{MySDK.PageObjectResponse, :t}` and, when `typed_responses: true` is enabled by the generated SDK, materialize successful responses without bespoke runtime code in each SDK. Missing helpers are treated as a programming error and fail fast.
 
-`Pristine.OpenAPI.Bridge.run/3` returns `%Pristine.OpenAPI.Result{}`. The
-canonical result preserves top-level `files`, `operations`, and `schemas`, and
-adds:
+`Pristine.OpenAPI.Bridge.run/3` returns `%Pristine.OpenAPI.Result{}` with:
 
-- `generator_state` for explicit access to the raw upstream state
 - `ir` for the canonical OpenAPI docs IR
 - `source_contexts` for provider-neutral source metadata keyed by `{method, path}`
 - `docs_manifest` for the JSON-ready docs artifact produced by `Pristine.OpenAPI.Docs`
 
 OpenAPI-generated operation request maps preserve effective security metadata
 through the normal generator path now that upstream operation metadata carries
-`security`. `Pristine.OpenAPI.Security.read/1` remains available only as an
-explicit fallback for callers that need to inject security metadata manually.
+`security`.
 
 ### Union Types
 

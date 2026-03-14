@@ -142,7 +142,6 @@ defmodule Pristine.Core.PipelineTest do
       serializer: Pristine.SerializerMock,
       retry: Pristine.RetryMock,
       telemetry: Pristine.TelemetryMock,
-      auth: [{Pristine.AuthMock, [value: "secret"]}],
       circuit_breaker: Pristine.CircuitBreakerMock,
       rate_limiter: Pristine.RateLimitMock
     }
@@ -189,6 +188,7 @@ defmodule Pristine.Core.PipelineTest do
                "sample",
                payload,
                context,
+               auth: [{Pristine.AuthMock, value: "secret"}],
                path_params: %{id: "abc"},
                query: %{limit: 10}
              )

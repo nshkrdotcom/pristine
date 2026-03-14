@@ -16,8 +16,7 @@ defmodule Pristine.OpenAPI.Client do
           required(:call) => {module(), atom()},
           required(:method) => atom(),
           required(:opts) => keyword(),
-          optional(:path_template) => String.t(),
-          optional(:url) => String.t(),
+          required(:path_template) => String.t(),
           required(:path_params) => map(),
           required(:query) => map(),
           required(:body) => term(),
@@ -58,12 +57,12 @@ defmodule Pristine.OpenAPI.Client do
   shape accepted by `Pristine.execute_request/3`.
   """
   @spec to_request_spec(request_t()) :: request_spec_t()
-  def to_request_spec(request) when is_map(request) do
+  def to_request_spec(%{path_template: path_template} = request) when is_binary(path_template) do
     request
     |> then(fn request ->
       %{
         method: Map.get(request, :method),
-        path: Map.get(request, :path_template) || Map.get(request, :url),
+        path: path_template,
         path_params: normalize_map(Map.get(request, :path_params)),
         query: normalize_map(Map.get(request, :query)),
         body: request_body(request),
@@ -84,6 +83,10 @@ defmodule Pristine.OpenAPI.Client do
       :telemetry,
       :timeout
     ])
+  end
+
+  def to_request_spec(request) do
+    raise KeyError, key: :path_template, term: request
   end
 
   @doc false

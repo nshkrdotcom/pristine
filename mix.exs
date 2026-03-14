@@ -207,7 +207,6 @@ defmodule Pristine.MixProject do
         "Telemetry Adapters": [
           Pristine.Adapters.Telemetry.Foundation,
           Pristine.Adapters.Telemetry.Raw,
-          Pristine.Adapters.Telemetry.Reporter,
           Pristine.Adapters.Telemetry.Noop
         ],
         "Other Adapters": [

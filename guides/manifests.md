@@ -163,7 +163,7 @@ Pristine now supports both the legacy `auth` fields and native OpenAPI-style sec
 
 Semantics:
 
-- `endpoint.security == nil`: inherit manifest security or legacy auth behavior
+- `endpoint.security == nil`: inherit manifest security
 - `endpoint.security == []`: explicitly unauthenticated
 - a non-empty list uses OpenAPI OR semantics, and Pristine picks the first satisfiable requirement set
 

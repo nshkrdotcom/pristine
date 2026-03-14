@@ -4,17 +4,20 @@ defmodule Pristine.OpenAPI.ResultTest do
   alias Pristine.OpenAPI.IR
   alias Pristine.OpenAPI.Result
 
-  test "wraps generator state in a canonical result while preserving top-level compatibility" do
+  test "wraps generator state in the canonical result surface only" do
     result =
       Result.from_generator_state(generator_state_fixture(),
         source_contexts: source_contexts_fixture()
       )
 
     assert %Result{} = result
-    assert result.files == generator_state_fixture().files
-    assert result.operations == generator_state_fixture().operations
-    assert result.schemas == generator_state_fixture().schemas
+    refute Map.has_key?(result, :files)
+    refute Map.has_key?(result, :operations)
+    refute Map.has_key?(result, :schemas)
+    refute Map.has_key?(result, :generator_state)
     assert %IR{} = result.ir
+    assert Enum.map(result.ir.operations, & &1.function_name) == [:list_widgets]
+    assert Enum.map(result.ir.schemas, & &1.module_name) == [Widget]
 
     assert %IR.SourceContext{title: "Widgets reference"} =
              result.source_contexts[{:get, "/widgets"}]
