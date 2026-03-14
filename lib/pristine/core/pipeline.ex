@@ -895,6 +895,7 @@ defmodule Pristine.Core.Pipeline do
   # necessarily opt into the HTTP-aware policy-building path.
   defp retry_supports_http_policy?(retry) do
     is_atom(retry) and
+      Code.ensure_loaded?(retry) and
       not function_exported?(retry, :__mock_for__, 0) and
       function_exported?(retry, :build_policy, 1) and
       function_exported?(retry, :build_backoff, 1)

@@ -86,6 +86,10 @@ internal request-pipeline structs:
 - `Pristine.SDK.OpenAPI.*`
 - `Pristine.SDK.OAuth2.*`
 
+`Pristine.SDK.OAuth2` uses the native in-tree OAuth backend by default.
+Interactive browser launch and loopback callback capture stay optional adapter
+layers, and manual paste-back remains available when those adapters are absent.
+
 ## Next
 
 - Use [Foundation Runtime](foundation-runtime.md) when you need more control

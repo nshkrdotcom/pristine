@@ -1,33 +1,43 @@
 defmodule Pristine.OAuth2.Backend do
   @moduledoc false
 
+  alias Pristine.OAuth2.Provider
+  alias Pristine.OAuth2.Token
+  alias Pristine.Ports.OAuthBackend
+  alias Pristine.Ports.OAuthBackend.Request
+
+  @type grant_type :: OAuthBackend.grant_type()
+  @type request_kind :: OAuthBackend.request_kind()
+
   @spec available?() :: boolean()
   def available? do
     implementation().available?()
   end
 
-  @spec new_client(atom(), keyword()) :: {:ok, map()} | {:error, atom()}
-  def new_client(strategy, opts) do
-    implementation().new_client(strategy, opts)
+  @spec authorization_url(Provider.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
+  def authorization_url(%Provider{} = provider, opts) when is_list(opts) do
+    implementation().authorization_url(provider, opts)
   end
 
-  @spec authorize_url(map(), keyword()) :: {:ok, String.t()} | {:error, atom()}
-  def authorize_url(client, params) do
-    implementation().authorize_url(client, params)
+  @spec build_request(Provider.t(), request_kind(), map() | keyword(), keyword()) ::
+          {:ok, Request.t()} | {:error, term()}
+  def build_request(%Provider{} = provider, kind, params, opts)
+      when is_list(opts) and (is_map(params) or is_list(params)) do
+    implementation().build_request(provider, kind, params, opts)
   end
 
-  @spec prepare_token_request(map(), atom(), keyword(), [{String.t(), String.t()}]) ::
-          {:ok, map()} | {:error, atom()}
-  def prepare_token_request(client, strategy, params, headers) do
-    implementation().prepare_token_request(client, strategy, params, headers)
-  end
-
-  @spec access_token(map() | String.t()) :: {:ok, map()} | {:error, atom()}
-  def access_token(response_body) do
-    implementation().access_token(response_body)
+  @spec normalize_token_response(Provider.t(), map() | String.t()) ::
+          {:ok, Token.t()} | {:error, term()}
+  def normalize_token_response(%Provider{} = provider, body)
+      when is_map(body) or is_binary(body) do
+    implementation().normalize_token_response(provider, body)
   end
 
   defp implementation do
-    Application.get_env(:pristine, :oauth2_backend, Pristine.OAuth2.Backend.OAuth2Lib)
+    Application.get_env(
+      :pristine,
+      :oauth_backend,
+      Pristine.Adapters.OAuthBackend.Native
+    )
   end
 end
