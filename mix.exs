@@ -59,7 +59,10 @@ defmodule Pristine.MixProject do
 
       ### OpenAPI Generator
       {:oapi_generator,
-       github: "nshkrdotcom/open-api-generator", only: [:dev, :test], runtime: false},
+       github: "nshkrdotcom/open-api-generator",
+       branch: "doc-generator-fix",
+       only: [:dev, :test],
+       runtime: false},
       {:uuid, "~> 1.1"},
       {:mox, "~> 1.2", only: :test},
       {:plug, "~> 1.19", optional: true, runtime: false},
