@@ -1,12 +1,8 @@
 defmodule Pristine.OpenAPI.Client do
   @moduledoc """
-  Request contracts for OpenAPI-generated SDK surfaces that target Pristine.
+  Internal request contracts for OpenAPI-generated SDK surfaces.
 
-  Generated operation modules emit `t:request_t/0` maps. Ad hoc callers can use
-  `t:request_spec_t/0` directly with `Pristine.execute_request/3`.
-
-  Generated SDKs should wrap the generic request execution seam rather than
-  rebuilding low-level request logic themselves.
+  Provider SDKs should depend on `Pristine.SDK.OpenAPI.Client`.
   """
 
   @type response_type :: term()

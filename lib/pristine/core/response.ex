@@ -1,6 +1,9 @@
 defmodule Pristine.Core.Response do
   @moduledoc """
-  Normalized response data from the transport port.
+  Internal normalized response data from the transport port.
+
+  Provider SDKs should prefer `Pristine.SDK.Response` when they need a public
+  response helper.
   """
 
   defstruct status: nil,

@@ -125,7 +125,22 @@ defmodule Pristine.MixProject do
         ]
       ],
       groups_for_modules: [
-        "Core Pipeline": [
+        "SDK Boundary": [
+          Pristine.SDK.Context,
+          Pristine.SDK.Response,
+          Pristine.SDK.Error,
+          Pristine.SDK.ResultClassification,
+          Pristine.SDK.OpenAPI.Client,
+          Pristine.SDK.OpenAPI.Operation,
+          Pristine.SDK.OpenAPI.Runtime,
+          Pristine.SDK.Profiles.Foundation,
+          Pristine.SDK.OAuth2,
+          Pristine.SDK.OAuth2.AuthorizationRequest,
+          Pristine.SDK.OAuth2.Provider,
+          Pristine.SDK.OAuth2.Token,
+          Pristine.SDK.OAuth2.Error
+        ],
+        "Runtime Internals": [
           Pristine,
           Pristine.Profiles.Foundation,
           Pristine.Core.Pipeline,

@@ -5,7 +5,8 @@ useful when you want complete manual control, but most production clients want
 the same cohesive runtime shape: retries, learned backoff, circuit breaking,
 structured telemetry, and optional admission control.
 
-Use `Pristine.foundation_context/1` or `Pristine.Profiles.Foundation.context/1`
+Use `Pristine.foundation_context/1` or
+`Pristine.SDK.Profiles.Foundation.context/1`
 for that shared production path.
 
 ## Recommended Entry Point
@@ -69,7 +70,7 @@ Supervise a reporter:
 ```elixir
 children = [
   {Finch, name: MyApp.Finch},
-  Pristine.Profiles.Foundation.reporter_child_spec(
+  Pristine.SDK.Profiles.Foundation.reporter_child_spec(
     name: MyApp.TelemetryReporter,
     transport: MyApp.TelemetryTransport
   )
@@ -80,7 +81,7 @@ Attach it to the events defined by the context:
 
 ```elixir
 {:ok, handler_id} =
-  Pristine.Profiles.Foundation.attach_reporter(
+  Pristine.SDK.Profiles.Foundation.attach_reporter(
     context,
     reporter: MyApp.TelemetryReporter
   )
@@ -89,13 +90,13 @@ Attach it to the events defined by the context:
 You can inspect or reuse the derived event list directly:
 
 ```elixir
-events = Pristine.Profiles.Foundation.reporter_events(context)
+events = Pristine.SDK.Profiles.Foundation.reporter_events(context)
 ```
 
 Detach the exporter when appropriate:
 
 ```elixir
-:ok = Pristine.Profiles.Foundation.detach_reporter(handler_id)
+:ok = Pristine.SDK.Profiles.Foundation.detach_reporter(handler_id)
 ```
 
 ## Low-Level Escape Hatch

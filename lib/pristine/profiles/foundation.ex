@@ -1,20 +1,9 @@
 defmodule Pristine.Profiles.Foundation do
   @moduledoc """
-  Build Foundation-backed production contexts and optional telemetry exporters.
+  Internal Foundation-backed production profile wiring.
 
-  This profile sits above the low-level `Pristine.context/1` constructor and
-  turns the existing ports/adapters surface into an explicit production runtime:
-
-  - retry via Foundation-backed adapters
-  - shared rate-limit learning via Foundation backoff windows
-  - circuit breaking via Foundation circuit breakers
-  - structured telemetry event names
-  - optional Dispatch-based admission control
-
-  The profile keeps `Pristine.context/1` available as the low-level escape hatch.
-  Use this module when you want a cohesive runtime over the Foundation and
-  TelemetryReporter dependencies without rebuilding the same context wiring in
-  every client SDK.
+  Provider SDKs should depend on `Pristine.SDK.Profiles.Foundation` or
+  `Pristine.foundation_context/1`.
   """
 
   alias Pristine.Core.Context

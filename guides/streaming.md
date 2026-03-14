@@ -1,5 +1,9 @@
 # Streaming and SSE
 
+This guide describes Pristine's streaming runtime internals. Provider SDKs
+should still treat `Pristine.execute_request/3`, `Pristine.foundation_context/1`,
+and `Pristine.SDK.*` as the supported public boundary.
+
 Pristine provides first-class support for Server-Sent Events (SSE) and streaming HTTP responses. This guide covers the streaming architecture and usage patterns.
 
 ## Overview

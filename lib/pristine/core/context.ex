@@ -1,6 +1,9 @@
 defmodule Pristine.Core.Context do
   @moduledoc """
-  Runtime context for executing manifest-driven requests.
+  Internal runtime context for executing manifest-driven requests.
+
+  Provider SDKs should prefer `Pristine.SDK.Context` and
+  `Pristine.foundation_context/1`.
   """
 
   defstruct config: nil,

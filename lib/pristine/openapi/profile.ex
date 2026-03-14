@@ -30,12 +30,12 @@ defmodule Pristine.OpenAPI.Profile do
     output =
       [
         base_module: base_module,
-        default_client: Keyword.get(opts, :default_client, Pristine.OpenAPI.Client),
+        default_client: Keyword.get(opts, :default_client, Pristine.SDK.OpenAPI.Client),
         location: output_dir,
-        operation_use: Keyword.get(opts, :operation_use, Pristine.OpenAPI.Operation),
+        operation_use: Keyword.get(opts, :operation_use, Pristine.SDK.OpenAPI.Operation),
         source_contexts: Keyword.get(opts, :source_contexts, %{}),
         types: [
-          error: Keyword.get(opts, :error_type, Pristine.Error)
+          error: Keyword.get(opts, :error_type, Pristine.SDK.Error)
         ]
       ]
 

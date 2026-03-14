@@ -2,6 +2,12 @@
 
 Pristine is a manifest-driven, hexagonal SDK generator for Elixir. It enables you to define APIs declaratively and generate type-safe client libraries with built-in resilience patterns.
 
+For provider SDK authors, the supported public runtime boundary is
+`Pristine.execute_request/3`, `Pristine.foundation_context/1`, and
+`Pristine.SDK.*`. Treat `Pristine.Core.*` and most of `Pristine.OpenAPI.*` as
+runtime implementation detail unless a guide explicitly calls them out as
+internals.
+
 ## Installation
 
 Add Pristine to your dependencies in `mix.exs`:
@@ -10,7 +16,7 @@ Add Pristine to your dependencies in `mix.exs`:
 def deps do
   [
     {:pristine, "~> 0.1.0"},
-    {:oauth2, "~> 2.1"}, # Optional: only needed for Pristine.OAuth2 helpers
+    {:oauth2, "~> 2.1"}, # Optional: only needed for Pristine.SDK.OAuth2 helpers
     {:plug, "~> 1.19"}, # Optional: only needed for loopback callback capture
     {:bandit, "~> 1.10"}, # Optional: only needed for loopback callback capture
     {:telemetry_reporter, "~> 0.1.0"}, # Optional: reporter export helpers
@@ -220,13 +226,13 @@ context = Pristine.context(
 )
 ```
 
-For interactive authorization-code flows, reuse `Pristine.OAuth2.Interactive`
-so Pristine owns the browser handling, loopback callback capture, and manual
-paste-back path:
+For interactive authorization-code flows, reuse `Pristine.SDK.OAuth2` for the
+provider config and keep using `Pristine.OAuth2.Interactive` for the optional
+browser / loopback helper path:
 
 ```elixir
 provider =
-  Pristine.OAuth2.Provider.new(
+  Pristine.SDK.OAuth2.Provider.new(
     name: "example",
     site: "https://api.example.com",
     authorize_url: "/oauth/authorize",
@@ -313,14 +319,14 @@ exporter:
 ```elixir
 children = [
   {Finch, name: MyApp.Finch},
-  Pristine.Profiles.Foundation.reporter_child_spec(
+  Pristine.SDK.Profiles.Foundation.reporter_child_spec(
     name: MyApp.TelemetryReporter,
     transport: MyApp.TelemetryTransport
   )
 ]
 
 {:ok, handler_id} =
-  Pristine.Profiles.Foundation.attach_reporter(
+  Pristine.SDK.Profiles.Foundation.attach_reporter(
     context,
     reporter: MyApp.TelemetryReporter
   )

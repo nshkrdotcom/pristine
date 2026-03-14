@@ -1,9 +1,8 @@
 defmodule Pristine.OpenAPI.Operation do
   @moduledoc """
-  Shared helpers injected into generated OpenAPI operation modules.
+  Internal helpers injected into generated OpenAPI operation modules.
 
-  These helpers keep the generated surface small while supporting a
-  JS-style single params map that is partitioned into request concerns.
+  Provider SDKs should depend on `Pristine.SDK.OpenAPI.Operation`.
   """
 
   @type key_spec :: {String.t(), atom()}

@@ -19,6 +19,17 @@
 
 Pristine separates domain logic from infrastructure through a clean ports and adapters architecture. Define your API in a declarative manifest, then generate type-safe Elixir SDKs with built-in resilience patterns, streaming support, and comprehensive observability.
 
+Pristine is also the shared runtime substrate for first-party provider SDKs.
+That dependency is intentional. The supported SDK-facing boundary is:
+
+- `Pristine.execute_request/3`
+- `Pristine.foundation_context/1`
+- `Pristine.SDK.*`
+
+Provider SDKs should depend on that boundary instead of treating
+`Pristine.Core.*`, `Pristine.OpenAPI.*`, or `Pristine.Profiles.Foundation`
+as public contract.
+
 ## Features
 
 - **Hexagonal Architecture** — Clean separation via ports (interfaces) and adapters (implementations)
@@ -40,7 +51,7 @@ Add Pristine to your dependencies:
 def deps do
   [
     {:pristine, "~> 0.1.0"},
-    {:oauth2, "~> 2.1"}, # Optional: Pristine.OAuth2 control-plane helpers
+    {:oauth2, "~> 2.1"}, # Optional: Pristine.SDK.OAuth2 control-plane helpers
     {:plug, "~> 1.19"}, # Optional: loopback callback capture and mock server helpers
     {:bandit, "~> 1.10"}, # Optional: loopback callback capture and mock server helpers
     {:telemetry_reporter, "~> 0.1.0"}, # Optional: reporter export helpers
@@ -259,7 +270,7 @@ Use normal `:telemetry` emission in the runtime, then attach
 ```elixir
 children = [
   {Finch, name: MyApp.Finch},
-  Pristine.Profiles.Foundation.reporter_child_spec(
+  Pristine.SDK.Profiles.Foundation.reporter_child_spec(
     name: MyApp.TelemetryReporter,
     transport: MyApp.TelemetryTransport
   )
@@ -273,7 +284,7 @@ context =
   )
 
 {:ok, handler_id} =
-  Pristine.Profiles.Foundation.attach_reporter(
+  Pristine.SDK.Profiles.Foundation.attach_reporter(
     context,
     reporter: MyApp.TelemetryReporter
   )
@@ -310,11 +321,12 @@ should set `security` explicitly when they want scheme-aware auth resolution.
 - `source_contexts` for provider-neutral source metadata keyed by `{method, path}`
 - `docs_manifest` for the JSON-ready docs artifact built by `Pristine.OpenAPI.Docs`
 
-For OAuth2 control-plane work, use `Pristine.OAuth2` with a normal Pristine `Context`:
+For OAuth2 control-plane work, use `Pristine.SDK.OAuth2` with a normal Pristine
+SDK context:
 
 ```elixir
 provider =
-  Pristine.OAuth2.Provider.new(
+  Pristine.SDK.OAuth2.Provider.new(
     name: "example",
     site: "https://api.example.com",
     authorize_url: "/oauth/authorize",
@@ -324,7 +336,7 @@ provider =
   )
 
 {:ok, request} =
-  Pristine.OAuth2.authorization_request(provider,
+  Pristine.SDK.OAuth2.authorization_request(provider,
     client_id: "...",
     redirect_uri: "https://example.com/callback",
     generate_state: true,
@@ -333,7 +345,7 @@ provider =
   )
 
 {:ok, token} =
-  Pristine.OAuth2.exchange_code(provider, "code-from-callback",
+  Pristine.SDK.OAuth2.exchange_code(provider, "code-from-callback",
     client_id: "...",
     client_secret: "...",
     redirect_uri: "https://example.com/callback",

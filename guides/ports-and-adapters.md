@@ -3,7 +3,7 @@
 Pristine implements a hexagonal architecture where **ports** define interface contracts and **adapters** provide concrete implementations. This guide documents all available ports and their adapters.
 
 For production request execution, prefer `Pristine.foundation_context/1` or
-`Pristine.Profiles.Foundation.context/1` instead of wiring each runtime seam by
+`Pristine.SDK.Profiles.Foundation.context/1` instead of wiring each runtime seam by
 hand. Some ports in this reference are lower-level utilities or extension seams
 and are not part of the default `Pristine.execute/5` request path.
 
@@ -195,7 +195,7 @@ Pristine.Adapters.Auth.OAuth2
 This adapter reads the current access token from a token source and emits a bearer header:
 
 ```elixir
-token = %Pristine.OAuth2.Token{access_token: "secret_..."}
+token = Pristine.SDK.OAuth2.Token.from_map(%{access_token: "secret_..."})
 
 context = %Context{
   auth: %{
@@ -213,9 +213,9 @@ context = %Context{
 
 ```elixir
 @callback fetch(keyword()) ::
-  {:ok, Pristine.OAuth2.Token.t()} | :error | {:error, term()}
+  {:ok, Pristine.SDK.OAuth2.Token.t()} | :error | {:error, term()}
 
-@callback put(Pristine.OAuth2.Token.t(), keyword()) ::
+@callback put(Pristine.SDK.OAuth2.Token.t(), keyword()) ::
   :ok | {:error, term()}
 ```
 
@@ -233,7 +233,7 @@ Useful for tests, simple clients, and explicit token lifecycle management.
 Pristine.Adapters.TokenSource.File
 ```
 
-Stores the generic `Pristine.OAuth2.Token` envelope as JSON on disk.
+Stores the generic `Pristine.SDK.OAuth2.Token` envelope as JSON on disk.
 
 ```elixir
 token_path = Path.expand("~/.config/example/oauth/token.json")
@@ -261,7 +261,7 @@ Behavior:
 Pristine.Adapters.TokenSource.Refreshable
 ```
 
-Wraps another token source and refreshes through `Pristine.OAuth2` when the
+Wraps another token source and refreshes through `Pristine.SDK.OAuth2` when the
 current token already includes real expiry metadata.
 
 ```elixir
@@ -294,7 +294,7 @@ Pristine.OAuth2.Interactive
 
 Use `Pristine.OAuth2.Interactive.authorize/2` when you want Pristine to:
 
-- build the authorization request through `Pristine.OAuth2`
+- build the authorization request through `Pristine.SDK.OAuth2`
 - print and optionally open the authorization URL
 - capture the first terminal callback on an exact loopback redirect URI
 - fall back to manual paste-back of the full redirect URL or raw code
@@ -552,7 +552,7 @@ paths are emitted exactly as provided.
 
 Use `Pristine.Adapters.Telemetry.Foundation` or `Pristine.Adapters.Telemetry.Raw`
 to emit normal `:telemetry` events, then attach `TelemetryReporter` through
-`Pristine.Profiles.Foundation.attach_reporter/2`. Export stays a handler
+`Pristine.SDK.Profiles.Foundation.attach_reporter/2`. Export stays a handler
 concern rather than a separate telemetry adapter, and it requires the optional
 `:telemetry_reporter` dependency.
 
