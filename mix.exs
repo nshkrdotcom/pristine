@@ -173,7 +173,6 @@ defmodule Pristine.MixProject do
           Pristine.Ports.Tokenizer,
           Pristine.Ports.Semaphore,
           Pristine.Ports.BytesSemaphore,
-          Pristine.Ports.Future,
           Pristine.Ports.PoolManager,
           Pristine.Ports.Streaming
         ],
@@ -213,7 +212,6 @@ defmodule Pristine.MixProject do
           Pristine.Adapters.Streaming.SSE,
           Pristine.Adapters.Semaphore.Counting,
           Pristine.Adapters.BytesSemaphore.GenServer,
-          Pristine.Adapters.Future.Polling,
           Pristine.Adapters.PoolManager
         ],
         Utilities: [
