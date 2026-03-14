@@ -19,18 +19,18 @@ if Code.ensure_loaded?(OpenAPI.Renderer) do
     alias Pristine.OpenAPI.DocComposer
     alias Pristine.OpenAPI.RendererMetadata
     alias Pristine.OpenAPI.RendererShared
-    alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
     alias Pristine.OpenAPI.SchemaMaterialization
+    alias Pristine.SDK.OpenAPI.Runtime, as: OpenAPIRuntime
 
     @nested_module_alias_rewrites [
-      {[:Pristine, :OAuth2], [:OAuth2], quote(do: alias(Pristine.OAuth2, as: OAuth2))},
-      {[:Pristine, :OpenAPI, :Runtime], [:OpenAPIRuntime],
-       quote(do: alias(Pristine.OpenAPI.Runtime, as: OpenAPIRuntime))}
+      {[:Pristine, :SDK, :OAuth2], [:OAuth2], quote(do: alias(Pristine.SDK.OAuth2, as: OAuth2))},
+      {[:Pristine, :SDK, :OpenAPI, :Runtime], [:OpenAPIRuntime],
+       quote(do: alias(Pristine.SDK.OpenAPI.Runtime, as: OpenAPIRuntime))}
     ]
     @nested_module_alias_source_rewrites [
-      {"Pristine.OAuth2", "OAuth2", "alias Pristine.OAuth2, as: OAuth2"},
-      {"Pristine.OpenAPI.Runtime", "OpenAPIRuntime",
-       "alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime"}
+      {"Pristine.SDK.OAuth2", "OAuth2", "alias Pristine.SDK.OAuth2, as: OAuth2"},
+      {"Pristine.SDK.OpenAPI.Runtime", "OpenAPIRuntime",
+       "alias Pristine.SDK.OpenAPI.Runtime, as: OpenAPIRuntime"}
     ]
 
     @impl OpenAPI.Renderer

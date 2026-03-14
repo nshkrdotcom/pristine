@@ -26,16 +26,16 @@ defmodule Pristine.OpenAPI.ProfileTest do
     output = Keyword.get(config, :output)
 
     assert Keyword.get(output, :base_module) == Pristine.OpenAPI.ProfileTest.Generated
-    assert Keyword.get(output, :default_client) == Pristine.OpenAPI.Client
+    assert Keyword.get(output, :default_client) == Pristine.SDK.OpenAPI.Client
     assert Keyword.get(output, :location) == "/tmp/pristine-openapi-profile"
-    assert Keyword.get(output, :operation_use) == Pristine.OpenAPI.Operation
+    assert Keyword.get(output, :operation_use) == Pristine.SDK.OpenAPI.Operation
 
     assert Keyword.get(output, :source_contexts) == %{
              {:get, "/widgets"} => %{title: "Widgets reference"}
            }
 
     assert Keyword.get(output, :security_metadata) == nil
-    assert output |> Keyword.get(:types) |> Keyword.get(:error) == Pristine.Error
+    assert output |> Keyword.get(:types) |> Keyword.get(:error) == Pristine.SDK.Error
     assert output |> Keyword.get(:types) |> Keyword.get(:specs) == :spec_comprehensive
 
     assert config |> Keyword.get(:naming) |> Keyword.get(:rename) == [{"OAuth", "OAuth"}]

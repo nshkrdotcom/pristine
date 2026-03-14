@@ -14,28 +14,28 @@ defmodule Pristine.OpenAPI.RendererTest do
     source = """
     defmodule Example do
       @moduledoc false
-      use Pristine.OpenAPI.Operation
+      use Pristine.SDK.OpenAPI.Operation
 
-      @spec provider() :: Pristine.OAuth2.Provider.t()
+      @spec provider() :: Pristine.SDK.OAuth2.Provider.t()
       def provider do
-        Pristine.OAuth2.Provider.new(name: "example")
+        Pristine.SDK.OAuth2.Provider.new(name: "example")
       end
 
       def decode(data) do
-        Pristine.OpenAPI.Runtime.decode_module_type(__MODULE__, :t, data)
+        Pristine.SDK.OpenAPI.Runtime.decode_module_type(__MODULE__, :t, data)
       end
     end
     """
 
     source = OpenAPIRenderer.rewrite_nested_module_aliases_in_source(source)
 
-    assert source =~ "alias Pristine.OAuth2, as: OAuth2"
-    assert source =~ "alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime"
+    assert source =~ "alias Pristine.SDK.OAuth2, as: OAuth2"
+    assert source =~ "alias Pristine.SDK.OpenAPI.Runtime, as: OpenAPIRuntime"
     assert source =~ "@spec provider() :: OAuth2.Provider.t()"
     assert source =~ "OAuth2.Provider.new(name: \"example\")"
     assert source =~ "OpenAPIRuntime.decode_module_type(__MODULE__, :t, data)"
-    refute source =~ "Pristine.OAuth2.Provider.new"
-    refute source =~ "Pristine.OpenAPI.Runtime.decode_module_type"
+    refute source =~ "Pristine.SDK.OAuth2.Provider.new"
+    refute source =~ "Pristine.SDK.OpenAPI.Runtime.decode_module_type"
   end
 
   test "inserts runtime alias when generated source already uses the short alias" do
@@ -51,7 +51,7 @@ defmodule Pristine.OpenAPI.RendererTest do
 
     source = OpenAPIRenderer.rewrite_nested_module_aliases_in_source(source)
 
-    assert source =~ "alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime"
+    assert source =~ "alias Pristine.SDK.OpenAPI.Runtime, as: OpenAPIRuntime"
     assert source =~ "OpenAPIRuntime.decode_module_type(__MODULE__, :t, data)"
     refute source =~ "\n\n\n"
   end

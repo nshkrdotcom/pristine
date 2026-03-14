@@ -1,6 +1,9 @@
 defmodule Pristine.OpenAPI.Runtime do
   @moduledoc """
-  Runtime helpers for OpenAPI-generated schema modules and direct schema refs.
+  Internal runtime helpers for OpenAPI-generated schema modules and direct
+  schema refs.
+
+  Provider SDKs should depend on `Pristine.SDK.OpenAPI.Runtime`.
   """
 
   alias Sinter.Schema

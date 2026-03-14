@@ -2,6 +2,10 @@
 
 Pristine implements a hexagonal (ports and adapters) architecture that cleanly separates domain logic from infrastructure concerns. This design enables testability, flexibility, and maintainability.
 
+For provider SDKs, the public dependency boundary is the top-level execution
+helpers plus `Pristine.SDK.*`. The internal modules described below are part of
+the runtime implementation, not the intended SDK contract.
+
 ## Core Principles
 
 ### 1. Separation of Concerns
@@ -81,7 +85,7 @@ Pipeline.execute(manifest, endpoint_id, payload, context, opts)
 
 The same pipeline is also responsible for OpenAPI runtime wiring. If an endpoint carries direct refs such as `{MySDK.User, :t}`, the pipeline resolves those refs through generated `__schema__/1` helpers and can optionally materialize successful responses through `decode/1,2`.
 
-### Context (`Pristine.Core.Context`)
+### Context (`Pristine.Core.Context`, internal)
 
 The context carries all runtime configuration:
 
@@ -110,13 +114,13 @@ The context carries all runtime configuration:
 ```
 
 Most production callers should not build that struct field-by-field. Use
-`Pristine.foundation_context/1` to get cohesive default wiring over the
-Foundation-backed adapters, then drop to `Pristine.context/1` only when you
-need full manual control.
+`Pristine.foundation_context/1` or `Pristine.SDK.Context.new/1` for the public
+contract, then drop to `Pristine.context/1` only when you need full manual
+control.
 
 `type_schemas` now covers both manifest-compiled schemas and any direct OpenAPI refs resolved at runtime. That keeps the boundary generic: generated SDKs can opt into typed responses without copying runtime schema logic into each package.
 
-### Request/Response (`Pristine.Core.Request`, `Pristine.Core.Response`)
+### Request/Response (`Pristine.Core.Request`, `Pristine.Core.Response`, internal)
 
 Normalized data structures for transport abstraction:
 
@@ -210,7 +214,7 @@ prod_context =
 Pristine keeps the runtime transport boundary separate from OAuth2 control-plane helpers:
 
 - normal endpoint execution still uses `Pristine.Core.Pipeline` and the configured transport adapter
-- `Pristine.OAuth2` uses the optional `oauth2` dependency only for strategy shaping, authorization URL generation, and token parsing helpers
+- `Pristine.SDK.OAuth2` uses the optional `oauth2` dependency only for strategy shaping, authorization URL generation, and token parsing helpers
 - `Pristine.OAuth2.CallbackServer` is a loopback-only helper that additionally requires the optional `plug` and `bandit` dependencies
 - token, revoke, and introspection HTTP still execute through Pristine's transport boundary
 

@@ -1,5 +1,10 @@
 # Pipeline and Request Execution
 
+This guide describes the runtime internals behind request execution. Provider
+SDKs should depend on `Pristine.execute_request/3`,
+`Pristine.foundation_context/1`, and `Pristine.SDK.*` rather than importing
+`Pristine.Core.*` directly.
+
 The Pipeline is the heart of Pristine's runtime, orchestrating request construction, resilience patterns, and response processing. This guide covers how requests flow through the system.
 
 ## Pipeline Overview

@@ -3,10 +3,10 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
   alias Pristine.Core.Url
   alias Pristine.OpenAPI.Bridge
-  alias Pristine.OpenAPI.Client, as: OpenAPIClient
   alias Pristine.OpenAPI.NamedTypedMapFixture
   alias Pristine.OpenAPI.RendererMetadata
   alias Pristine.OpenAPI.Result
+  alias Pristine.SDK.OpenAPI.Client, as: OpenAPIClient
 
   @reference_root Path.expand("../../fixtures/openapi/bridge/reference", __DIR__)
   @proof_pages [
@@ -71,15 +71,20 @@ defmodule Pristine.OpenAPI.BridgeTest do
              &String.ends_with?(&1, "/account_profile_response.ex")
            )
 
-    assert Enum.any?(Map.values(sources), &String.contains?(&1, "Pristine.OpenAPI.Client"))
-    assert Enum.any?(Map.values(sources), &String.contains?(&1, "use Pristine.OpenAPI.Operation"))
+    assert Enum.any?(Map.values(sources), &String.contains?(&1, "Pristine.SDK.OpenAPI.Client"))
+
+    assert Enum.any?(
+             Map.values(sources),
+             &String.contains?(&1, "use Pristine.SDK.OpenAPI.Operation")
+           )
+
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "def __schema__(type \\\\ :t)"))
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "def decode(data, type \\\\ :t)"))
     refute Enum.any?(Map.values(sources), &String.contains?(&1, "{:url, render_path("))
 
     assert Enum.any?(
              Map.values(sources),
-             &String.contains?(&1, "alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime")
+             &String.contains?(&1, "alias Pristine.SDK.OpenAPI.Runtime, as: OpenAPIRuntime")
            )
 
     assert Enum.any?(Map.values(sources), &String.contains?(&1, "OpenAPIRuntime.build_schema"))
@@ -91,12 +96,12 @@ defmodule Pristine.OpenAPI.BridgeTest do
 
     refute Enum.any?(
              Map.values(sources),
-             &String.contains?(&1, "Pristine.OpenAPI.Runtime.build_schema")
+             &String.contains?(&1, "Pristine.SDK.OpenAPI.Runtime.build_schema")
            )
 
     refute Enum.any?(
              Map.values(sources),
-             &String.contains?(&1, "Pristine.OpenAPI.Runtime.decode_module_type")
+             &String.contains?(&1, "Pristine.SDK.OpenAPI.Runtime.decode_module_type")
            )
 
     compile_generated_sources!(sources)
