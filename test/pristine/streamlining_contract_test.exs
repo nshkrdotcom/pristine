@@ -4,6 +4,12 @@ defmodule Pristine.StreamliningContractTest do
   @readme_path Path.expand("../../README.md", __DIR__)
   @getting_started_path Path.expand("../../guides/getting-started.md", __DIR__)
   @code_generation_path Path.expand("../../guides/code-generation.md", __DIR__)
+  @pristine_path Path.expand("../../lib/pristine.ex", __DIR__)
+  @pipeline_path Path.expand("../../lib/pristine/core/pipeline.ex", __DIR__)
+  @result_classifier_port_path Path.expand(
+                                 "../../lib/pristine/ports/result_classifier.ex",
+                                 __DIR__
+                               )
 
   @user_facing_docs [
     @readme_path,
@@ -44,6 +50,23 @@ defmodule Pristine.StreamliningContractTest do
     assert code_generation =~ "Pristine.SDK.OAuth2.Provider.from_security_scheme!"
     assert code_generation =~ "x-pristine-flow"
     assert code_generation =~ "x-pristine-token-content-type"
+  end
+
+  test "request execution path stays manifest-free internally" do
+    pristine = File.read!(@pristine_path)
+    pipeline = File.read!(@pipeline_path)
+    result_classifier_port = File.read!(@result_classifier_port_path)
+
+    assert pristine =~ "Pipeline.execute_request(request_spec, context, opts)"
+    refute pristine =~ "Runtime.execute_request(request_spec, context, opts)"
+
+    assert pipeline =~ "EndpointMetadata.from_request_spec("
+    refute pipeline =~ "%Pristine.Manifest.Endpoint{\n        id: request_spec.id"
+
+    assert result_classifier_port =~
+             "Pristine.Core.{Context, EndpointMetadata, ResultClassification}"
+
+    refute result_classifier_port =~ "Pristine.Manifest.Endpoint"
   end
 
   test "user-facing docs do not advertise an in-tree tinkex example app" do

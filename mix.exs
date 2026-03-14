@@ -145,6 +145,7 @@ defmodule Pristine.MixProject do
           Pristine.Profiles.Foundation,
           Pristine.Core.Pipeline,
           Pristine.Core.Context,
+          Pristine.Core.EndpointMetadata,
           Pristine.Core.Request,
           Pristine.Core.Response,
           Pristine.Core.StreamResponse

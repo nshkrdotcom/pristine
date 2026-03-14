@@ -2,8 +2,7 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
   use ExUnit.Case, async: true
 
   alias Pristine.Adapters.ResultClassifier.HTTP
-  alias Pristine.Core.Response
-  alias Pristine.Manifest.Endpoint
+  alias Pristine.Core.{EndpointMetadata, Response}
 
   describe "classify/4" do
     test "ignores caller-side 4xx responses for circuit breaker health" do
@@ -78,6 +77,6 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
   end
 
   defp endpoint(method, attrs \\ []) do
-    struct!(Endpoint, Keyword.merge([id: "ping", method: method, path: "/ping"], attrs))
+    struct!(EndpointMetadata, Keyword.merge([id: "ping", method: method, path: "/ping"], attrs))
   end
 end
