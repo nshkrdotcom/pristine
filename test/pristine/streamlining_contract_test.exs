@@ -36,7 +36,9 @@ defmodule Pristine.StreamliningContractTest do
     Path.expand("../../lib/mix/tasks/pristine.generate.ex", __DIR__),
     Path.expand("../../lib/mix/tasks/pristine.validate.ex", __DIR__),
     Path.expand("../../lib/mix/tasks/pristine.docs.ex", __DIR__),
-    Path.expand("../../lib/mix/tasks/pristine.openapi.ex", __DIR__)
+    Path.expand("../../lib/mix/tasks/pristine.openapi.ex", __DIR__),
+    Path.expand("../../lib/pristine/ports/future.ex", __DIR__),
+    Path.expand("../../lib/pristine/adapters/future/polling.ex", __DIR__)
   ]
 
   test "docs pin the hardened runtime boundary and retained bridge seam" do
@@ -80,6 +82,7 @@ defmodule Pristine.StreamliningContractTest do
     refute pipeline =~ "%Pristine.Manifest.Endpoint"
     refute pipeline =~ "execute_stream("
     refute pipeline =~ "execute_future("
+    refute pipeline =~ "future_opts"
 
     assert result_classifier_port =~
              "Pristine.Core.{Context, EndpointMetadata, ResultClassification}"

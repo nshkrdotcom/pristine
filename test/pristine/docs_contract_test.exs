@@ -23,7 +23,10 @@ defmodule Pristine.DocsContractTest do
     "Pristine.Runtime",
     "Pristine.Manifest",
     "Pristine.Codegen",
-    "Pristine.Docs"
+    "Pristine.Docs",
+    "future polling",
+    "Pristine.Ports.Future",
+    "Pristine.Adapters.Future.Polling"
   ]
 
   @deleted_guides [
