@@ -6,6 +6,8 @@ defmodule Pristine.OpenAPI.Bridge do
   reimplementing OpenAPI ingestion.
   """
 
+  @compile {:no_warn_undefined, [OpenAPI, OpenAPI.Call, OpenAPI.State, OpenAPI.Reader]}
+
   alias Pristine.OpenAPI.Profile
   alias Pristine.OpenAPI.Result
   alias Pristine.OpenAPI.Security
@@ -83,7 +85,13 @@ defmodule Pristine.OpenAPI.Bridge do
       |> Keyword.put(:schema_specs_by_path, Map.get(reader_state, :schema_specs_by_path, %{}))
       |> Keyword.put(:spec_metadata_source, Map.get(reader_state, :spec))
 
-    Application.put_env(:oapi_generator, profile, Keyword.put(config, :output, output))
+    :ok =
+      :application.set_env(
+        :oapi_generator,
+        profile,
+        Keyword.put(config, :output, output),
+        timeout: :infinity
+      )
   end
 
   defp ensure_generator_available! do

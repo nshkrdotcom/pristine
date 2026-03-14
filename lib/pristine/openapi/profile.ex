@@ -55,7 +55,7 @@ defmodule Pristine.OpenAPI.Profile do
 
   @spec install(atom(), [option()]) :: atom()
   def install(profile, opts) when is_atom(profile) and is_list(opts) do
-    Application.put_env(:oapi_generator, profile, build(opts))
+    :ok = :application.set_env(:oapi_generator, profile, build(opts), timeout: :infinity)
     profile
   end
 
