@@ -25,6 +25,7 @@ defmodule Pristine.Manifest.Schema do
             defaults: [type: @any_map]
           )
   @allowed_keys @schema.schema |> Keyword.keys() |> Map.new(&{&1, true})
+  @removed_keys [:auth, :policies]
   @string_keys @schema.schema
                |> Enum.map(fn {key, _opts} -> {Atom.to_string(key), key} end)
                |> Map.new()
@@ -36,12 +37,21 @@ defmodule Pristine.Manifest.Schema do
 
   @spec validate(map()) :: {:ok, map()} | {:error, Exception.t()}
   def validate(input) when is_map(input) do
-    input
-    |> top_level_options()
-    |> NimbleOptions.validate(@schema)
-    |> case do
-      {:ok, validated} -> {:ok, Map.new(validated)}
-      {:error, error} -> {:error, error}
+    case unknown_keys(input) do
+      [] ->
+        input
+        |> top_level_options()
+        |> NimbleOptions.validate(@schema)
+        |> case do
+          {:ok, validated} -> {:ok, Map.new(validated)}
+          {:error, error} -> {:error, error}
+        end
+
+      unknown ->
+        {:error,
+         %ArgumentError{
+           message: "unknown top-level manifest keys: #{Enum.join(unknown, ", ")}"
+         }}
     end
   end
 
@@ -60,6 +70,16 @@ defmodule Pristine.Manifest.Schema do
       end
     end)
     |> Enum.reverse()
+  end
+
+  defp unknown_keys(input) do
+    input
+    |> Map.keys()
+    |> Enum.map(&normalize_key/1)
+    |> Enum.reject(&(Map.has_key?(@allowed_keys, &1) or &1 in @removed_keys))
+    |> Enum.map(&to_string/1)
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 
   defp normalize_key(key) when is_atom(key), do: key

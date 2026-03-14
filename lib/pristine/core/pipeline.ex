@@ -28,29 +28,31 @@ defmodule Pristine.Core.Pipeline do
   alias Pristine.OpenAPI.Client, as: OpenAPIClient
   alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
 
-  @retry_policy_key_aliases %{
-    "backoff" => :backoff,
-    "backoff_opts" => :backoff_opts,
-    "base_delay_ms" => :base_delay_ms,
-    "jitter" => :jitter,
-    "jitter_strategy" => :jitter_strategy,
-    "max_attempts" => :max_attempts,
-    "max_delay_ms" => :max_delay_ms,
-    "max_retries" => :max_retries,
-    "progress_timeout_ms" => :progress_timeout_ms,
-    "retry_after_ms_fun" => :retry_after_ms_fun,
-    "retry_on" => :retry_on,
-    "strategy" => :strategy
-  }
-  @backoff_key_aliases %{
-    "base_delay_ms" => :base_ms,
-    "base_ms" => :base_ms,
-    "jitter" => :jitter,
-    "jitter_strategy" => :jitter_strategy,
-    "max_delay_ms" => :max_ms,
-    "max_ms" => :max_ms,
-    "strategy" => :strategy
-  }
+  @retry_policy_keys [
+    :backoff,
+    :base_ms,
+    :jitter,
+    :jitter_strategy,
+    :max_attempts,
+    :max_ms,
+    :progress_timeout_ms,
+    :retry_after_ms_fun,
+    :retry_on,
+    :strategy
+  ]
+  @retry_policy_string_keys Map.new(@retry_policy_keys, &{Atom.to_string(&1), &1})
+  @backoff_keys [:base_ms, :jitter, :jitter_strategy, :max_ms, :strategy]
+  @backoff_string_keys Map.new(@backoff_keys, &{Atom.to_string(&1), &1})
+  @legacy_retry_keys [
+    :backoff_opts,
+    :base_delay_ms,
+    :max_delay_ms,
+    :max_retries,
+    "backoff_opts",
+    "base_delay_ms",
+    "max_delay_ms",
+    "max_retries"
+  ]
   @backoff_strategy_aliases %{
     "constant" => :constant,
     "exponential" => :exponential,
@@ -986,15 +988,11 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp normalize_retry_policy_opts(nil), do: []
-  defp normalize_retry_policy_opts(policy) when is_list(policy), do: policy
 
-  defp normalize_retry_policy_opts(policy) when is_map(policy) do
+  defp normalize_retry_policy_opts(policy) when is_list(policy) or is_map(policy) do
     policy
     |> Enum.reduce([], fn entry, acc ->
-      case normalize_retry_policy_entry(entry) do
-        nil -> acc
-        option -> [option | acc]
-      end
+      [normalize_retry_policy_entry(entry) | acc]
     end)
     |> Enum.reverse()
   end
@@ -1002,22 +1000,29 @@ defmodule Pristine.Core.Pipeline do
   defp normalize_retry_policy_opts(_), do: []
 
   defp normalize_retry_policy_entry({key, value}) do
-    case normalize_retry_policy_key(key) do
-      nil -> nil
-      atom_key -> {atom_key, normalize_retry_policy_value(atom_key, value)}
+    atom_key = normalize_retry_policy_key(key)
+    {atom_key, normalize_retry_policy_value(atom_key, value)}
+  end
+
+  defp normalize_retry_policy_key(key) when is_atom(key) do
+    cond do
+      key in @retry_policy_keys -> key
+      key in @legacy_retry_keys -> raise_legacy_retry_key!(key)
+      true -> raise_unknown_retry_key!(key)
     end
   end
 
-  defp normalize_retry_policy_key(key) when is_atom(key), do: key
-
   defp normalize_retry_policy_key(key) when is_binary(key) do
-    Map.get(@retry_policy_key_aliases, key) || existing_retry_atom(key)
+    cond do
+      Map.has_key?(@retry_policy_string_keys, key) -> Map.fetch!(@retry_policy_string_keys, key)
+      key in @legacy_retry_keys -> raise_legacy_retry_key!(key)
+      true -> raise_unknown_retry_key!(key)
+    end
   end
 
-  defp normalize_retry_policy_key(_), do: nil
+  defp normalize_retry_policy_key(key), do: raise_unknown_retry_key!(key)
 
   defp normalize_retry_policy_value(:backoff, value), do: normalize_backoff_value(value)
-  defp normalize_retry_policy_value(:backoff_opts, value), do: normalize_backoff_opts(value)
 
   defp normalize_retry_policy_value(:jitter_strategy, value),
     do: normalize_backoff_jitter_strategy(value) || value
@@ -1027,23 +1032,16 @@ defmodule Pristine.Core.Pipeline do
 
   defp normalize_retry_policy_value(_key, value), do: value
 
-  defp existing_retry_atom(value) do
-    String.to_existing_atom(value)
-  rescue
-    ArgumentError -> nil
-  end
-
   defp apply_request_retry_opts(base_opts, endpoint, %Context{} = context, opts) do
     merged =
       (base_opts || [])
       |> Keyword.merge(Keyword.get(opts, :retry_opts, []))
 
+    reject_legacy_retry_keys!(merged)
+
     max_attempts =
       opts
-      |> Keyword.get(
-        :max_retries,
-        Keyword.get(merged, :max_retries, Keyword.get(merged, :max_attempts))
-      )
+      |> Keyword.get(:max_attempts, Keyword.get(merged, :max_attempts))
       |> normalize_retry_attempts()
 
     maybe_put_retry_policy(merged, endpoint, context, opts, max_attempts)
@@ -1057,7 +1055,7 @@ defmodule Pristine.Core.Pipeline do
     else
       case build_http_retry_policy(context, endpoint, opts, max_attempts, merged) do
         nil -> merged
-        policy -> Keyword.put(Keyword.delete(merged, :max_retries), :policy, policy)
+        policy -> Keyword.put(merged, :policy, policy)
       end
     end
   end
@@ -1115,12 +1113,7 @@ defmodule Pristine.Core.Pipeline do
 
   defp normalize_backoff_source(opts) do
     backoff = Keyword.get(opts, :backoff)
-
-    backoff_opts =
-      Keyword.merge(
-        normalize_backoff_opts(Keyword.get(opts, :backoff_opts, [])),
-        normalize_backoff_opts(opts)
-      )
+    backoff_opts = normalize_backoff_opts(opts)
 
     case backoff do
       nil ->
@@ -1160,6 +1153,7 @@ defmodule Pristine.Core.Pipeline do
 
   defp normalize_backoff_entry(key, value) do
     case normalize_backoff_key(key) do
+      :legacy -> raise_legacy_retry_key!(key)
       nil -> nil
       :jitter_strategy -> {:jitter_strategy, normalize_backoff_jitter_strategy(value) || value}
       :strategy -> {:strategy, normalize_backoff_strategy(value) || value}
@@ -1168,19 +1162,21 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp normalize_backoff_key(key) when is_atom(key) do
-    case key do
-      :base_delay_ms -> :base_ms
-      :max_delay_ms -> :max_ms
-      :base_ms -> :base_ms
-      :max_ms -> :max_ms
-      :jitter -> :jitter
-      :jitter_strategy -> :jitter_strategy
-      :strategy -> :strategy
-      _ -> nil
+    cond do
+      key in @backoff_keys -> key
+      key in @legacy_retry_keys -> :legacy
+      true -> nil
     end
   end
 
-  defp normalize_backoff_key(key) when is_binary(key), do: Map.get(@backoff_key_aliases, key)
+  defp normalize_backoff_key(key) when is_binary(key) do
+    cond do
+      Map.has_key?(@backoff_string_keys, key) -> Map.fetch!(@backoff_string_keys, key)
+      key in @legacy_retry_keys -> :legacy
+      true -> nil
+    end
+  end
+
   defp normalize_backoff_key(_key), do: nil
 
   defp normalize_backoff_strategy(value) when is_atom(value) do
@@ -1212,6 +1208,24 @@ defmodule Pristine.Core.Pipeline do
       jitter_strategy: :factor,
       jitter: 0.25
     ]
+  end
+
+  defp reject_legacy_retry_keys!(opts) do
+    Enum.each(opts, fn {key, _value} ->
+      if key in @legacy_retry_keys do
+        raise_legacy_retry_key!(key)
+      end
+    end)
+  end
+
+  defp raise_legacy_retry_key!(key) do
+    raise ArgumentError,
+          "legacy retry option #{inspect(key)} is not supported; use :max_attempts, :base_ms, :max_ms, or :backoff"
+  end
+
+  defp raise_unknown_retry_key!(key) do
+    raise ArgumentError,
+          "unknown retry option #{inspect(key)}; supported keys are :backoff, :base_ms, :jitter, :jitter_strategy, :max_attempts, :max_ms, :progress_timeout_ms, :retry_after_ms_fun, :retry_on, :strategy"
   end
 
   defp rate_limit_opts(%{rate_limit: nil}, %Context{rate_limit_opts: opts}), do: opts

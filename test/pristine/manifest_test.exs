@@ -90,6 +90,19 @@ defmodule Pristine.ManifestTest do
     assert "policies has been removed; use retry_policies" in errors
   end
 
+  test "rejects unknown top-level manifest keys" do
+    input = %{
+      name: "demo",
+      version: "0.1.0",
+      endpoints: [],
+      types: %{},
+      typo_field: true
+    }
+
+    assert {:error, errors} = Manifest.load(input)
+    assert "unknown top-level manifest keys: typo_field" in errors
+  end
+
   test "rejects colon-style path params" do
     input = %{
       name: "tinkex",

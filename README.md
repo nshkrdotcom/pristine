@@ -156,7 +156,7 @@ Pristine implements a hexagonal (ports and adapters) architecture:
 |----------|----------|
 | **Transport** | Finch, FinchStream |
 | **Serializer** | JSON |
-| **Auth** | Bearer, APIKey |
+| **Auth** | Bearer, ApiKey |
 | **Retry** | Foundation, Noop |
 | **Result Classifier** | HTTP |
 | **Circuit Breaker** | Foundation, Noop |
@@ -482,7 +482,7 @@ Configure retry policies in your manifest:
     "default": {
       "max_attempts": 3,
       "backoff": "exponential",
-      "base_delay_ms": 1000
+      "base_ms": 1000
     }
   },
   "endpoints": [

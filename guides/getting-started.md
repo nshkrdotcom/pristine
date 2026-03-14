@@ -189,7 +189,7 @@ context = Pristine.foundation_context(
   # Authentication (supports multiple)
   auth: [
     {Pristine.Adapters.Auth.Bearer, token: System.get_env("API_TOKEN")},
-    {Pristine.Adapters.Auth.APIKey, value: "key", header: "X-API-Key"}
+    {Pristine.Adapters.Auth.ApiKey, value: "key", header: "X-API-Key"}
   ],
 
   # Cohesive production seams
@@ -339,13 +339,13 @@ Define retry policies in your manifest:
     "default": {
       "max_attempts": 3,
       "backoff": "exponential",
-      "base_delay_ms": 1000,
-      "max_delay_ms": 30000
+      "base_ms": 1000,
+      "max_ms": 30000
     },
     "aggressive": {
       "max_attempts": 5,
       "backoff": "linear",
-      "base_delay_ms": 500
+      "base_ms": 500
     }
   },
   "endpoints": [

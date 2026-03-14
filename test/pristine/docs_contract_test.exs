@@ -29,6 +29,9 @@ defmodule Pristine.DocsContractTest do
 
     assert guide =~ "| `retry_policies` | object | Named retry policy definitions |"
     assert guide =~ "Use `{param}` syntax:"
+    refute guide =~ "| `auth` | object | Default authentication configuration |"
+    refute guide =~ "| `auth` | object | Override authentication for this endpoint |"
+    refute guide =~ "supports both the legacy `auth` fields"
     refute guide =~ "| `policies` | object | Generic policy definitions |"
     refute guide =~ "Use `{param}` or `:param` syntax:"
   end
