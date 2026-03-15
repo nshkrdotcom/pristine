@@ -255,7 +255,7 @@ defmodule Pristine.MixProject do
     [
       name: "pristine",
       description: description(),
-      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE assets guides),
+      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url
