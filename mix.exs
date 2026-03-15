@@ -96,17 +96,34 @@ defmodule Pristine.MixProject do
         "LICENSE",
         "guides/getting-started.md",
         "guides/foundation-runtime.md",
-        "guides/code-generation.md"
+        "guides/manual-contexts-and-adapters.md",
+        "guides/oauth-and-token-sources.md",
+        "guides/streaming-and-sse.md",
+        "guides/code-generation.md",
+        "guides/testing-and-verification.md"
       ],
       groups_for_extras: [
-        Introduction: [
+        Overview: [
           "README.md",
-          "CHANGELOG.md",
-          "guides/getting-started.md",
-          "guides/foundation-runtime.md"
+          "guides/getting-started.md"
+        ],
+        Runtime: [
+          "guides/foundation-runtime.md",
+          "guides/manual-contexts-and-adapters.md"
+        ],
+        "OAuth and Streaming": [
+          "guides/oauth-and-token-sources.md",
+          "guides/streaming-and-sse.md"
         ],
         "Build-Time": [
           "guides/code-generation.md"
+        ],
+        Development: [
+          "guides/testing-and-verification.md"
+        ],
+        "Release Notes": [
+          "CHANGELOG.md",
+          "LICENSE"
         ]
       ],
       groups_for_modules: [
@@ -241,8 +258,7 @@ defmodule Pristine.MixProject do
       files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE assets guides),
       licenses: ["MIT"],
       links: %{
-        "GitHub" => @source_url,
-        "Online documentation" => "https://hexdocs.pm/pristine"
+        "GitHub" => @source_url
       },
       maintainers: ["nshkrdotcom"],
       exclude_patterns: [

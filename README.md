@@ -1,4 +1,15 @@
-# Pristine
+<p align="center">
+  <img src="assets/pristine.svg" width="200" height="200" alt="Pristine logo" />
+</p>
+
+<h1 align="center">Pristine</h1>
+
+<p align="center">
+  <a href="https://hex.pm/packages/pristine"><img src="https://img.shields.io/hexpm/v/pristine.svg" alt="Hex Version" /></a>
+  <a href="https://hexdocs.pm/pristine"><img src="https://img.shields.io/badge/hex-docs-blue.svg" alt="Hex Docs" /></a>
+  <a href="https://github.com/nshkrdotcom/pristine"><img src="https://img.shields.io/badge/GitHub-repo-black?logo=github" alt="GitHub" /></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License" /></a>
+</p>
 
 Pristine is the shared runtime and build-time bridge for first-party
 OpenAPI-based Elixir SDKs.
@@ -167,4 +178,8 @@ docs manifest without exposing a manifest-shaped runtime API.
 
 - [Getting Started](guides/getting-started.md)
 - [Foundation Runtime](guides/foundation-runtime.md)
+- [Manual Contexts and Adapters](guides/manual-contexts-and-adapters.md)
+- [OAuth and Token Sources](guides/oauth-and-token-sources.md)
+- [Streaming and SSE](guides/streaming-and-sse.md)
 - [Code Generation](guides/code-generation.md)
+- [Testing and Verification](guides/testing-and-verification.md)
