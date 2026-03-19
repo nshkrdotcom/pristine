@@ -2,8 +2,7 @@ defmodule Pristine.Core.Context do
   @moduledoc """
   Internal runtime context for executing request specs.
 
-  Provider SDKs should prefer `Pristine.SDK.Context` and
-  `Pristine.foundation_context/1`.
+  `Pristine.Client` is the public runtime client contract.
   """
 
   defstruct config: nil,

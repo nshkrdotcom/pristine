@@ -12,6 +12,7 @@ defmodule Pristine.Core.Pipeline do
     EndpointMetadata,
     Headers,
     HTTPMethod,
+    StreamResponse,
     PoolRouting,
     Request,
     RequestPath,
@@ -21,8 +22,8 @@ defmodule Pristine.Core.Pipeline do
     Url
   }
 
-  alias Pristine.OpenAPI.Client, as: OpenAPIClient
-  alias Pristine.OpenAPI.Runtime, as: OpenAPIRuntime
+  alias Pristine.Operation
+  alias Pristine.Runtime.Schema, as: RuntimeSchema
 
   @retry_policy_keys [
     :backoff,
@@ -65,19 +66,15 @@ defmodule Pristine.Core.Pipeline do
   @attempt_outcome_tag :pristine_attempt_outcome
 
   @doc false
-  @spec execute_request(
-          OpenAPIClient.request_spec_t() | OpenAPIClient.request_t(),
-          Context.t(),
-          keyword()
-        ) ::
+  @spec execute_operation(Operation.t(), Context.t(), keyword()) ::
           {:ok, term()} | {:error, term()}
-  def execute_request(request_spec, %Context{} = context, opts \\ []) when is_map(request_spec) do
-    request_spec = normalize_execute_request_spec(request_spec)
-    {payload, body_type, content_type} = request_payload(request_spec)
+  def execute_operation(%Operation{} = operation, %Context{} = context, opts \\ []) do
+    {payload, body_type, content_type} =
+      request_payload(%{body: operation.body, form_data: operation.form_data})
 
     endpoint =
-      EndpointMetadata.from_request_spec(
-        request_spec,
+      EndpointMetadata.from_operation(
+        operation,
         body_type: body_type,
         content_type: content_type
       )
@@ -86,9 +83,9 @@ defmodule Pristine.Core.Pipeline do
       opts
       |> Keyword.put(
         :path_params,
-        merge_string_key_maps(request_spec.path_params, opts[:path_params])
+        merge_string_key_maps(operation.path_params, opts[:path_params])
       )
-      |> maybe_put_new(:auth, request_spec.auth)
+      |> maybe_put_new(:auth, operation_auth_override(operation))
 
     execute_endpoint(endpoint, payload, context, execute_opts)
   end
@@ -103,8 +100,8 @@ defmodule Pristine.Core.Pipeline do
     circuit_breaker = context.circuit_breaker || Pristine.Adapters.CircuitBreaker.Foundation
     telemetry = context.telemetry || Pristine.Adapters.Telemetry.Noop
 
-    request_schema = OpenAPIRuntime.resolve_schema(endpoint.request, context.type_schemas)
-    response_schema = OpenAPIRuntime.resolve_schema(endpoint.response, context.type_schemas)
+    request_schema = RuntimeSchema.resolve_schema(endpoint.request, context.type_schemas)
+    response_ref = endpoint.response
 
     telemetry_metadata = build_telemetry_metadata(context, endpoint, opts)
     start_time = System.monotonic_time()
@@ -164,7 +161,7 @@ defmodule Pristine.Core.Pipeline do
         opts: opts
       }
 
-      handle_execute_result(result, serializer, response_schema, endpoint, telemetry_state)
+      handle_execute_result(result, serializer, response_ref, endpoint, telemetry_state)
     rescue
       exception ->
         maybe_log(context, :error, "request fail", %{
@@ -191,10 +188,47 @@ defmodule Pristine.Core.Pipeline do
     end
   end
 
+  @spec stream_operation(Operation.t(), Context.t(), keyword()) ::
+          {:ok, Pristine.Response.t()} | {:error, term()}
+  def stream_operation(%Operation{} = operation, %Context{} = context, opts \\ []) do
+    stream_transport =
+      context.stream_transport || raise ArgumentError, "stream_transport is required"
+
+    serializer = context.serializer
+
+    {payload, body_type, content_type} =
+      request_payload(%{body: operation.body, form_data: operation.form_data})
+
+    endpoint =
+      EndpointMetadata.from_operation(
+        operation,
+        body_type: body_type,
+        content_type: content_type
+      )
+
+    execute_opts =
+      opts
+      |> Keyword.put(
+        :path_params,
+        merge_string_key_maps(operation.path_params, opts[:path_params])
+      )
+      |> maybe_put_new(:auth, operation_auth_override(operation))
+
+    request_schema = RuntimeSchema.resolve_schema(endpoint.request, context.type_schemas)
+
+    with {:ok, {body, content_type}} <-
+           encode_body(serializer, endpoint, payload, context, request_schema, execute_opts),
+         %Request{} = request <-
+           build_request(endpoint, body, content_type, context, execute_opts),
+         {:ok, %StreamResponse{} = response} <- stream_transport.stream(request, context) do
+      {:ok, Pristine.Response.from_stream(response)}
+    end
+  end
+
   defp handle_execute_result(
          {{:ok, %Response{} = response}, attempt_outcome},
          serializer,
-         response_schema,
+         response_ref,
          endpoint,
          %{
            context: context,
@@ -208,7 +242,7 @@ defmodule Pristine.Core.Pipeline do
     classification = attempt_classification(attempt_outcome, context, endpoint, opts)
     telemetry_metadata = Map.merge(telemetry_metadata, classification.telemetry)
 
-    case handle_response(response, serializer, response_schema, endpoint, context, opts) do
+    case handle_response(response, serializer, response_ref, endpoint, context, opts) do
       {:ok, data} ->
         retry_count = current_retry_count(retry_key)
 
@@ -266,7 +300,7 @@ defmodule Pristine.Core.Pipeline do
   defp handle_execute_result(
          {{:error, reason} = error, attempt_outcome},
          _serializer,
-         _response_schema,
+         _response_ref,
          endpoint,
          %{
            context: context,
@@ -319,7 +353,7 @@ defmodule Pristine.Core.Pipeline do
   defp handle_execute_result(
          {:error, reason} = error,
          _serializer,
-         _response_schema,
+         _response_ref,
          endpoint,
          %{
            context: context,
@@ -416,68 +450,6 @@ defmodule Pristine.Core.Pipeline do
   defp resolve_request(fun) when is_function(fun, 0), do: fun.()
   defp resolve_request(request), do: request
 
-  defp normalize_execute_request_spec(%{path: path} = request_spec) when is_binary(path) do
-    %{
-      method: normalize_execute_request_method(Map.get(request_spec, :method)),
-      path: path,
-      path_params: normalize_string_key_map(Map.get(request_spec, :path_params)),
-      query: normalize_query_map(Map.get(request_spec, :query)),
-      body: Map.get(request_spec, :body),
-      form_data: Map.get(request_spec, :form_data),
-      headers: normalize_header_map(Map.get(request_spec, :headers)),
-      auth: Map.get(request_spec, :auth),
-      security: Map.get(request_spec, :security),
-      request_schema: Map.get(request_spec, :request_schema),
-      response_schema: Map.get(request_spec, :response_schema),
-      circuit_breaker: Map.get(request_spec, :circuit_breaker),
-      id:
-        normalize_execute_request_id(
-          Map.get(request_spec, :id),
-          Map.get(request_spec, :method),
-          path
-        ),
-      rate_limit: Map.get(request_spec, :rate_limit),
-      resource: Map.get(request_spec, :resource),
-      retry: Map.get(request_spec, :retry),
-      telemetry: Map.get(request_spec, :telemetry),
-      timeout: Map.get(request_spec, :timeout)
-    }
-  end
-
-  defp normalize_execute_request_spec(%{path_template: path_template} = request_spec)
-       when is_binary(path_template) do
-    request_spec
-    |> OpenAPIClient.to_request_spec()
-    |> normalize_execute_request_spec()
-  end
-
-  defp normalize_execute_request_spec(request_spec) do
-    raise ArgumentError, "invalid request spec: #{inspect(request_spec)}"
-  end
-
-  defp normalize_execute_request_method(method) when is_atom(method), do: method
-  defp normalize_execute_request_method(method) when is_binary(method), do: method
-
-  defp normalize_execute_request_method(method) do
-    raise ArgumentError, "invalid request method: #{inspect(method)}"
-  end
-
-  defp normalize_execute_request_id(nil, method, path) do
-    "request:" <> normalized_method_name(method) <> ":" <> path
-  end
-
-  defp normalize_execute_request_id(id, _method, _path) when is_binary(id), do: id
-  defp normalize_execute_request_id(id, _method, _path), do: to_string(id)
-
-  defp normalized_method_name(method) when is_atom(method) do
-    method
-    |> Atom.to_string()
-    |> String.upcase()
-  end
-
-  defp normalized_method_name(method) when is_binary(method), do: String.upcase(method)
-  defp normalized_method_name(method), do: method |> to_string() |> String.upcase()
-
   defp request_payload(%{form_data: form_data} = request_spec) when is_map(form_data) do
     if map_size(form_data) > 0 do
       {form_data, "multipart", nil}
@@ -512,6 +484,13 @@ defmodule Pristine.Core.Pipeline do
   defp merge_string_key_maps(base, override) do
     Map.merge(base, normalize_string_key_map(override))
   end
+
+  defp operation_auth_override(%Operation{auth: %{override: override}})
+       when not is_nil(override),
+       do: override
+
+  defp operation_auth_override(%Operation{auth: %{use_client_default?: false}}), do: []
+  defp operation_auth_override(_operation), do: nil
 
   defp execute_with_resilience(
          admission_control,
@@ -1684,7 +1663,7 @@ defmodule Pristine.Core.Pipeline do
   defp handle_response(
          %Response{status: status} = response,
          serializer,
-         response_schema,
+         response_ref,
          endpoint,
          %Context{} = context,
          opts
@@ -1699,7 +1678,7 @@ defmodule Pristine.Core.Pipeline do
         handle_redirect_response(response, context, opts)
 
       success_status?(status) ->
-        handle_success_response(response, serializer, response_schema, endpoint, context, opts)
+        handle_success_response(response, serializer, response_ref, endpoint, context, opts)
 
       true ->
         handle_error_response(response, serializer, context, opts)
@@ -1712,13 +1691,16 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp handle_success_response(
-         %Response{body: body},
+         %Response{status: status, body: body},
          serializer,
-         response_schema,
+         response_ref,
          endpoint,
          context,
          opts
        ) do
+    response_ref = response_schema_for_status(response_ref, status)
+    response_schema = RuntimeSchema.resolve_schema(response_ref, context.type_schemas)
+
     case decode_body(serializer, body, opts) do
       {:ok, decoded} ->
         decoded
@@ -2007,9 +1989,20 @@ defmodule Pristine.Core.Pipeline do
 
   defp maybe_materialize_response(data, response_ref, %Context{} = context, opts) do
     if Keyword.get(opts, :typed_responses, false) do
-      OpenAPIRuntime.materialize(response_ref, data, context.type_schemas)
+      RuntimeSchema.materialize(response_ref, data, context.type_schemas)
     else
       data
     end
   end
+
+  defp response_schema_for_status(response_ref, status)
+
+  defp response_schema_for_status(%{} = response_ref, status) when is_integer(status) do
+    Map.get(response_ref, status) ||
+      Map.get(response_ref, Integer.to_string(status)) ||
+      Map.get(response_ref, :default) ||
+      Map.get(response_ref, "default")
+  end
+
+  defp response_schema_for_status(response_ref, _status), do: response_ref
 end

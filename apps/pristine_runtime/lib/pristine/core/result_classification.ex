@@ -1,8 +1,6 @@
 defmodule Pristine.Core.ResultClassification do
   @moduledoc """
   Internal normalized classification for a single request outcome.
-
-  Provider SDKs should depend on `Pristine.SDK.ResultClassification`.
   """
 
   @type breaker_outcome :: :success | :failure | :ignore

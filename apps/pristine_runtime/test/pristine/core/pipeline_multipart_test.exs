@@ -3,25 +3,21 @@ defmodule Pristine.Core.PipelineMultipartTest do
   import Mox
 
   alias Pristine.Core.{Context, Pipeline, Request, Response}
+  alias Pristine.Operation
 
   setup :set_mox_from_context
   setup :verify_on_exit!
 
-  test "encodes multipart payloads from low-level request specs" do
-    request_spec = %{
-      id: "upload",
-      method: :post,
-      path: "/upload",
-      path_params: %{},
-      query: %{},
-      headers: %{},
-      body: nil,
-      form_data: %{file: "hello"},
-      auth: nil,
-      security: nil,
-      request_schema: nil,
-      response_schema: nil
-    }
+  test "encodes multipart payloads from rendered operations" do
+    operation =
+      Operation.new(%{
+        id: "upload",
+        method: :post,
+        path_template: "/upload",
+        form_data: %{file: "hello"},
+        request_schema: nil,
+        response_schemas: %{200 => nil}
+      })
 
     context = %Context{
       base_url: "https://example.com",
@@ -54,6 +50,6 @@ defmodule Pristine.Core.PipelineMultipartTest do
       :ok
     end)
 
-    assert {:ok, %{"ok" => true}} = Pipeline.execute_request(request_spec, context)
+    assert {:ok, %{"ok" => true}} = Pipeline.execute_operation(operation, context)
   end
 end

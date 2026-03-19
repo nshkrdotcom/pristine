@@ -1,46 +1,53 @@
 # Pristine Runtime
 
-`apps/pristine_runtime` is the publishable `pristine` package.
+`apps/pristine_runtime` publishes the `pristine` runtime package.
 
-The current runtime-facing surface remains:
+The public runtime contract is:
 
-- `Pristine.execute_request/3`
-- `Pristine.foundation_context/1`
-- `Pristine.context/1`
-- `Pristine.SDK.*`
+- `Pristine.Client`
+- `Pristine.Operation`
+- `Pristine.Response`
+- `Pristine.Error`
+- `Pristine.execute/3`
+- `Pristine.stream/3`
+- `Pristine.OAuth2`
 
 ## Example
 
 ```elixir
-context =
-  Pristine.foundation_context(
+client =
+  Pristine.Client.foundation(
     base_url: "https://api.example.com",
     transport: Pristine.Adapters.Transport.Finch,
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
-    auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
+    default_auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
   )
 
-request_spec = %{
-  id: "widgets.list",
-  method: :get,
-  path: "/v1/widgets",
-  path_params: %{},
-  query: %{"limit" => 10},
-  headers: %{},
-  body: nil,
-  form_data: nil,
-  auth: nil,
-  security: [%{"bearerAuth" => []}],
-  request_schema: nil,
-  response_schema: nil
-}
+operation =
+  Pristine.Operation.new(%{
+    id: "widgets.list",
+    method: :get,
+    path_template: "/v1/widgets",
+    query: %{"limit" => 10},
+    response_schemas: %{200 => nil},
+    auth: %{
+      use_client_default?: true,
+      override: nil,
+      security_schemes: ["bearerAuth"]
+    },
+    runtime: %{
+      resource: "widgets",
+      retry_group: "widgets.read",
+      circuit_breaker: "widgets_api",
+      rate_limit_group: "widgets.integration",
+      telemetry_event: [:my_sdk, :widgets, :list],
+      timeout_ms: nil
+    }
+  })
 
-{:ok, response} = Pristine.execute_request(request_spec, context)
+{:ok, response} = Pristine.execute(client, operation)
 ```
-
-Generated SDKs still compile against `Pristine.SDK.*` and the runtime OpenAPI
-helpers carried by this package.
 
 ## Guides
 

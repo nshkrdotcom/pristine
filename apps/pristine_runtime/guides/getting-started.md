@@ -1,106 +1,79 @@
 # Getting Started
 
-Pristine exposes a narrow provider-SDK boundary:
+Pristine exposes a small runtime boundary for generated providers and thin
+provider facades:
 
-- `Pristine.execute_request/3`
-- `Pristine.foundation_context/1`
-- `Pristine.SDK.*`
+- `Pristine.Client`
+- `Pristine.Operation`
+- `Pristine.execute/3`
+- `Pristine.stream/3`
+- `Pristine.OAuth2`
 
-`Pristine.context/1` also stays available when you want full manual control of
-the raw runtime ports and adapters.
+## 1. Build A Runtime Client
 
-## 1. Build a Runtime Context
-
-Use `Pristine.foundation_context/1` for the recommended production profile:
+Use `Pristine.Client.foundation/1` for the recommended production profile:
 
 ```elixir
-context =
-  Pristine.foundation_context(
+client =
+  Pristine.Client.foundation(
     base_url: "https://api.example.com",
     transport: Pristine.Adapters.Transport.Finch,
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
-    auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
+    default_auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
   )
 ```
 
-If you need full manual control instead of the curated Foundation profile, use
-`Pristine.context/1` directly.
+## 2. Render A Runtime Operation
 
-## 2. Execute a Request Spec
-
-```elixir
-request_spec = %{
-  id: "users.get",
-  method: :get,
-  path: "/v1/users/{id}",
-  path_params: %{"id" => "user-123"},
-  query: %{"include" => "workspace"},
-  headers: %{},
-  body: nil,
-  form_data: nil,
-  auth: nil,
-  security: [%{"bearerAuth" => []}],
-  request_schema: nil,
-  response_schema: nil,
-  resource: "users",
-  retry: "users.read",
-  rate_limit: "users.integration",
-  circuit_breaker: "core_api",
-  telemetry: "request.users"
-}
-
-{:ok, response} = Pristine.execute_request(request_spec, context)
-```
-
-Request specs are the retained low-level runtime format. They carry endpoint
-metadata such as `resource`, `retry`, `rate_limit`, `circuit_breaker`, and
-`security` without rebuilding any manifest-shaped runtime structures.
-
-## 3. Execute OpenAPI-Generated Request Maps
-
-Generated SDKs usually hand `Pristine.execute_request/3` the normalized request
-maps built through `Pristine.SDK.OpenAPI.*`.
+Generated providers render a `Pristine.Operation` and call the runtime
+directly.
 
 ```elixir
-{:ok, request} =
-  Pristine.SDK.OpenAPI.Client.request(%{
-    args: %{"id" => "user-123"},
-    call: {MySDK.Users, :get},
+operation =
+  Pristine.Operation.new(%{
+    id: "users.get",
     method: :get,
     path_template: "/v1/users/{id}",
     path_params: %{"id" => "user-123"},
-    query: %{},
-    body: %{},
-    form_data: %{}
+    query: %{"include" => "workspace"},
+    response_schemas: %{200 => nil},
+    auth: %{
+      use_client_default?: true,
+      override: nil,
+      security_schemes: ["bearerAuth"]
+    },
+    runtime: %{
+      resource: "users",
+      retry_group: "users.read",
+      circuit_breaker: "users_api",
+      rate_limit_group: "users.integration",
+      telemetry_event: [:my_sdk, :users, :get],
+      timeout_ms: nil
+    }
   })
-
-{:ok, response} = Pristine.execute_request(request, context)
 ```
 
-The generated request map keeps the `path_template`. `Pristine.execute_request/3`
-normalizes it before transport so path encoding and traversal checks still
-happen in one place.
+## 3. Execute Or Stream
 
-## 4. Use the SDK Runtime Types
+```elixir
+{:ok, data} = Pristine.execute(client, operation)
+```
 
-Downstream SDKs should surface the stable SDK-facing types instead of exposing
-internal request-pipeline structs:
+`Pristine.stream/3` consumes the same `Pristine.Operation` envelope. The stream
+transport returns a `Pristine.Response` whose `:stream` field is enumerable.
 
-- `Pristine.SDK.Context`
-- `Pristine.SDK.Response`
-- `Pristine.SDK.Error`
-- `Pristine.SDK.ResultClassification`
-- `Pristine.SDK.OpenAPI.*`
-- `Pristine.SDK.OAuth2.*`
+## 4. Generated Wrapper Helpers
 
-`Pristine.SDK.OAuth2` uses the native in-tree OAuth backend by default.
-Interactive browser launch and loopback callback capture stay optional adapter
-layers, and manual paste-back remains available when those adapters are absent.
+Generated operation modules can keep their rendering logic small by using
+`Pristine.Operation.partition/2`, `Pristine.Operation.render_path/2`,
+`Pristine.Operation.items/2`, and `Pristine.Operation.next_page/2`.
 
 ## Next
 
-- Use [Foundation Runtime](foundation-runtime.md) when you need more control
-  over retries, rate limiting, circuit breaking, telemetry, or admission control.
-- Use the `pristine_codegen` package when you are working on a first-party SDK
-  generator that needs the retained OpenAPI bridge.
+- Use [Foundation Runtime](foundation-runtime.md) when you want the curated
+  production profile plus telemetry reporter helpers.
+- Use [Manual Contexts And Adapters](manual-contexts-and-adapters.md) when you
+  need to wire ports and adapters directly.
+- Use [OAuth And Token Sources](oauth-and-token-sources.md) for control-plane
+  OAuth flows.

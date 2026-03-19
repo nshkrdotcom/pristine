@@ -2,8 +2,7 @@ defmodule Pristine.Profiles.Foundation do
   @moduledoc """
   Internal Foundation-backed production profile wiring.
 
-  Provider SDKs should depend on `Pristine.SDK.Profiles.Foundation` or
-  `Pristine.foundation_context/1`.
+  `Pristine.Client.foundation/1` is the public entrypoint for this profile.
   """
 
   alias Pristine.Core.Context
@@ -64,7 +63,7 @@ defmodule Pristine.Profiles.Foundation do
     |> Keyword.put(:admission_control, admission_control.adapter)
     |> merge_keyword(:admission_opts, admission_control.opts)
     |> Keyword.put_new(:result_classifier, Pristine.Adapters.ResultClassifier.HTTP)
-    |> Pristine.context()
+    |> Context.new()
   end
 
   @doc """

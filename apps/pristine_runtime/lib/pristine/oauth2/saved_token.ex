@@ -112,7 +112,7 @@ defmodule Pristine.OAuth2.SavedToken do
   end
 
   defp oauth2_module(opts) do
-    Keyword.get(opts, :oauth2_module, Pristine.SDK.OAuth2)
+    Keyword.get(opts, :oauth2_module, Pristine.OAuth2)
   end
 
   defp persist(%Token{} = token, source) do

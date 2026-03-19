@@ -43,7 +43,8 @@ defmodule Pristine.Error do
       end
   """
 
-  alias Pristine.Core.Response
+  alias Pristine.Core.Response, as: TransportResponse
+  alias Pristine.Response
 
   @type error_type ::
           :bad_request
@@ -83,7 +84,13 @@ defmodule Pristine.Error do
       iex> error.type
       :rate_limit
   """
-  @spec from_response(Response.t()) :: t()
+  @spec from_response(Response.t() | TransportResponse.t()) :: t()
+  def from_response(%TransportResponse{} = response) do
+    response
+    |> Response.from_transport()
+    |> from_response()
+  end
+
   def from_response(%Response{status: status} = response) do
     %__MODULE__{
       type: status_to_type(status),
