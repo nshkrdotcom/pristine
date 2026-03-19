@@ -1,0 +1,18 @@
+{
+  "access_token": "secret_access",
+  "expires_at": null,
+  "other_params": {
+    "bot_id": "bot-123",
+    "owner": {
+      "type": "user",
+      "user": {
+        "id": "user-123",
+        "object": "user"
+      }
+    },
+    "workspace_id": "workspace-123",
+    "workspace_name": "Example Workspace"
+  },
+  "refresh_token": null,
+  "token_type": "Bearer"
+}

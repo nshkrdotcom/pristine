@@ -1,0 +1,7 @@
+{
+  "access_token": "secret_access",
+  "expires_at": null,
+  "other_params": {},
+  "refresh_token": null,
+  "token_type": "Bearer"
+}
