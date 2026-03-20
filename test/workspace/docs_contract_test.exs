@@ -13,13 +13,18 @@ defmodule Pristine.Workspace.DocsContractTest do
     assert readme =~ "`apps/pristine_runtime`"
     assert readme =~ "`apps/pristine_codegen`"
     assert readme =~ "`apps/pristine_provider_testkit`"
+    assert readme =~ "mix monorepo.compile"
     assert readme =~ "mix mr.compile"
+    assert readme =~ "mix quality"
     assert readme =~ "mix ci"
+    assert readme =~ "mix blitz.workspace <task>"
     assert readme =~ "apps/pristine_runtime/README.md"
     assert readme =~ "apps/pristine_codegen/README.md"
 
+    assert testing =~ "mix monorepo.format --check-formatted"
     assert testing =~ "mix mr.format --check-formatted"
     assert testing =~ "mix mr.dialyzer"
+    assert testing =~ "PRISTINE_MONOREPO_MAX_CONCURRENCY"
     assert testing =~ "`apps/pristine_runtime`"
     assert testing =~ "`apps/pristine_codegen`"
 
@@ -33,7 +38,13 @@ defmodule Pristine.Workspace.DocsContractTest do
       |> Enum.flat_map(fn path ->
         source = File.read!(path)
 
-        ["single Mix app", "mix pristine.generate", "mix pristine.validate", "lib/pristine.ex"]
+        [
+          "single Mix app",
+          "mix pristine.generate",
+          "mix pristine.validate",
+          "lib/pristine.ex",
+          "in-tree `monorepo.*` tasks"
+        ]
         |> Enum.flat_map(fn marker ->
           if String.contains?(source, marker), do: ["#{path}: #{marker}"], else: []
         end)

@@ -3,6 +3,11 @@ defmodule Pristine.Workspace.MixProject do
 
   @version "0.1.0"
   @source_url "https://github.com/nshkrdotcom/pristine"
+  @workspace_packages [
+    pristine: "apps/pristine_runtime",
+    pristine_codegen: "apps/pristine_codegen",
+    pristine_provider_testkit: "apps/pristine_provider_testkit"
+  ]
 
   def project do
     [
@@ -30,9 +35,8 @@ defmodule Pristine.Workspace.MixProject do
 
   defp deps do
     [
-      {:pristine, path: "apps/pristine_runtime"},
-      {:pristine_codegen, path: "apps/pristine_codegen"},
-      {:pristine_provider_testkit, path: "apps/pristine_provider_testkit"},
+      {:blitz, "~> 0.1.0", runtime: false},
+      workspace_package_deps(),
       {:plug, "~> 1.19", only: [:dev, :test], runtime: false},
       {:bandit, "~> 1.10", only: [:dev, :test], runtime: false},
       {:telemetry_reporter, "~> 0.1.0", only: [:dev, :test], runtime: false},
@@ -41,9 +45,20 @@ defmodule Pristine.Workspace.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false}
     ]
+    |> List.flatten()
   end
 
   defp aliases do
+    monorepo_aliases = [
+      "monorepo.deps.get": ["blitz.workspace deps_get"],
+      "monorepo.format": ["blitz.workspace format"],
+      "monorepo.compile": ["blitz.workspace compile"],
+      "monorepo.test": ["blitz.workspace test"],
+      "monorepo.credo": ["blitz.workspace credo"],
+      "monorepo.dialyzer": ["compile", "dialyzer --force-check"],
+      "monorepo.docs": ["blitz.workspace docs"]
+    ]
+
     mr_aliases =
       ~w[deps.get format compile test credo dialyzer docs]
       |> Enum.map(fn task -> {:"mr.#{task}", ["monorepo.#{task}"]} end)
@@ -56,8 +71,10 @@ defmodule Pristine.Workspace.MixProject do
         "monorepo.credo --strict",
         "monorepo.dialyzer",
         "monorepo.docs"
-      ]
-    ] ++ mr_aliases
+      ],
+      quality: ["monorepo.credo --strict", "monorepo.dialyzer"],
+      "docs.all": ["monorepo.docs"]
+    ] ++ monorepo_aliases ++ mr_aliases
   end
 
   defp description do
@@ -84,8 +101,26 @@ defmodule Pristine.Workspace.MixProject do
   defp dialyzer do
     [
       plt_add_deps: :app_tree,
-      plt_add_apps: [:mix, :plug, :bandit, :telemetry_reporter, :tiktoken_ex],
-      plt_core_path: "_build/plts/core"
+      plt_add_apps: [:mix, :blitz, :plug, :bandit, :telemetry_reporter, :tiktoken_ex],
+      plt_core_path: "_build/plts/core",
+      paths: workspace_dialyzer_paths()
+    ]
+  end
+
+  defp workspace_package_deps do
+    Enum.map(@workspace_packages, fn {app, path} ->
+      {app, [path: path]}
+    end)
+  end
+
+  defp workspace_dialyzer_paths do
+    build_path = Path.join("_build", to_string(Mix.env()))
+
+    [
+      Path.join([build_path, "lib", "pristine_workspace", "ebin"])
+      | Enum.map(@workspace_packages, fn {app, _path} ->
+          Path.join([build_path, "lib", Atom.to_string(app), "ebin"])
+        end)
     ]
   end
 

@@ -8,16 +8,36 @@ stay inside each app; the root only verifies monorepo contracts.
 Run these from `/home/home/p/g/n/pristine`:
 
 ```bash
+mix test
+mix monorepo.deps.get
+mix monorepo.format --check-formatted
+mix monorepo.compile
+mix monorepo.test
+mix monorepo.credo --strict
+mix monorepo.dialyzer
+mix monorepo.docs
 mix mr.format --check-formatted
 mix mr.compile
 mix mr.test
 mix mr.credo --strict
 mix mr.dialyzer
 mix mr.docs
+mix quality
+mix docs.all
 mix ci
 ```
 
-`mix ci` is the full acceptance pass for the monorepo bootstrap.
+`mix test` covers the root workspace contracts only. `mix ci` is the full
+acceptance pass for the monorepo bootstrap.
+
+Most root `monorepo.*` aliases delegate to `mix blitz.workspace <task>`. The
+Dialyzer alias stays root-owned so one run can analyze the shared package beam
+outputs without per-app build/deps isolation. Use the shorter `mr.*` aliases
+for day-to-day work.
+
+To tune workspace fan-out for one run, pass `--max-concurrency N` to a
+`mix monorepo.*` command. To set a default locally, export
+`PRISTINE_MONOREPO_MAX_CONCURRENCY`.
 
 ## App Boundaries
 
@@ -56,5 +76,5 @@ cd apps/pristine_codegen && mix test
 cd apps/pristine_provider_testkit && mix test
 ```
 
-The runtime and codegen apps each own their own docs generation and dialyzer
-state through the workspace aliases above.
+The runtime and codegen apps still own their own docs generation. Workspace
+Dialyzer runs once from the root against the shared compiled package outputs.

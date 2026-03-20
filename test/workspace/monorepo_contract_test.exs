@@ -1,16 +1,16 @@
 defmodule Pristine.Workspace.MonorepoContractTest do
   use ExUnit.Case, async: true
 
-  alias Mix.Tasks.Monorepo.Compile
-  alias Mix.Tasks.Monorepo.Credo
-  alias Mix.Tasks.Monorepo.Deps.Get
-  alias Mix.Tasks.Monorepo.Dialyzer
-  alias Mix.Tasks.Monorepo.Docs
-  alias Mix.Tasks.Monorepo.Format
-  alias Mix.Tasks.Monorepo.Test
   alias Pristine.Workspace.MixProject, as: WorkspaceMixProject
 
-  @required_monorepo_aliases [
+  @required_aliases [
+    :"monorepo.deps.get",
+    :"monorepo.format",
+    :"monorepo.compile",
+    :"monorepo.test",
+    :"monorepo.credo",
+    :"monorepo.dialyzer",
+    :"monorepo.docs",
     :"mr.deps.get",
     :"mr.format",
     :"mr.compile",
@@ -18,22 +18,25 @@ defmodule Pristine.Workspace.MonorepoContractTest do
     :"mr.credo",
     :"mr.dialyzer",
     :"mr.docs",
+    :quality,
+    :"docs.all",
     :ci
   ]
 
-  @required_monorepo_tasks [
-    Get,
-    Format,
-    Compile,
-    Test,
-    Credo,
-    Dialyzer,
-    Docs
+  @expected_monorepo_aliases [
+    {:"monorepo.deps.get", ["blitz.workspace deps_get"]},
+    {:"monorepo.format", ["blitz.workspace format"]},
+    {:"monorepo.compile", ["blitz.workspace compile"]},
+    {:"monorepo.test", ["blitz.workspace test"]},
+    {:"monorepo.credo", ["blitz.workspace credo"]},
+    {:"monorepo.dialyzer", ["compile", "dialyzer --force-check"]},
+    {:"monorepo.docs", ["blitz.workspace docs"]}
   ]
 
   defp dep_opts(deps, app) do
     Enum.find_value(deps, fn
       {^app, opts} when is_list(opts) -> opts
+      {^app, _requirement, opts} when is_list(opts) -> opts
       _ -> nil
     end) || flunk("missing dependency #{inspect(app)}")
   end
@@ -46,21 +49,42 @@ defmodule Pristine.Workspace.MonorepoContractTest do
 
     aliases = Keyword.get(config, :aliases, [])
 
-    assert Enum.all?(@required_monorepo_aliases, &Keyword.has_key?(aliases, &1))
+    assert Enum.all?(@required_aliases, &Keyword.has_key?(aliases, &1))
+
+    for {alias_name, commands} <- @expected_monorepo_aliases do
+      assert Keyword.fetch!(aliases, alias_name) == commands
+    end
+
+    assert Keyword.fetch!(aliases, :quality) == [
+             "monorepo.credo --strict",
+             "monorepo.dialyzer"
+           ]
+
+    assert Keyword.fetch!(aliases, :"docs.all") == ["monorepo.docs"]
+
+    assert Keyword.fetch!(aliases, :ci) == [
+             "monorepo.format --check-formatted",
+             "monorepo.compile",
+             "monorepo.test",
+             "monorepo.credo --strict",
+             "monorepo.dialyzer",
+             "monorepo.docs"
+           ]
 
     workspace = Keyword.fetch!(config, :blitz_workspace)
 
     assert workspace[:root] == __DIR__ |> Path.join("../../") |> Path.expand()
-    assert "." in workspace[:projects]
-    assert "apps/*" in workspace[:projects]
-
-    assert Enum.all?(@required_monorepo_tasks, fn module ->
-             Code.ensure_loaded?(module) and function_exported?(module, :run, 1)
-           end)
+    assert workspace[:projects] == [".", "apps/*"]
+    assert workspace[:parallelism][:multiplier] == :auto
+    assert Keyword.fetch!(workspace[:tasks], :test)[:color] == true
+    assert config[:description] =~ "Tooling root"
   end
 
-  test "root path dependencies point at the split workspace apps" do
+  test "root dependencies point at Blitz and the split workspace apps" do
     deps = WorkspaceMixProject.project()[:deps]
+
+    blitz_opts = dep_opts(deps, :blitz)
+    assert blitz_opts[:runtime] == false
 
     runtime_opts = dep_opts(deps, :pristine)
     assert runtime_opts[:path] == "apps/pristine_runtime"
@@ -70,5 +94,17 @@ defmodule Pristine.Workspace.MonorepoContractTest do
 
     testkit_opts = dep_opts(deps, :pristine_provider_testkit)
     assert testkit_opts[:path] == "apps/pristine_provider_testkit"
+  end
+
+  test "root dialyzer config includes shared workspace beam paths" do
+    dialyzer = WorkspaceMixProject.project()[:dialyzer]
+    build_path = Path.join("_build", to_string(Mix.env()))
+
+    assert :blitz in dialyzer[:plt_add_apps]
+    assert Path.join([build_path, "lib", "pristine_workspace", "ebin"]) in dialyzer[:paths]
+    assert Path.join([build_path, "lib", "pristine", "ebin"]) in dialyzer[:paths]
+    assert Path.join([build_path, "lib", "pristine_codegen", "ebin"]) in dialyzer[:paths]
+
+    assert Path.join([build_path, "lib", "pristine_provider_testkit", "ebin"]) in dialyzer[:paths]
   end
 end
