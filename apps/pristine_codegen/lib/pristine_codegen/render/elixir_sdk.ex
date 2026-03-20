@@ -363,19 +363,9 @@ defmodule PristineCodegen.Render.ElixirSDK do
         [List.last(module_segments)]
 
       _other ->
-        case Enum.split(module_segments, length(generated_base_segments)) do
-          {^generated_base_segments, relative_segments} when relative_segments != [] ->
-            relative_segments
-
-          _other ->
-            case Enum.split(module_segments, length(base_segments)) do
-              {^base_segments, relative_segments} when relative_segments != [] ->
-                relative_segments
-
-              _other ->
-                module_segments
-            end
-        end
+        relative_segments(module_segments, generated_base_segments) ||
+          relative_segments(module_segments, base_segments) ||
+          module_segments
     end
   end
 
@@ -494,16 +484,12 @@ defmodule PristineCodegen.Render.ElixirSDK do
     if values != [] and Enum.all?(values, &is_binary/1) do
       "String.t()"
     else
-      values
-      |> Enum.map(&inspect/1)
-      |> Enum.join(" | ")
+      Enum.map_join(values, " | ", &inspect/1)
     end
   end
 
   defp render_typespec({:union, types}, module_name) when is_list(types) do
-    types
-    |> Enum.map(&render_typespec(&1, module_name))
-    |> Enum.join(" | ")
+    Enum.map_join(types, " | ", &render_typespec(&1, module_name))
   end
 
   defp render_typespec({:array, inner}, module_name),
@@ -520,6 +506,16 @@ defmodule PristineCodegen.Render.ElixirSDK do
   end
 
   defp render_typespec(_other, _module_name), do: "term()"
+
+  defp relative_segments(module_segments, prefix_segments) do
+    case Enum.split(module_segments, length(prefix_segments)) do
+      {^prefix_segments, relative_segments} when relative_segments != [] ->
+        relative_segments
+
+      _other ->
+        nil
+    end
+  end
 
   defp default_type_name(schemas) do
     type_names = Enum.map(schemas, & &1.type_name)

@@ -3,26 +3,17 @@ defmodule PristineCodegen.Artifacts do
 
   alias PristineCodegen.Compilation
   alias PristineCodegen.JSON
+  alias PristineCodegen.Provider
   alias PristineCodegen.ProviderIR
   alias PristineCodegen.RenderedFile
 
-  @spec render(ProviderIR.t(), [RenderedFile.t()]) :: [RenderedFile.t()]
-  def render(%ProviderIR{} = provider_ir, rendered_files) when is_list(rendered_files) do
-    Enum.flat_map(provider_ir.artifact_plan.artifacts, fn artifact ->
-      case artifact.kind do
-        :code ->
-          []
-
-        :artifact ->
-          [
-            %RenderedFile{
-              kind: :artifact,
-              relative_path: artifact.path,
-              contents: render_artifact(artifact.id, provider_ir, rendered_files)
-            }
-          ]
-      end
-    end)
+  @spec render(module(), ProviderIR.t(), [RenderedFile.t()], keyword()) :: [RenderedFile.t()]
+  def render(provider_module, %ProviderIR{} = provider_ir, rendered_files, opts \\ [])
+      when is_atom(provider_module) and is_list(rendered_files) and is_list(opts) do
+    Enum.flat_map(
+      provider_ir.artifact_plan.artifacts,
+      &render_file(&1, provider_module, provider_ir, rendered_files, opts)
+    )
   end
 
   @spec write_files(Compilation.t()) :: Compilation.t()
@@ -51,11 +42,36 @@ defmodule PristineCodegen.Artifacts do
     |> then(&Path.join(output_root, &1))
   end
 
-  defp render_artifact(:provider_ir, provider_ir, _rendered_files) do
+  defp render_artifact(provider_module, artifact_id, provider_ir, rendered_files, opts) do
+    built_in_artifact(artifact_id, provider_ir, rendered_files) ||
+      Provider.render_artifact(provider_module, artifact_id, provider_ir, rendered_files, opts) ||
+      raise ArgumentError,
+            "unknown artifact #{inspect(artifact_id)} in provider artifact plan"
+  end
+
+  defp render_file(%{kind: :code}, _provider_module, _provider_ir, _rendered_files, _opts), do: []
+
+  defp render_file(artifact, provider_module, provider_ir, rendered_files, opts) do
+    case render_artifact(provider_module, artifact.id, provider_ir, rendered_files, opts) do
+      nil ->
+        []
+
+      contents ->
+        [
+          %RenderedFile{
+            kind: :artifact,
+            relative_path: artifact.path,
+            contents: normalize_contents(contents)
+          }
+        ]
+    end
+  end
+
+  defp built_in_artifact(:provider_ir, provider_ir, _rendered_files) do
     JSON.encode!(ProviderIR.to_map(provider_ir))
   end
 
-  defp render_artifact(:generation_manifest, provider_ir, rendered_files) do
+  defp built_in_artifact(:generation_manifest, provider_ir, rendered_files) do
     artifact_files =
       provider_ir.artifact_plan.artifacts
       |> Enum.reject(&(&1.kind == :code))
@@ -76,15 +92,15 @@ defmodule PristineCodegen.Artifacts do
     JSON.encode!(manifest)
   end
 
-  defp render_artifact(:docs_inventory, provider_ir, _rendered_files) do
+  defp built_in_artifact(:docs_inventory, provider_ir, _rendered_files) do
     JSON.encode!(ProviderIR.to_map(provider_ir.docs_inventory))
   end
 
-  defp render_artifact(:source_inventory, provider_ir, _rendered_files) do
+  defp built_in_artifact(:source_inventory, provider_ir, _rendered_files) do
     JSON.encode!(%{sources: ProviderIR.to_map(provider_ir.fingerprints.sources)})
   end
 
-  defp render_artifact(:operation_auth_policies, provider_ir, _rendered_files) do
+  defp built_in_artifact(:operation_auth_policies, provider_ir, _rendered_files) do
     operation_auth_policies =
       provider_ir.operations
       |> Enum.map(fn operation -> {operation.id, operation.auth_policy_id} end)
@@ -92,6 +108,10 @@ defmodule PristineCodegen.Artifacts do
 
     JSON.encode!(operation_auth_policies)
   end
+
+  defp built_in_artifact(_artifact_id, _provider_ir, _rendered_files), do: nil
+
+  defp normalize_contents(contents), do: IO.iodata_to_binary(contents)
 
   defp relative_root(provider_ir, %RenderedFile{kind: :code}) do
     provider_ir.artifact_plan.generated_code_dir

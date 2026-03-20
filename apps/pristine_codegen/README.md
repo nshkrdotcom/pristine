@@ -84,6 +84,11 @@ Generated provider modules target the current runtime contract directly:
 - `Pristine.execute/3`
 - `Pristine.stream/3`
 
+Providers may also declare repo-specific committed artifacts in
+`artifact_plan.artifacts` and implement `render_artifact/4`. The shared
+compiler normalizes those artifact contents before writing and freshness
+verification, so provider hooks can return normal binaries or iodata.
+
 ## Guide
 
 - `guides/code-generation.md`

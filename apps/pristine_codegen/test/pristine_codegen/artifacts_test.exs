@@ -2,6 +2,7 @@ defmodule PristineCodegen.ArtifactsTest do
   use ExUnit.Case, async: true
 
   alias PristineCodegen.Compiler
+  alias PristineCodegen.TestSupport.CustomArtifactProvider
   alias PristineCodegen.TestSupport.SampleProvider
 
   test "writes the final committed artifact contract and no legacy artifacts" do
@@ -105,6 +106,29 @@ defmodule PristineCodegen.ArtifactsTest do
                generated_code_dir: generated_code_dir,
                generated_artifact_dir: generated_artifact_dir
              )
+  end
+
+  test "renders provider-specific artifacts through the shared compiler contract" do
+    project_root = tmp_project_root!("custom-artifacts")
+
+    assert {:ok, compilation} =
+             Compiler.generate(CustomArtifactProvider, project_root: project_root)
+
+    assert "priv/generated/custom_summary.json" in Enum.map(
+             compilation.provider_ir.artifact_plan.artifacts,
+             & &1.path
+           )
+
+    custom_summary =
+      project_root
+      |> Path.join("priv/generated/custom_summary.json")
+      |> File.read!()
+      |> Jason.decode!()
+
+    assert custom_summary["generated_file_count"] == length(compilation.rendered_files)
+    assert custom_summary["operation_ids"] == ["sessions/create", "widgets/list"]
+
+    assert :ok = Compiler.verify(CustomArtifactProvider, project_root: project_root)
   end
 
   defp tmp_project_root!(suffix) do

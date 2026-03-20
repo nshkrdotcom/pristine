@@ -3,15 +3,20 @@ defmodule PristineCodegen.Provider do
   Provider definition contract consumed by the shared compiler.
   """
 
+  alias PristineCodegen.ProviderIR
+  alias PristineCodegen.RenderedFile
+
   @callback definition(keyword()) :: map()
   @callback paths(keyword()) :: map()
   @callback source_plugins() :: [module()]
   @callback auth_plugins() :: [module()]
   @callback pagination_plugins() :: [module()]
   @callback docs_plugins() :: [module()]
+  @callback render_artifact(atom(), ProviderIR.t(), [RenderedFile.t()], keyword()) ::
+              iodata() | String.t() | nil
   @callback refresh(keyword()) :: term()
 
-  @optional_callbacks refresh: 1
+  @optional_callbacks render_artifact: 4, refresh: 1
 
   @spec definition(module(), keyword()) :: map()
   def definition(provider_module, opts) when is_atom(provider_module) and is_list(opts) do
@@ -49,6 +54,18 @@ defmodule PristineCodegen.Provider do
       provider_module.refresh(opts)
     else
       :ok
+    end
+  end
+
+  @spec render_artifact(module(), atom(), ProviderIR.t(), [RenderedFile.t()], keyword()) ::
+          iodata() | String.t() | nil
+  def render_artifact(provider_module, artifact_id, provider_ir, rendered_files, opts)
+      when is_atom(provider_module) and is_atom(artifact_id) and is_list(rendered_files) and
+             is_list(opts) do
+    if function_exported?(provider_module, :render_artifact, 4) do
+      provider_module.render_artifact(artifact_id, provider_ir, rendered_files, opts)
+    else
+      nil
     end
   end
 

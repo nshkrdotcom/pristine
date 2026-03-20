@@ -6,9 +6,9 @@ defmodule WidgetAPI.Generated.Widgets do
   @list_widgets_partition_spec %{
     path: [],
     body: %{mode: :none},
-    form_data: %{mode: :none},
     query: [{"cursor", :cursor}, {"limit", :limit}],
-    headers: [{"x-request-id", :request_id}]
+    headers: [{"x-request-id", :request_id}],
+    form_data: %{mode: :none}
   }
 
   @doc "Returns widgets in cursor order."

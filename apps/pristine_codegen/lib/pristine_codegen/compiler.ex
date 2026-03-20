@@ -25,7 +25,7 @@ defmodule PristineCodegen.Compiler do
 
     rendered_files = ElixirSDK.render(provider_ir)
     provider_ir = Normalize.attach_code_artifacts(provider_ir, rendered_files)
-    artifact_files = Artifacts.render(provider_ir, rendered_files)
+    artifact_files = Artifacts.render(provider_module, provider_ir, rendered_files, opts)
 
     {:ok,
      %Compilation{

@@ -388,3 +388,49 @@ defmodule PristineCodegen.TestSupport.InvalidAuthPlugin do
     %{unexpected: :provider_specific_state}
   end
 end
+
+defmodule PristineCodegen.TestSupport.CustomArtifactProvider do
+  @behaviour PristineCodegen.Provider
+
+  alias PristineCodegen.ProviderIR
+  alias PristineCodegen.TestSupport.SampleProvider
+
+  @custom_artifact_path "priv/generated/custom_summary.json"
+
+  @impl true
+  def definition(opts) do
+    definition = SampleProvider.definition(opts)
+
+    update_in(definition, [:artifact_plan, :artifacts], fn artifacts ->
+      artifacts ++ [%{id: :custom_summary, path: @custom_artifact_path}]
+    end)
+  end
+
+  @impl true
+  def paths(opts), do: SampleProvider.paths(opts)
+
+  @impl true
+  def source_plugins, do: SampleProvider.source_plugins()
+
+  @impl true
+  def auth_plugins, do: SampleProvider.auth_plugins()
+
+  @impl true
+  def pagination_plugins, do: SampleProvider.pagination_plugins()
+
+  @impl true
+  def docs_plugins, do: SampleProvider.docs_plugins()
+
+  @impl true
+  def refresh(opts), do: SampleProvider.refresh(opts)
+
+  @impl true
+  def render_artifact(:custom_summary, %ProviderIR{} = provider_ir, rendered_files, _opts) do
+    Jason.encode_to_iodata!(%{
+      generated_file_count: length(rendered_files),
+      operation_ids: Enum.map(provider_ir.operations, & &1.id)
+    })
+  end
+
+  def render_artifact(_artifact_id, _provider_ir, _rendered_files, _opts), do: nil
+end
