@@ -1,7 +1,5 @@
-defmodule Pristine.Runtime.Schema do
-  @moduledoc """
-  Internal schema resolution and materialization helpers for runtime execution.
-  """
+defmodule WidgetAPI.Generated.RuntimeSchema do
+  @moduledoc false
 
   alias Sinter.Schema
 
@@ -24,30 +22,14 @@ defmodule Pristine.Runtime.Schema do
     :union
   ]
 
-  @type openapi_field :: %{
-          required(:default) => term(),
-          optional(:description) => String.t() | nil,
-          optional(:deprecated) => boolean(),
-          optional(:example) => term(),
-          optional(:examples) => term(),
-          optional(:external_docs) => map() | nil,
-          optional(:extensions) => map(),
-          required(:name) => String.t(),
-          required(:nullable) => boolean(),
-          optional(:read_only) => boolean(),
-          required(:required) => boolean(),
-          required(:type) => term(),
-          optional(:write_only) => boolean()
-        }
-
-  @spec build_schema([openapi_field()]) :: Schema.t()
+  @spec build_schema([map()]) :: Schema.t()
   def build_schema(fields) when is_list(fields) do
     field_specs =
       Enum.map(fields, fn field ->
         type =
           field.type
           |> to_runtime_type()
-          |> maybe_nullable(field.nullable)
+          |> maybe_nullable(Map.get(field, :nullable, false))
 
         {
           field.name,
@@ -66,53 +48,10 @@ defmodule Pristine.Runtime.Schema do
     end
   end
 
-  @spec resolve_schema(term(), map()) :: term() | nil
-  def resolve_schema(nil, _type_schemas), do: nil
-  def resolve_schema(%Schema{} = schema, _type_schemas), do: schema
-
-  def resolve_schema(ref, type_schemas) when is_binary(ref) do
-    case Map.get(type_schemas || %{}, ref) do
-      nil -> nil
-      schema -> resolve_type_spec(schema, type_schemas, true)
-    end
-  end
-
-  def resolve_schema(ref, type_schemas) when is_atom(ref) do
-    case Map.get(type_schemas || %{}, Atom.to_string(ref)) do
-      nil -> resolve_type_spec(ref, type_schemas, true)
-      schema -> resolve_type_spec(schema, type_schemas, true)
-    end
-  end
-
-  def resolve_schema(ref, type_schemas) do
-    resolve_type_spec(ref, type_schemas, true)
-  end
-
-  @spec materialize(term(), term(), map()) :: term()
-  def materialize(nil, data, _type_schemas), do: data
-
-  def materialize(ref, data, type_schemas) when is_binary(ref) do
-    case Map.get(type_schemas || %{}, ref) do
-      nil -> data
-      schema -> materialize_spec(schema, data, type_schemas)
-    end
-  end
-
-  def materialize(ref, data, type_schemas) when is_atom(ref) do
-    case Map.get(type_schemas || %{}, Atom.to_string(ref)) do
-      nil -> materialize_spec(ref, data, type_schemas)
-      schema -> materialize_spec(schema, data, type_schemas)
-    end
-  end
-
-  def materialize(ref, data, type_schemas) do
-    materialize_spec(ref, data, type_schemas)
-  end
-
   defp field_opts(field) do
     []
-    |> maybe_put_required(field.required)
-    |> maybe_put_default(field.default)
+    |> maybe_put_required(Map.get(field, :required, false))
+    |> maybe_put_default(Map.get(field, :default))
   end
 
   defp maybe_put_required(opts, true), do: Keyword.put(opts, :required, true)
@@ -153,30 +92,6 @@ defmodule Pristine.Runtime.Schema do
       values
     end
   end
-
-  defp materialize_spec({module, type}, data, _type_schemas)
-       when is_atom(module) and is_atom(type) do
-    case invoke_module_decode(module, type, data) do
-      {:ok, materialized} -> materialized
-      {:error, _reason} -> data
-    end
-  end
-
-  defp materialize_spec({:union, types}, data, type_schemas) do
-    choose_union_candidate(types, data, fn type ->
-      materialize_spec(type, data, type_schemas)
-    end)
-  end
-
-  defp materialize_spec([inner], data, type_schemas) when is_list(data) do
-    Enum.map(data, &materialize_spec(inner, &1, type_schemas))
-  end
-
-  defp materialize_spec({:array, inner}, data, type_schemas) when is_list(data) do
-    Enum.map(data, &materialize_spec(inner, &1, type_schemas))
-  end
-
-  defp materialize_spec(_ref, data, _type_schemas), do: data
 
   defp materialize_openapi_value(_type, nil), do: nil
 
@@ -346,7 +261,7 @@ defmodule Pristine.Runtime.Schema do
 
         true ->
           raise ArgumentError,
-                "cannot resolve OpenAPI runtime schema ref #{inspect({module, type})}: expected #{inspect(module)} to export __schema__/1 or schema/0"
+                "cannot resolve provider-local schema ref #{inspect({module, type})}: expected #{inspect(module)} to export __schema__/1 or schema/0"
       end
 
     wrap_resolved_schema(resolved, top_level?)
@@ -462,7 +377,7 @@ defmodule Pristine.Runtime.Schema do
           decode_module_type(module, type, data)
         else
           raise ArgumentError,
-                "cannot decode OpenAPI runtime ref #{inspect({module, type})}: expected #{inspect(module)} to export decode/2, decode/1, __schema__/1, or schema/0"
+                "cannot decode provider-local schema ref #{inspect({module, type})}: expected #{inspect(module)} to export decode/2, decode/1, __schema__/1, or schema/0"
         end
     end
   end
@@ -474,7 +389,7 @@ defmodule Pristine.Runtime.Schema do
 
       {:error, _reason} ->
         raise ArgumentError,
-              "cannot resolve OpenAPI runtime schema ref: module #{inspect(module)} is not available"
+              "cannot resolve provider-local schema ref: module #{inspect(module)} is not available"
     end
   end
 end

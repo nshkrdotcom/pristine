@@ -20,6 +20,9 @@ defmodule PristineCodegen.Render.ElixirSDKTest do
     assert rendered_files["lib/widget_api/generated/client.ex"] ==
              File.read!(Path.join(@golden_root, "generated/client.ex"))
 
+    assert rendered_files["lib/widget_api/generated/runtime_schema.ex"] ==
+             File.read!(Path.join(@golden_root, "generated/runtime_schema.ex"))
+
     assert rendered_files["lib/widget_api/generated/widgets.ex"] ==
              File.read!(Path.join(@golden_root, "generated/widgets.ex"))
 
@@ -39,6 +42,7 @@ defmodule PristineCodegen.Render.ElixirSDKTest do
 
     refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "Pristine.OpenAPI"))
     refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "Pristine.SDK"))
+    refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "Pristine.Runtime"))
     refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "GeneratedSupport"))
 
     Enum.each(rendered_files, fn {relative_path, contents} ->

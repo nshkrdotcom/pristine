@@ -16,6 +16,7 @@ defmodule WidgetAPI.Generated.Widgets do
   def list_widgets(client, params \\ %{}, opts \\ [])
       when is_map(params) and is_list(opts) do
     operation = build_list_widgets_operation(params)
+
     Pristine.execute(client, operation, opts)
   end
 

@@ -54,6 +54,7 @@ defmodule PristineCodegen.ProviderIRTest do
 
     assert Enum.map(provider_ir.artifact_plan.artifacts, & &1.path) == [
              "lib/widget_api/generated/client.ex",
+             "lib/widget_api/generated/runtime_schema.ex",
              "lib/widget_api/generated/schemas/types/session_token.ex",
              "lib/widget_api/generated/schemas/types/widget.ex",
              "lib/widget_api/generated/sessions.ex",

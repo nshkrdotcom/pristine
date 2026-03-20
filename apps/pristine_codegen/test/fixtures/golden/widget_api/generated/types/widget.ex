@@ -3,6 +3,8 @@ defmodule WidgetAPI.Generated.Types.Widget do
   Generated Widget API type for widget.
   """
 
+  alias WidgetAPI.Generated.RuntimeSchema, as: RuntimeSchema
+
   @enforce_keys [:id, :name]
   defstruct [:id, :name]
 
@@ -32,7 +34,7 @@ defmodule WidgetAPI.Generated.Types.Widget do
   @doc false
   @spec __schema__(atom()) :: Sinter.Schema.t()
   def __schema__(type \\ :t) when is_atom(type) do
-    Pristine.Runtime.Schema.build_schema(__openapi_fields__(type))
+    RuntimeSchema.build_schema(__openapi_fields__(type))
   end
 
   @doc false
@@ -40,6 +42,6 @@ defmodule WidgetAPI.Generated.Types.Widget do
   def decode(data, type \\ :t)
 
   def decode(data, type) when is_map(data) and is_atom(type) do
-    Pristine.Runtime.Schema.decode_module_type(WidgetAPI.Generated.Types.Widget, type, data)
+    RuntimeSchema.decode_module_type(__MODULE__, type, data)
   end
 end

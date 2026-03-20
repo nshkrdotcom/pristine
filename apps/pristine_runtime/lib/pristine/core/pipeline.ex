@@ -1705,20 +1705,20 @@ defmodule Pristine.Core.Pipeline do
       {:ok, decoded} ->
         decoded
         |> unwrap_response(endpoint)
-        |> validate_success_payload(response_schema, endpoint, context, opts)
+        |> validate_success_payload(response_schema, response_ref, context, opts)
 
       {:error, _} when body in [nil, ""] ->
-        validate_success_payload(%{}, response_schema, endpoint, context, opts)
+        validate_success_payload(%{}, response_schema, response_ref, context, opts)
 
       {:error, reason} ->
         success_validation_error(context, reason, body)
     end
   end
 
-  defp validate_success_payload(payload, response_schema, endpoint, context, opts) do
+  defp validate_success_payload(payload, response_schema, response_ref, context, opts) do
     case validate_response_schema(payload, response_schema, opts) do
       {:ok, validated} ->
-        {:ok, maybe_materialize_response(validated, endpoint.response, context, opts)}
+        {:ok, maybe_materialize_response(validated, response_ref, context, opts)}
 
       {:error, reason} ->
         success_validation_error(context, reason, payload)
