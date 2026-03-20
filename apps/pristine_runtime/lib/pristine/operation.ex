@@ -13,6 +13,7 @@ defmodule Pristine.Operation do
 
   @type partition_spec :: %{
           optional(:auth) => key_spec(),
+          optional(:headers) => [key_spec()],
           optional(:path) => [key_spec()],
           optional(:query) => [key_spec()],
           optional(:body) => payload_spec(),
@@ -22,6 +23,7 @@ defmodule Pristine.Operation do
   @type partition_t :: %{
           path_params: map(),
           query: map(),
+          headers: map(),
           body: term(),
           form_data: term(),
           auth: term()
@@ -119,12 +121,14 @@ defmodule Pristine.Operation do
     {auth, params} = take_value(params, Map.get(spec, :auth))
     {path_params, params} = take_entries(params, Map.get(spec, :path, []))
     {query, params} = take_entries(params, Map.get(spec, :query, []))
+    {headers, params} = take_entries(params, Map.get(spec, :headers, []))
     {body, params} = take_payload(params, Map.get(spec, :body, %{mode: :none}))
     {form_data, _params} = take_payload(params, Map.get(spec, :form_data, %{mode: :none}))
 
     %{
       path_params: path_params,
       query: query,
+      headers: headers,
       body: body,
       form_data: form_data,
       auth: auth
@@ -146,6 +150,18 @@ defmodule Pristine.Operation do
   def response_schema(operation, status \\ nil)
 
   def response_schema(%__MODULE__{response_schemas: schemas}, nil) do
+    response_schema_from_schemas(schemas)
+  end
+
+  def response_schema(%__MODULE__{response_schemas: schemas}, status) when is_integer(status) do
+    Map.get(schemas, status) ||
+      Map.get(schemas, Integer.to_string(status)) ||
+      Map.get(schemas, :default) ||
+      Map.get(schemas, "default") ||
+      response_schema_from_schemas(schemas)
+  end
+
+  defp response_schema_from_schemas(schemas) do
     success_schemas =
       schemas
       |> Enum.filter(fn
@@ -159,14 +175,6 @@ defmodule Pristine.Operation do
       [schema] -> schema
       many -> {:union, many}
     end
-  end
-
-  def response_schema(%__MODULE__{response_schemas: schemas}, status) when is_integer(status) do
-    Map.get(schemas, status) ||
-      Map.get(schemas, Integer.to_string(status)) ||
-      Map.get(schemas, :default) ||
-      Map.get(schemas, "default") ||
-      response_schema(%__MODULE__{response_schemas: schemas}, nil)
   end
 
   @spec items(t(), term()) :: term()

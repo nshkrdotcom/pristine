@@ -36,8 +36,6 @@ defmodule Pristine.Codegen.MixProject do
       {:jason, "~> 1.4"},
       {:yaml_elixir, "~> 2.12"},
       {:sinter, "~> 0.2.0"},
-      {:oapi_generator,
-       github: "nshkrdotcom/open-api-generator", branch: "doc-generator-fix", runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false}
@@ -46,7 +44,7 @@ defmodule Pristine.Codegen.MixProject do
 
   defp description do
     """
-    Build-time OpenAPI bridge and rendering package for Pristine-based SDKs.
+    Shared provider compiler, ProviderIR, and rendering package for Pristine-based SDKs.
     """
   end
 
@@ -77,7 +75,7 @@ defmodule Pristine.Codegen.MixProject do
 
   defp dialyzer do
     [
-      plt_add_apps: [:mix, :ex_unit, :oapi_generator],
+      plt_add_apps: [:mix, :ex_unit],
       plt_core_path: "../../_build/plts/core"
     ]
   end

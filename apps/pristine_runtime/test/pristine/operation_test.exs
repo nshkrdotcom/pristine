@@ -9,11 +9,13 @@ defmodule Pristine.OperationTest do
         %{
           "id" => "widget-123",
           "cursor" => "cursor-1",
+          "x-request-id" => "req-1",
           "payload" => %{"name" => "Ada"}
         },
         %{
           path: [{"id", :id}],
           query: [{"cursor", :cursor}],
+          headers: [{"x-request-id", :request_id}],
           body: %{mode: :key, key: {"payload", :payload}},
           form_data: %{mode: :none}
         }
@@ -21,6 +23,7 @@ defmodule Pristine.OperationTest do
 
     assert partition.path_params == %{"id" => "widget-123"}
     assert partition.query == %{"cursor" => "cursor-1"}
+    assert partition.headers == %{"x-request-id" => "req-1"}
     assert partition.body == %{"name" => "Ada"}
     assert is_nil(partition.form_data)
   end

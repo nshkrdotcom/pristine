@@ -84,7 +84,7 @@ defmodule Pristine.Workspace.MixProject do
   defp dialyzer do
     [
       plt_add_deps: :app_tree,
-      plt_add_apps: [:mix, :oapi_generator, :plug, :bandit, :telemetry_reporter, :tiktoken_ex],
+      plt_add_apps: [:mix, :plug, :bandit, :telemetry_reporter, :tiktoken_ex],
       plt_core_path: "_build/plts/core"
     ]
   end

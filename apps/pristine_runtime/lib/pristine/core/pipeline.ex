@@ -12,12 +12,12 @@ defmodule Pristine.Core.Pipeline do
     EndpointMetadata,
     Headers,
     HTTPMethod,
-    StreamResponse,
     PoolRouting,
     Request,
     RequestPath,
     Response,
     ResultClassification,
+    StreamResponse,
     TelemetryHeaders,
     Url
   }

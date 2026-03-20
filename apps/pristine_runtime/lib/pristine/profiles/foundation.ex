@@ -34,7 +34,7 @@ defmodule Pristine.Profiles.Foundation do
   - `telemetry`
   - `admission_control`
 
-  All other options are forwarded to `Pristine.context/1`.
+  All other options are forwarded to `Pristine.Core.Context.new/1`.
   """
   @spec context([option()]) :: Context.t()
   def context(opts \\ []) when is_list(opts) do

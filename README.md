@@ -7,16 +7,16 @@ dialyzer checks.
 ## Workspace Apps
 
 - `apps/pristine_runtime`
-  The publishable runtime package. This app still ships the `pristine` package
-  and owns request execution, Foundation-backed runtime wiring, OAuth helpers,
-  streaming, and the current SDK-facing runtime modules.
+  The publishable runtime package. This app ships the `pristine` package and
+  owns request execution, Foundation-backed runtime wiring, OAuth helpers, and
+  the `Pristine.Client` / `Pristine.Operation` runtime contract.
 - `apps/pristine_codegen`
-  The publishable build-time package. This app owns the retained
-  `Pristine.OpenAPI.Bridge.run/3` seam, OpenAPI normalization, rendering, and
-  generated docs/artifact support.
+  The publishable build-time package. This app owns the shared provider
+  compiler, `PristineCodegen.ProviderIR`, bounded plugin contracts, renderer
+  output, and the shared `pristine.codegen.*` task family.
 - `apps/pristine_provider_testkit`
-  Shared verification helpers for downstream provider SDK repos. This app stays
-  unpublished for now.
+  Shared freshness and conformance helpers for downstream provider SDK repos.
+  This app stays unpublished for now.
 
 ## Workspace Commands
 

@@ -22,13 +22,29 @@ mix ci
 ## App Boundaries
 
 - `apps/pristine_runtime`
-  Runtime execution, OAuth, streaming, adapters, and the current SDK-facing
-  runtime surface.
+  Runtime execution, OAuth, streaming, adapters, and the direct
+  `Pristine.Client` / `Pristine.Operation` runtime surface.
 - `apps/pristine_codegen`
-  OpenAPI bridge/profile/result/IR/renderer modules and the current build-time
-  generation tests.
+  Shared provider compiler, `ProviderIR` normalization, bounded plugins,
+  generated source rendering, and shared Mix task coverage.
 - `apps/pristine_provider_testkit`
-  Shared verification helpers for downstream provider repos.
+  Shared artifact freshness and provider conformance helpers for downstream
+  provider repos.
+
+## Provider Verification
+
+Provider repos should delegate generation through the shared task family:
+
+```bash
+mix pristine.codegen.generate MyProvider.Provider --project-root .
+mix pristine.codegen.verify MyProvider.Provider --project-root .
+mix pristine.codegen.ir MyProvider.Provider --project-root .
+mix pristine.codegen.refresh MyProvider.Provider --project-root .
+```
+
+Provider freshness and conformance tests should use
+`PristineProviderTestkit.Conformance.verify_provider/2` plus
+`PristineProviderTestkit.Artifacts`.
 
 ## Package-Level Checks
 

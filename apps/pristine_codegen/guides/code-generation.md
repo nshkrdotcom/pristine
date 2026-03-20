@@ -1,111 +1,67 @@
 # Code Generation
 
-`Pristine.OpenAPI.Bridge.run/3` is the retained first-party build-time seam for
-provider SDK generation.
+`PristineCodegen` is the shared provider compiler for generated SDK repos.
 
-It is intentionally separate from the runtime consumer surface:
+The compiler accepts:
 
-- runtime consumers use `Pristine.execute_request/3`
-- SDKs build contexts through `Pristine.foundation_context/1`
-- SDK-facing types live under `Pristine.SDK.*`
-- `Pristine.OpenAPI.Bridge.run/3` is for first-party build-time generation
-- It is not the normal consumer runtime entry
+- one provider definition module implementing `PristineCodegen.Provider`
+- zero or more bounded plugins for source, auth, pagination, and docs/example
+  enrichment
+- committed provider inputs and fingerprints
 
-`Pristine.OpenAPI.Bridge.run/3` also requires `oapi_generator` to be present as
-a build-time dependency.
+The compiler emits:
 
-## Running the Bridge
+- canonical `PristineCodegen.ProviderIR`
+- generated provider client, operation, pagination, and type modules
+- committed provider artifacts such as `provider_ir.json`,
+  `generation_manifest.json`, and `docs_inventory.json`
 
-```elixir
-result =
-  Pristine.OpenAPI.Bridge.run(
-    :widgets_sdk,
-    ["openapi/widgets.json"],
-    base_module: WidgetsSDK,
-    output_dir: "lib/widgets_sdk/generated",
-    source_contexts: %{
-      {:get, "/v1/widgets"} => %{
-        title: "Widgets",
-        url: "https://docs.example.com/widgets"
-      }
-    }
-  )
+## Provider Contract
 
-sources = Pristine.OpenAPI.Bridge.generated_sources(result)
-```
+Every provider repo should define:
 
-The bridge result is a `%Pristine.OpenAPI.Result{}` that retains the shared
-build artifacts needed by first-party SDK generators:
+- `definition/1`
+- `paths/1`
+- `source_plugins/0`
+- `auth_plugins/0`
+- `pagination_plugins/0`
+- `docs_plugins/0`
+- optional `refresh/1`
 
-- `ir`
-- `source_contexts`
-- `docs_manifest`
+Source plugins return `PristineCodegen.Source.Dataset`. Auth, pagination, and
+docs plugins receive `PristineCodegen.ProviderIR` and must return
+`PristineCodegen.ProviderIR`.
 
-The generated source files themselves still come from the configured
-`output_dir`, and `Pristine.OpenAPI.Bridge.generated_sources/1` lets you read
-those rendered files back for verification.
-
-## Runtime Contract for Generated SDKs
-
-Generated SDKs should target the hardened runtime boundary instead of any
-manifest-first API:
-
-- `Pristine.execute_request/3`
-- `Pristine.foundation_context/1`
-- `Pristine.SDK.*`
-
-In practice that means generated providers should lean on:
-
-- `Pristine.SDK.OpenAPI.Client`
-- `Pristine.SDK.OpenAPI.Operation`
-- `Pristine.SDK.OpenAPI.Runtime`
-- `Pristine.SDK.OAuth2.*`
-
-That keeps generated packages isolated from `Pristine.Core.*` and other runtime
-internals.
-
-## OAuth Security Scheme Metadata
-
-SDK-facing OAuth provider construction comes from OpenAPI security scheme data:
+## Running The Compiler
 
 ```elixir
-provider =
-  Pristine.SDK.OAuth2.Provider.from_security_scheme!(
-    "providerOAuth",
-    %{
-      "type" => "oauth2",
-      "flows" => %{
-        "authorizationCode" => %{
-          "authorizationUrl" => "/oauth/authorize",
-          "tokenUrl" => "/oauth/token",
-          "scopes" => %{"user.read" => "Read users"}
-        }
-      },
-      "x-pristine-flow" => "authorizationCode",
-      "x-pristine-default-scopes" => ["user.read"],
-      "x-pristine-client-auth-method" => "request_body",
-      "x-pristine-token-method" => "post",
-      "x-pristine-token-content-type" => "application/json",
-      "x-pristine-revocation-url" => "/oauth/revoke",
-      "x-pristine-introspection-url" => "/oauth/introspect"
-    },
-    site: "https://api.example.com"
-  )
+{:ok, compilation} =
+  PristineCodegen.generate(MyProvider.Provider, project_root: File.cwd!())
+
+provider_ir = compilation.provider_ir
 ```
 
-The retained `x-pristine-*` extensions are:
+Provider repos should expose provider-facing tasks that delegate into the shared
+task family:
 
-- `x-pristine-flow`
-- `x-pristine-default-scopes`
-- `x-pristine-client-auth-method`
-- `x-pristine-token-method`
-- `x-pristine-token-content-type`
-- `x-pristine-revocation-url`
-- `x-pristine-introspection-url`
+```bash
+mix pristine.codegen.generate MyProvider.Provider --project-root .
+mix pristine.codegen.verify MyProvider.Provider --project-root .
+mix pristine.codegen.ir MyProvider.Provider --project-root .
+mix pristine.codegen.refresh MyProvider.Provider --project-root .
+```
 
-These extensions let first-party SDK generators preserve provider-specific OAuth
-behavior without exposing manifests through the blessed SDK namespace.
+## Runtime Contract
 
-At runtime, generated SDKs use `Pristine.SDK.OAuth2` against Pristine's native
-default OAuth backend. Browser launch and loopback callback capture stay
-optional adapter layers for SDKs that offer interactive onboarding flows.
+Generated provider code targets the runtime package directly:
+
+- `Pristine.Client`
+- `Pristine.Operation`
+- `Pristine.execute/3`
+- `Pristine.stream/3`
+
+Generated operation modules construct `Pristine.Operation` values from
+`ProviderIR`, partition request params with `Pristine.Operation.partition/2`,
+and execute through `Pristine.execute/3` or generated pagination wrappers over
+that contract. They do not emit request-spec maps, bridge state, or repo-local
+generic execution shims.
