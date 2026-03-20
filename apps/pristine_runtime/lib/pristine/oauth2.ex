@@ -363,8 +363,6 @@ defmodule Pristine.OAuth2 do
     end
   end
 
-  defp oauth_error_message(_body), do: "oauth provider returned an error"
-
   defp body_value(body, key) when is_map(body) do
     Map.get(body, key) || Map.get(body, String.to_atom(key))
   rescue

@@ -2,12 +2,22 @@ defmodule Pristine.Workspace.AppPackagingContractTest do
   use ExUnit.Case, async: true
 
   defp project_config(path, module) do
-    path
-    |> Path.join("mix.exs")
-    |> Path.expand()
-    |> Code.require_file()
+    ensure_mix_project_loaded!(path, module)
 
     module.project()
+  end
+
+  defp ensure_mix_project_loaded!(path, module) do
+    if Code.ensure_loaded?(module) do
+      :ok
+    else
+      path
+      |> Path.join("mix.exs")
+      |> Path.expand()
+      |> Code.require_file()
+
+      :ok
+    end
   end
 
   defp has_dep?(deps, app) do
