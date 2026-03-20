@@ -61,11 +61,10 @@ defmodule PristineCodegen.Compiler do
   def verify(provider_module, opts \\ []) do
     with {:ok, compilation} <- compile(provider_module, opts) do
       expected_files = Compilation.all_files(compilation)
-      project_root = compilation.paths.project_root
 
-      missing_paths = missing_paths(expected_files, project_root)
-      stale_paths = stale_paths(expected_files, project_root, missing_paths)
-      forbidden_paths = forbidden_paths(compilation.provider_ir, project_root)
+      missing_paths = missing_paths(compilation, expected_files)
+      stale_paths = stale_paths(compilation, expected_files, missing_paths)
+      forbidden_paths = forbidden_paths(compilation.provider_ir, compilation.paths.project_root)
 
       if missing_paths == [] and stale_paths == [] and forbidden_paths == [] do
         :ok
@@ -158,17 +157,17 @@ defmodule PristineCodegen.Compiler do
   defp deep_merge(left, right) when is_list(left) and is_list(right), do: left ++ right
   defp deep_merge(_left, right), do: right
 
-  defp missing_paths(expected_files, project_root) do
+  defp missing_paths(compilation, expected_files) do
     expected_files
+    |> Enum.reject(&File.exists?(Artifacts.absolute_path(compilation, &1)))
     |> Enum.map(& &1.relative_path)
-    |> Enum.reject(&File.exists?(Path.join(project_root, &1)))
     |> Enum.sort()
   end
 
-  defp stale_paths(expected_files, project_root, missing_paths) do
+  defp stale_paths(compilation, expected_files, missing_paths) do
     expected_files
     |> Enum.reject(fn rendered_file ->
-      absolute_path = Path.join(project_root, rendered_file.relative_path)
+      absolute_path = Artifacts.absolute_path(compilation, rendered_file)
 
       case File.read(absolute_path) do
         {:ok, contents} -> contents == rendered_file.contents

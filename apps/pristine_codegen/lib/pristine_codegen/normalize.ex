@@ -65,6 +65,7 @@ defmodule PristineCodegen.Normalize do
     %Provider{
       id: Map.fetch!(provider, :id),
       base_module: Map.fetch!(provider, :base_module),
+      client_module: Map.get(provider, :client_module),
       package_app: Map.fetch!(provider, :package_app),
       package_name: Map.fetch!(provider, :package_name),
       source_strategy: Map.fetch!(provider, :source_strategy)
@@ -89,6 +90,7 @@ defmodule PristineCodegen.Normalize do
       %Schema{
         id: Map.fetch!(schema, :id),
         module: normalize_generated_module(base_module, Map.fetch!(schema, :module)),
+        type_name: normalize_function(Map.get(schema, :type_name, :t)),
         kind: Map.fetch!(schema, :kind),
         fields:
           schema
@@ -100,7 +102,7 @@ defmodule PristineCodegen.Normalize do
           |> Enum.map(&normalize_map/1)
       }
     end)
-    |> Enum.sort_by(& &1.id)
+    |> Enum.sort_by(&{&1.module, &1.type_name, &1.id})
   end
 
   defp normalize_operations(operations, base_module, schema_modules_by_id) do

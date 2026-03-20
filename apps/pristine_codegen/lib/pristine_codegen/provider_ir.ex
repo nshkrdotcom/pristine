@@ -11,13 +11,14 @@ defmodule PristineCodegen.ProviderIR do
     @type t :: %__MODULE__{
             id: atom(),
             base_module: module(),
+            client_module: module() | nil,
             package_app: atom(),
             package_name: String.t(),
             source_strategy: atom()
           }
 
     @enforce_keys [:id, :base_module, :package_app, :package_name, :source_strategy]
-    defstruct [:id, :base_module, :package_app, :package_name, :source_strategy]
+    defstruct [:id, :base_module, :client_module, :package_app, :package_name, :source_strategy]
   end
 
   defmodule RuntimeDefaults do
@@ -180,13 +181,14 @@ defmodule PristineCodegen.ProviderIR do
     @type t :: %__MODULE__{
             id: String.t(),
             module: module(),
+            type_name: atom(),
             kind: atom(),
             fields: [map()],
             source_refs: [map()]
           }
 
-    @enforce_keys [:id, :module, :kind, :fields, :source_refs]
-    defstruct [:id, :module, :kind, :fields, :source_refs]
+    @enforce_keys [:id, :module, :type_name, :kind, :fields, :source_refs]
+    defstruct [:id, :module, :type_name, :kind, :fields, :source_refs]
   end
 
   defmodule DocsInventory do

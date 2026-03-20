@@ -123,10 +123,16 @@ defmodule PristineCodegen.TestSupport.SampleProvider do
   def paths(opts) do
     project_root = Keyword.fetch!(opts, :project_root)
 
+    generated_code_dir =
+      Keyword.get(opts, :generated_code_dir, Path.join(project_root, @generated_code_dir))
+
+    generated_artifact_dir =
+      Keyword.get(opts, :generated_artifact_dir, Path.join(project_root, @generated_artifact_dir))
+
     %{
       project_root: project_root,
-      generated_code_dir: Path.join(project_root, @generated_code_dir),
-      generated_artifact_dir: Path.join(project_root, @generated_artifact_dir)
+      generated_code_dir: generated_code_dir,
+      generated_artifact_dir: generated_artifact_dir
     }
   end
 

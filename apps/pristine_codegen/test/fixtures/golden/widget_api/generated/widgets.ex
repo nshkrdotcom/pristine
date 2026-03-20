@@ -6,20 +6,21 @@ defmodule WidgetAPI.Generated.Widgets do
   @list_widgets_partition_spec %{
     path: [],
     body: %{mode: :none},
+    form_data: %{mode: :none},
     query: [{"cursor", :cursor}, {"limit", :limit}],
-    headers: [{"x-request-id", :request_id}],
-    form_data: %{mode: :none}
+    headers: [{"x-request-id", :request_id}]
   }
 
-  @spec list_widgets(Pristine.Client.t(), map(), keyword()) :: {:ok, term()} | {:error, term()}
-  def list_widgets(%Pristine.Client{} = client, params \\ %{}, opts \\ [])
+  @doc "Returns widgets in cursor order."
+  @spec list_widgets(term(), map(), keyword()) :: {:ok, term()} | {:error, term()}
+  def list_widgets(client, params \\ %{}, opts \\ [])
       when is_map(params) and is_list(opts) do
     operation = build_list_widgets_operation(params)
     Pristine.execute(client, operation, opts)
   end
 
-  @spec stream_list_widgets(Pristine.Client.t(), map(), keyword()) :: Enumerable.t()
-  def stream_list_widgets(%Pristine.Client{} = client, params \\ %{}, opts \\ [])
+  @spec stream_list_widgets(term(), map(), keyword()) :: Enumerable.t()
+  def stream_list_widgets(client, params \\ %{}, opts \\ [])
       when is_map(params) and is_list(opts) do
     Stream.resource(
       fn -> build_list_widgets_operation(params) end,

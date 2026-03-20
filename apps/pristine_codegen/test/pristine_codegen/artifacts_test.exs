@@ -12,9 +12,9 @@ defmodule PristineCodegen.ArtifactsTest do
 
     assert Enum.map(compilation.provider_ir.artifact_plan.artifacts, & &1.path) == [
              "lib/widget_api/generated/client.ex",
+             "lib/widget_api/generated/schemas/types/session_token.ex",
+             "lib/widget_api/generated/schemas/types/widget.ex",
              "lib/widget_api/generated/sessions.ex",
-             "lib/widget_api/generated/types/session_token.ex",
-             "lib/widget_api/generated/types/widget.ex",
              "lib/widget_api/generated/widgets.ex",
              "priv/generated/provider_ir.json",
              "priv/generated/generation_manifest.json",
@@ -75,6 +75,36 @@ defmodule PristineCodegen.ArtifactsTest do
            ]
 
     assert auth_inventory["sessions/create"] == "session_basic"
+  end
+
+  test "writes and verifies against provider output path overrides" do
+    project_root = tmp_project_root!("override-root")
+    generated_code_dir = Path.join(project_root, "tmp/generated/code")
+    generated_artifact_dir = Path.join(project_root, "tmp/generated/artifacts")
+
+    assert {:ok, _compilation} =
+             Compiler.generate(
+               SampleProvider,
+               project_root: project_root,
+               generated_code_dir: generated_code_dir,
+               generated_artifact_dir: generated_artifact_dir
+             )
+
+    assert File.exists?(Path.join(generated_code_dir, "client.ex"))
+    assert File.exists?(Path.join(generated_code_dir, "widgets.ex"))
+    assert File.exists?(Path.join(generated_artifact_dir, "provider_ir.json"))
+    assert File.exists?(Path.join(generated_artifact_dir, "generation_manifest.json"))
+
+    refute File.exists?(Path.join(project_root, "lib/widget_api/generated/client.ex"))
+    refute File.exists?(Path.join(project_root, "priv/generated/provider_ir.json"))
+
+    assert :ok =
+             Compiler.verify(
+               SampleProvider,
+               project_root: project_root,
+               generated_code_dir: generated_code_dir,
+               generated_artifact_dir: generated_artifact_dir
+             )
   end
 
   defp tmp_project_root!(suffix) do

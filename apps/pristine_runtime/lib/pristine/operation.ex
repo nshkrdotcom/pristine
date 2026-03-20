@@ -12,7 +12,7 @@ defmodule Pristine.Operation do
           | %{mode: :none}
 
   @type partition_spec :: %{
-          optional(:auth) => key_spec(),
+          optional(:auth) => key_spec() | payload_spec(),
           optional(:headers) => [key_spec()],
           optional(:path) => [key_spec()],
           optional(:query) => [key_spec()],
@@ -118,7 +118,7 @@ defmodule Pristine.Operation do
 
   @spec partition(map(), partition_spec()) :: partition_t()
   def partition(params, spec) when is_map(params) and is_map(spec) do
-    {auth, params} = take_value(params, Map.get(spec, :auth))
+    {auth, params} = take_auth(params, Map.get(spec, :auth))
     {path_params, params} = take_entries(params, Map.get(spec, :path, []))
     {query, params} = take_entries(params, Map.get(spec, :query, []))
     {headers, params} = take_entries(params, Map.get(spec, :headers, []))
@@ -214,16 +214,31 @@ defmodule Pristine.Operation do
   defp build_cursor_page(%__MODULE__{} = operation, body, cursor_key) do
     cursor_path = fetch_mapping(operation.pagination.response_mapping, cursor_key)
     cursor = get_path_value(body, cursor_path)
+    cursor_param = fetch_mapping(operation.pagination.request_mapping, :cursor_param)
+
+    cursor_location =
+      fetch_mapping(operation.pagination.request_mapping, :cursor_location) || :query
 
     if blank?(cursor) do
       nil
     else
-      query =
-        operation.query
-        |> maybe_put_limit(operation.pagination)
-        |> Map.put(fetch_mapping(operation.pagination.request_mapping, :cursor_param), cursor)
+      case cursor_location do
+        :body ->
+          body =
+            operation.body
+            |> maybe_put_limit_payload(operation.pagination)
+            |> Map.put(cursor_param, cursor)
 
-      %__MODULE__{operation | query: query}
+          %__MODULE__{operation | body: body}
+
+        _other ->
+          query =
+            operation.query
+            |> maybe_put_limit(operation.pagination)
+            |> Map.put(cursor_param, cursor)
+
+          %__MODULE__{operation | query: query}
+      end
     end
   end
 
@@ -309,6 +324,19 @@ defmodule Pristine.Operation do
       is_nil(limit_param) -> query
       Map.has_key?(query, limit_param) -> query
       true -> Map.put(query, limit_param, limit)
+    end
+  end
+
+  defp maybe_put_limit_payload(body, %{default_limit: nil}), do: normalize_payload_map(body)
+
+  defp maybe_put_limit_payload(body, %{request_mapping: mapping, default_limit: limit}) do
+    body = normalize_payload_map(body)
+    limit_param = fetch_mapping(mapping, :limit_param)
+
+    cond do
+      is_nil(limit_param) -> body
+      Map.has_key?(body, limit_param) -> body
+      true -> Map.put(body, limit_param, limit)
     end
   end
 
@@ -588,6 +616,13 @@ defmodule Pristine.Operation do
     end)
   end
 
+  defp take_auth(params, nil), do: {nil, params}
+  defp take_auth(params, {string_key, atom_key}), do: take_value(params, {string_key, atom_key})
+
+  defp take_auth(params, %{mode: mode} = spec) when mode in [:none, :remaining, :keys, :key] do
+    take_payload(params, spec)
+  end
+
   defp take_value(params, nil), do: {nil, params}
 
   defp take_value(params, {string_key, atom_key}) do
@@ -605,6 +640,9 @@ defmodule Pristine.Operation do
 
   defp normalize_payload(value) when is_map(value), do: stringify_map(value)
   defp normalize_payload(value), do: value
+
+  defp normalize_payload_map(value) when is_map(value), do: stringify_map(value)
+  defp normalize_payload_map(_value), do: %{}
 
   defp stringify_map(value) when is_map(value) do
     Map.new(value, fn {key, item} -> {to_string(key), item} end)

@@ -28,12 +28,27 @@ defmodule PristineCodegen.Artifacts do
   @spec write_files(Compilation.t()) :: Compilation.t()
   def write_files(%Compilation{} = compilation) do
     Enum.each(Compilation.all_files(compilation), fn rendered_file ->
-      absolute_path = Path.join(compilation.paths.project_root, rendered_file.relative_path)
+      absolute_path = absolute_path(compilation, rendered_file)
       File.mkdir_p!(Path.dirname(absolute_path))
       File.write!(absolute_path, rendered_file.contents)
     end)
 
     compilation
+  end
+
+  @spec absolute_path(Compilation.t(), RenderedFile.t()) :: String.t()
+  def absolute_path(%Compilation{} = compilation, %RenderedFile{} = rendered_file) do
+    output_root =
+      case rendered_file.kind do
+        :code -> compilation.paths.generated_code_dir
+        :artifact -> compilation.paths.generated_artifact_dir
+      end
+
+    relative_root = relative_root(compilation.provider_ir, rendered_file)
+
+    rendered_file.relative_path
+    |> Path.relative_to(relative_root)
+    |> then(&Path.join(output_root, &1))
   end
 
   defp render_artifact(:provider_ir, provider_ir, _rendered_files) do
@@ -45,10 +60,11 @@ defmodule PristineCodegen.Artifacts do
       provider_ir.artifact_plan.artifacts
       |> Enum.reject(&(&1.kind == :code))
       |> Enum.map(& &1.path)
+      |> Enum.sort()
 
     manifest = %{
       provider: ProviderIR.to_map(provider_ir.provider),
-      generated_files: Enum.map(rendered_files, & &1.relative_path),
+      generated_files: rendered_files |> Enum.map(& &1.relative_path) |> Enum.sort(),
       artifact_files: artifact_files,
       operation_count: length(provider_ir.operations),
       schema_count: length(provider_ir.schemas),
@@ -75,5 +91,45 @@ defmodule PristineCodegen.Artifacts do
       |> Map.new()
 
     JSON.encode!(operation_auth_policies)
+  end
+
+  defp relative_root(provider_ir, %RenderedFile{kind: :code}) do
+    provider_ir.artifact_plan.generated_code_dir
+  end
+
+  defp relative_root(provider_ir, %RenderedFile{kind: :artifact}) do
+    provider_ir
+    |> artifact_roots()
+    |> common_path_prefix()
+  end
+
+  defp artifact_roots(provider_ir) do
+    provider_ir.artifact_plan.artifacts
+    |> Enum.filter(&(&1.kind == :artifact))
+    |> Enum.map(&Path.dirname(&1.path))
+    |> Enum.uniq()
+  end
+
+  defp common_path_prefix([root]), do: root
+
+  defp common_path_prefix([root | roots]) do
+    root_segments = Path.split(root)
+
+    roots
+    |> Enum.map(&Path.split/1)
+    |> Enum.reduce(root_segments, &shared_segments/2)
+    |> case do
+      [] -> "."
+      segments -> Path.join(segments)
+    end
+  end
+
+  defp common_path_prefix([]), do: "."
+
+  defp shared_segments(path_segments, prefix_segments) do
+    path_segments
+    |> Enum.zip(prefix_segments)
+    |> Enum.take_while(fn {left, right} -> left == right end)
+    |> Enum.map(fn {segment, _segment} -> segment end)
   end
 end

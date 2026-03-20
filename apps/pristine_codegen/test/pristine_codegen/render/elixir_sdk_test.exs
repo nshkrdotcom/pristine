@@ -23,7 +23,7 @@ defmodule PristineCodegen.Render.ElixirSDKTest do
     assert rendered_files["lib/widget_api/generated/widgets.ex"] ==
              File.read!(Path.join(@golden_root, "generated/widgets.ex"))
 
-    assert rendered_files["lib/widget_api/generated/types/widget.ex"] ==
+    assert rendered_files["lib/widget_api/generated/schemas/types/widget.ex"] ==
              File.read!(Path.join(@golden_root, "generated/types/widget.ex"))
 
     assert rendered_files["lib/widget_api/generated/widgets.ex"] =~
@@ -33,7 +33,9 @@ defmodule PristineCodegen.Render.ElixirSDKTest do
              "Pristine.Operation.partition(params"
 
     assert rendered_files["lib/widget_api/generated/widgets.ex"] =~ "def stream_list_widgets("
-    assert rendered_files["lib/widget_api/generated/types/widget.ex"] =~ "defstruct [:id, :name]"
+
+    assert rendered_files["lib/widget_api/generated/schemas/types/widget.ex"] =~
+             "defstruct [:id, :name]"
 
     refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "Pristine.OpenAPI"))
     refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "Pristine.SDK"))
