@@ -254,4 +254,36 @@ defmodule Pristine.OAuth2Test do
              "workspace_name" => "Example Workspace"
            }
   end
+
+  test "treats 2xx token responses with OAuth error fields as failures" do
+    expect(Pristine.TransportMock, :send, fn %Request{}, %Context{} ->
+      {:ok,
+       %Response{
+         status: 200,
+         headers: %{"content-type" => "application/json"},
+         body:
+           Jason.encode!(%{
+             "error" => "bad_verification_code",
+             "error_description" => "The code passed is incorrect or expired.",
+             "error_uri" =>
+               "https://docs.github.com/apps/managing-oauth-apps/troubleshooting-oauth-app-access-token-request-errors/#bad-verification-code"
+           })
+       }}
+    end)
+
+    assert {:error, %Pristine.OAuth2.Error{} = error} =
+             OAuth2.exchange_code(provider(), "auth-code",
+               client_id: "client-id",
+               client_secret: "client-secret",
+               redirect_uri: "https://example.com/callback",
+               context: oauth_context()
+             )
+
+    assert error.reason == :token_request_failed
+    assert error.status == 200
+    assert error.body["error"] == "bad_verification_code"
+
+    assert error.message ==
+             "oauth provider returned an error: bad_verification_code - The code passed is incorrect or expired."
+  end
 end

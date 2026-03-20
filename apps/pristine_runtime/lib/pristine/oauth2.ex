@@ -271,8 +271,24 @@ defmodule Pristine.OAuth2 do
     end
   end
 
-  defp ensure_success(%Response{status: status}, _body, _provider) when status in 200..299,
-    do: :ok
+  defp ensure_success(%Response{status: status} = response, body, provider)
+       when status in 200..299 do
+    case oauth_error_body(body) do
+      nil ->
+        :ok
+
+      error_body ->
+        {:error,
+         Error.new(
+           :token_request_failed,
+           status: response.status,
+           body: body,
+           headers: normalize_header_map(response.headers),
+           provider: provider.name,
+           message: oauth_error_message(error_body)
+         )}
+    end
+  end
 
   defp ensure_success(%Response{} = response, body, provider) do
     {:error,
@@ -321,6 +337,39 @@ defmodule Pristine.OAuth2 do
   end
 
   defp normalize_header_map(_headers), do: %{}
+
+  defp oauth_error_body(body) when is_map(body) do
+    case body_value(body, "error") do
+      value when is_binary(value) and value != "" -> body
+      _other -> nil
+    end
+  end
+
+  defp oauth_error_body(_body), do: nil
+
+  defp oauth_error_message(body) when is_map(body) do
+    error = body_value(body, "error")
+    description = body_value(body, "error_description")
+
+    cond do
+      is_binary(error) and error != "" and is_binary(description) and description != "" ->
+        "oauth provider returned an error: #{error} - #{description}"
+
+      is_binary(error) and error != "" ->
+        "oauth provider returned an error: #{error}"
+
+      true ->
+        "oauth provider returned an error"
+    end
+  end
+
+  defp oauth_error_message(_body), do: "oauth provider returned an error"
+
+  defp body_value(body, key) when is_map(body) do
+    Map.get(body, key) || Map.get(body, String.to_atom(key))
+  rescue
+    ArgumentError -> Map.get(body, key)
+  end
 
   defp stringify_keys(map) when is_map(map) do
     Map.new(map, fn {key, value} -> {to_string(key), value} end)
