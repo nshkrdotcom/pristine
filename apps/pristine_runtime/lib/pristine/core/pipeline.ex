@@ -24,6 +24,7 @@ defmodule Pristine.Core.Pipeline do
 
   alias Pristine.Operation
   alias Pristine.Runtime.Schema, as: RuntimeSchema
+  alias Pristine.SDK.ProviderProfile
 
   @retry_policy_keys [
     :backoff,
@@ -86,6 +87,36 @@ defmodule Pristine.Core.Pipeline do
         merge_string_key_maps(operation.path_params, opts[:path_params])
       )
       |> maybe_put_new(:auth, operation_auth_override(operation))
+
+    execute_endpoint(endpoint, payload, context, execute_opts)
+  end
+
+  @doc false
+  @spec execute_request(map(), Context.t(), keyword()) :: {:ok, term()} | {:error, term()}
+  def execute_request(request_spec, %Context{} = context, opts \\ [])
+      when is_map(request_spec) and is_list(opts) do
+    {payload, body_type, content_type} =
+      request_payload(%{
+        body: Map.get(request_spec, :body),
+        form_data: Map.get(request_spec, :form_data)
+      })
+
+    endpoint =
+      EndpointMetadata.from_request_spec(
+        request_spec,
+        body_type: body_type,
+        content_type: content_type
+      )
+
+    execute_opts =
+      opts
+      |> Keyword.put(
+        :path_params,
+        merge_string_key_maps(Map.get(request_spec, :path_params, %{}), opts[:path_params])
+      )
+      |> maybe_put_new(:auth, request_auth_override(request_spec))
+      |> maybe_put_new(:headers, Map.get(request_spec, :headers))
+      |> maybe_put_new(:query, Map.get(request_spec, :query))
 
     execute_endpoint(endpoint, payload, context, execute_opts)
   end
@@ -491,6 +522,19 @@ defmodule Pristine.Core.Pipeline do
 
   defp operation_auth_override(%Operation{auth: %{use_client_default?: false}}), do: []
   defp operation_auth_override(_operation), do: nil
+
+  defp request_auth_override(%{auth: %{override: override}})
+       when not is_nil(override),
+       do: override
+
+  defp request_auth_override(%{auth: %{use_client_default?: false}}), do: []
+
+  defp request_auth_override(%{auth: override, use_default_auth: false})
+       when override in [nil, false],
+       do: []
+
+  defp request_auth_override(%{auth: override}) when override not in [nil, false], do: override
+  defp request_auth_override(_request_spec), do: nil
 
   defp execute_with_resilience(
          admission_control,
@@ -1769,12 +1813,16 @@ defmodule Pristine.Core.Pipeline do
     end
   end
 
-  defp validation_error(%Context{error_module: error_module}, reason, body) do
+  defp validation_error(%Context{error_module: error_module} = context, reason, body) do
     cond do
+      ensure_module_loaded?(error_module) and
+          function_exported?(error_module, :validation_error, 3) ->
+        error_module.validation_error(reason, body, error_opts(context))
+
       is_atom(error_module) and function_exported?(error_module, :validation_error, 2) ->
         error_module.validation_error(reason, body)
 
-      is_atom(error_module) and function_exported?(error_module, :new, 3) ->
+      ensure_module_loaded?(error_module) and function_exported?(error_module, :new, 3) ->
         error_module.new(:validation, "JSON decode error: #{inspect(reason)}",
           category: :user,
           data: %{body: body}
@@ -1793,7 +1841,7 @@ defmodule Pristine.Core.Pipeline do
   defp validation_reason?(_reason), do: false
 
   defp build_error(
-         %Context{error_module: error_module},
+         %Context{error_module: error_module} = context,
          %Response{} = response,
          body,
          retry_after_ms,
@@ -1801,14 +1849,27 @@ defmodule Pristine.Core.Pipeline do
        ) do
     case error_module_arity(error_module) do
       {:ok, arity} ->
-        invoke_error_module(error_module, arity, response, body, retry_after_ms, opts)
+        invoke_error_module(
+          error_module,
+          arity,
+          response,
+          body,
+          retry_after_ms,
+          error_opts(context, opts)
+        )
 
       :error ->
-        Pristine.Error.from_response(%Response{response | body: body})
+        Pristine.Error.from_response(%Response{response | body: body},
+          body: body,
+          retry_after_ms: retry_after_ms,
+          profile: context.provider_profile
+        )
     end
   end
 
   defp error_module_arity(error_module) when is_atom(error_module) do
+    ensure_module_loaded?(error_module)
+
     arity =
       [4, 3, 2, 1]
       |> Enum.find(&function_exported?(error_module, :from_response, &1))
@@ -1834,12 +1895,16 @@ defmodule Pristine.Core.Pipeline do
     error_module.from_response(response)
   end
 
-  defp connection_error(%Context{error_module: error_module}, reason) do
+  defp connection_error(%Context{error_module: error_module} = context, reason) do
     cond do
+      ensure_module_loaded?(error_module) and
+          function_exported?(error_module, :connection_error, 2) ->
+        error_module.connection_error(reason, error_opts(context))
+
       is_atom(error_module) and function_exported?(error_module, :connection_error, 1) ->
         error_module.connection_error(reason)
 
-      is_atom(error_module) and function_exported?(error_module, :new, 3) ->
+      ensure_module_loaded?(error_module) and function_exported?(error_module, :new, 3) ->
         error_module.new(:api_connection, format_error_reason(reason), data: %{exception: reason})
 
       true ->
@@ -1863,10 +1928,15 @@ defmodule Pristine.Core.Pipeline do
     end
   end
 
-  defp parse_retry_after(%Context{retry: retry}, %Response{headers: headers}) do
-    if is_atom(retry) and function_exported?(retry, :parse_retry_after, 1) do
-      retry.parse_retry_after(%{headers: headers})
-    end
+  defp parse_retry_after(%Context{retry: retry, provider_profile: provider_profile}, %Response{
+         headers: headers
+       }) do
+    retry_after_ms =
+      if ensure_module_loaded?(retry) and function_exported?(retry, :parse_retry_after, 1) do
+        retry.parse_retry_after(%{headers: headers})
+      end
+
+    retry_after_ms || ProviderProfile.retry_after_ms(provider_profile, headers)
   end
 
   defp normalize_response_body(%Response{body: body} = response) when is_binary(body),
@@ -2005,4 +2075,14 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp response_schema_for_status(response_ref, _status), do: response_ref
+
+  defp ensure_module_loaded?(module) when is_atom(module) do
+    Code.ensure_loaded?(module)
+  end
+
+  defp ensure_module_loaded?(_module), do: false
+
+  defp error_opts(%Context{} = context, opts \\ []) do
+    Keyword.put(opts, :profile, context.provider_profile)
+  end
 end

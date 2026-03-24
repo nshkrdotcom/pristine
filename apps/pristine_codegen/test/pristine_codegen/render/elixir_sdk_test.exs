@@ -30,20 +30,23 @@ defmodule PristineCodegen.Render.ElixirSDKTest do
              File.read!(Path.join(@golden_root, "generated/types/widget.ex"))
 
     assert rendered_files["lib/widget_api/generated/widgets.ex"] =~
-             "Pristine.execute(client, operation, opts)"
+             "WidgetAPI.Client.execute_generated_request(client, request)"
 
     assert rendered_files["lib/widget_api/generated/widgets.ex"] =~
-             "Pristine.Operation.partition(params"
+             "OpenAPIClient.partition(params"
 
     assert rendered_files["lib/widget_api/generated/widgets.ex"] =~ "def stream_list_widgets("
+
+    assert rendered_files["lib/widget_api/generated/widgets.ex"] =~
+             "opts = normalize_request_opts!(opts)"
 
     assert rendered_files["lib/widget_api/generated/schemas/types/widget.ex"] =~
              "defstruct [:id, :name]"
 
     refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "Pristine.OpenAPI"))
-    refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "Pristine.SDK"))
     refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "Pristine.Runtime"))
     refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "GeneratedSupport"))
+    refute Enum.any?(Map.values(rendered_files), &String.contains?(&1, "Pristine.Operation.new("))
 
     Enum.each(rendered_files, fn {relative_path, contents} ->
       Code.compile_string(contents, relative_path)

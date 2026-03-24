@@ -18,11 +18,6 @@ defmodule Pristine.DocsContractTest do
   ]
 
   @removed_contract_markers [
-    "Pristine.context(",
-    "Pristine.foundation_context(",
-    "Pristine.execute_request(",
-    "Pristine.SDK",
-    "Pristine.SDK.OpenAPI",
     "Pristine.OpenAPI",
     "Pristine.OpenAPI.Runtime",
     "GeneratedSupport"
@@ -52,7 +47,22 @@ defmodule Pristine.DocsContractTest do
     assert oauth_guide =~ "`Pristine.OAuth2`"
   end
 
-  test "runtime docs do not advertise the removed SDK and request-spec surface" do
+  test "runtime docs advertise the rebuilt SDK and request-spec surface" do
+    readme = File.read!(@readme_path)
+    getting_started = File.read!(@getting_started_path)
+
+    assert readme =~ "`Pristine.context/1`"
+    assert readme =~ "`Pristine.foundation_context/1`"
+    assert readme =~ "`Pristine.execute_request/3`"
+    assert readme =~ "`Pristine.SDK.*`"
+
+    assert getting_started =~ "`Pristine.context/1`"
+    assert getting_started =~ "`Pristine.foundation_context/1`"
+    assert getting_started =~ "`Pristine.execute_request/3`"
+    assert getting_started =~ "`Pristine.SDK.OpenAPI.Client`"
+  end
+
+  test "runtime docs do not advertise the removed legacy runtime surface" do
     violations =
       Enum.flat_map(@public_docs, fn path ->
         source = File.read!(path)

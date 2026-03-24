@@ -11,7 +11,7 @@ defmodule Pristine.ErrorTest do
 
       assert error.type == :bad_request
       assert error.status == 400
-      assert error.body == "Bad request"
+      assert error.body == %{"message" => "Bad request"}
     end
 
     test "creates authentication error for 401" do
@@ -84,7 +84,7 @@ defmodule Pristine.ErrorTest do
       response = %Response{status: 400, body: ~s({"error": "invalid"})}
       error = Error.from_response(response)
 
-      assert error.body == ~s({"error": "invalid"})
+      assert error.body == %{"error" => "invalid"}
     end
 
     test "includes headers in response" do

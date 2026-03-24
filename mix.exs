@@ -41,6 +41,7 @@ defmodule Pristine.Workspace.MixProject do
       {:bandit, "~> 1.10", only: [:dev, :test], runtime: false},
       {:telemetry_reporter, "~> 0.1.0", only: [:dev, :test], runtime: false},
       {:tiktoken_ex, "~> 0.2.0", only: [:dev, :test], runtime: false},
+      {:mox, "~> 1.2", only: :test, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false}

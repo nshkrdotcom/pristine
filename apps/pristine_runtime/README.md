@@ -6,47 +6,47 @@ The public runtime contract is:
 
 - `Pristine.Client`
 - `Pristine.Operation`
+- `Pristine.context/1`
+- `Pristine.foundation_context/1`
 - `Pristine.Response`
 - `Pristine.Error`
 - `Pristine.execute/3`
+- `Pristine.execute_request/3`
 - `Pristine.stream/3`
+- `Pristine.SDK.*`
 - `Pristine.OAuth2`
+
+`Pristine.Client` / `Pristine.Operation` remain the low-level manual contract.
+First-party provider SDKs now target the lighter request-spec boundary built
+from `Pristine.foundation_context/1`, `Pristine.execute_request/3`, and
+`Pristine.SDK.OpenAPI.Client`.
 
 ## Example
 
 ```elixir
-client =
-  Pristine.Client.foundation(
+context =
+  Pristine.foundation_context(
     base_url: "https://api.example.com",
     transport: Pristine.Adapters.Transport.Finch,
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
-    default_auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
+    auth: [{Pristine.Adapters.Auth.Bearer, token: System.fetch_env!("API_TOKEN")}]
   )
 
-operation =
-  Pristine.Operation.new(%{
-    id: "widgets.list",
-    method: :get,
-    path_template: "/v1/widgets",
-    query: %{"limit" => 10},
-    response_schemas: %{200 => nil},
-    auth: %{
-      use_client_default?: true,
-      override: nil,
-      security_schemes: ["bearerAuth"]
-    },
-    runtime: %{
-      resource: "widgets",
-      retry_group: "widgets.read",
-      circuit_breaker: "widgets_api",
-      rate_limit_group: "widgets.integration",
-      telemetry_event: [:my_sdk, :widgets, :list],
-      timeout_ms: nil
-    }
-  })
+request = %{
+  id: "widgets.list",
+  method: :get,
+  path_template: "/v1/widgets",
+  query: %{"limit" => 10},
+  auth: %{use_client_default?: true, override: nil, security_schemes: ["bearerAuth"]},
+  resource: "widgets",
+  retry: "widgets.read",
+  circuit_breaker: "widgets_api",
+  rate_limit: "widgets.integration",
+  telemetry: [:my_sdk, :widgets, :list]
+}
 
-{:ok, response} = Pristine.execute(client, operation)
+{:ok, response} = Pristine.execute_request(request, context)
 ```
 
 ## Guides

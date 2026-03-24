@@ -461,34 +461,15 @@ defmodule PristineCodegen.Render.ElixirSDK do
   end
 
   defp render_client_file(provider_ir) do
-    default_headers =
-      provider_ir.runtime_defaults.default_headers
-      |> Map.put_new("user-agent", provider_ir.runtime_defaults.user_agent_prefix)
-
     source = """
     defmodule #{inspect(provider_client_module(provider_ir.provider.base_module))} do
       @moduledoc \"\"\"
-      Generated #{provider_label(provider_ir)} client facade over `Pristine.Client`.
+      Generated #{provider_label(provider_ir)} client facade over `#{inspect(provider_ir.provider.client_module)}`.
       \"\"\"
 
-      @spec new(keyword()) :: Pristine.Client.t()
+      @spec new(keyword()) :: #{inspect(provider_ir.provider.client_module)}.t()
       def new(opts \\\\ []) when is_list(opts) do
-        base_url = Keyword.get(opts, :base_url, #{inspect(provider_ir.runtime_defaults.base_url)})
-        timeout_ms = Keyword.get(opts, :timeout_ms, #{integer_literal(provider_ir.runtime_defaults.timeout_ms)})
-
-        default_headers =
-          opts
-          |> Keyword.get(:default_headers, %{})
-          |> Enum.into(#{inspect(default_headers)})
-
-        default_auth = Keyword.get(opts, :default_auth, [])
-
-        Pristine.Client.new(
-          base_url: base_url,
-          default_headers: default_headers,
-          default_auth: default_auth,
-          timeout_ms: timeout_ms
-        )
+        #{inspect(provider_ir.provider.client_module)}.new(opts)
       end
     end
     """
@@ -509,13 +490,37 @@ defmodule PristineCodegen.Render.ElixirSDK do
     runtime_schema_alias =
       maybe_render_schema_runtime_alias(schemas, provider_ir.provider.base_module)
 
+    openapi_client_alias =
+      if operations == [] do
+        ""
+      else
+        "  alias Pristine.SDK.OpenAPI.Client, as: OpenAPIClient\n\n"
+      end
+
+    request_opts_helper =
+      if operations == [] do
+        ""
+      else
+        """
+          @spec normalize_request_opts!(list()) :: keyword()
+          defp normalize_request_opts!(opts) when is_list(opts) do
+            if Keyword.keyword?(opts) do
+              opts
+            else
+              raise ArgumentError, "request opts must be a keyword list"
+            end
+          end
+        """
+      end
+
     source = """
     defmodule #{inspect(module_name)} do
       @moduledoc \"\"\"
       Generated #{provider_label(provider_ir)} operations for #{module_segment_label(module_name)}.
       \"\"\"
 
-    #{extension_use}#{runtime_schema_alias}#{functions}
+    #{extension_use}#{runtime_schema_alias}#{openapi_client_alias}#{functions}
+    #{request_opts_helper}
     #{schema_helpers}
     end
     """
@@ -554,12 +559,10 @@ defmodule PristineCodegen.Render.ElixirSDK do
   defp render_operation_function(provider_ir, operation) do
     partition_attribute = "@#{operation.function}_partition_spec"
     auth_policy = find_policy(provider_ir.auth_policies, operation.auth_policy_id)
+    client_module = provider_ir.provider.client_module
 
     pagination_policy =
       find_policy(provider_ir.pagination_policies, operation.pagination_policy_id)
-
-    {runtime_client_var, execute_opts_var, runtime_binding_source} =
-      runtime_execute_binding(provider_ir)
 
     stream_wrapper =
       if pagination_policy do
@@ -568,18 +571,24 @@ defmodule PristineCodegen.Render.ElixirSDK do
           @spec stream_#{operation.function}(term(), map(), keyword()) :: Enumerable.t()
           def stream_#{operation.function}(client, params \\\\ %{}, opts \\\\ [])
               when is_map(params) and is_list(opts) do
-            #{runtime_binding_source}Stream.resource(
-              fn -> build_#{operation.function}_operation(params) end,
+            opts = normalize_request_opts!(opts)
+
+            Stream.resource(
+              fn -> build_#{operation.function}_request(client, params, opts) end,
               fn
                 nil ->
                   {:halt, nil}
 
-                %Pristine.Operation{} = operation ->
-                  #{runtime_operation_binding(provider_ir, "operation", "client", execute_opts_var)}
-                  case Pristine.execute(#{runtime_client_var}, operation, #{execute_opts_var}) do
+                request when is_map(request) ->
+                  wrapped_request =
+                    update_in(request[:opts], fn request_opts ->
+                      Keyword.put(request_opts || [], :response, :wrapped)
+                    end)
+
+                  case #{inspect(client_module)}.execute_generated_request(client, wrapped_request) do
                     {:ok, response} ->
-                      items = List.wrap(Pristine.Operation.items(operation, response))
-                      {items, Pristine.Operation.next_page(operation, response)}
+                      items = List.wrap(OpenAPIClient.items(request, response))
+                      {items, OpenAPIClient.next_page_request(request, response)}
 
                     {:error, reason} ->
                       raise "pagination failed: " <> inspect(reason)
@@ -600,16 +609,21 @@ defmodule PristineCodegen.Render.ElixirSDK do
       @spec #{operation.function}(term(), map(), keyword()) :: {:ok, term()} | {:error, term()}
       def #{operation.function}(client, params \\\\ %{}, opts \\\\ [])
           when is_map(params) and is_list(opts) do
-        #{runtime_binding_source}operation = build_#{operation.function}_operation(params)
-        #{runtime_operation_binding(provider_ir, "operation", "client", execute_opts_var)}
-        Pristine.execute(#{runtime_client_var}, operation, #{execute_opts_var})
+        opts = normalize_request_opts!(opts)
+        request = build_#{operation.function}_request(client, params, opts)
+        #{inspect(client_module)}.execute_generated_request(client, request)
       end#{stream_wrapper}
 
-      defp build_#{operation.function}_operation(params) when is_map(params) do
-        partition = Pristine.Operation.partition(params, #{partition_attribute})
+      defp build_#{operation.function}_request(client, params, opts)
+           when is_map(params) and is_list(opts) do
+        _ = client
+        partition = OpenAPIClient.partition(params, #{partition_attribute})
 
-        Pristine.Operation.new(%{
+        %{
           id: #{inspect(operation.id)},
+          args: params,
+          call: {__MODULE__, #{inspect(operation.function)}},
+          opts: opts,
           method: #{inspect(operation.method)},
           path_template: #{inspect(operation.path_template)},
           path_params: partition.path_params,
@@ -620,9 +634,14 @@ defmodule PristineCodegen.Render.ElixirSDK do
           request_schema: #{render_term(operation.request_schema)},
           response_schemas: #{render_term(operation.response_schemas)},
           auth: #{render_runtime_auth(auth_policy)},
-          runtime: #{render_term(runtime_metadata(operation.runtime_metadata))},
+          resource: #{render_term(Map.get(runtime_metadata(operation.runtime_metadata), :resource))},
+          retry: #{render_term(Map.get(runtime_metadata(operation.runtime_metadata), :retry_group))},
+          circuit_breaker: #{render_term(Map.get(runtime_metadata(operation.runtime_metadata), :circuit_breaker))},
+          rate_limit: #{render_term(Map.get(runtime_metadata(operation.runtime_metadata), :rate_limit_group))},
+          telemetry: #{render_term(Map.get(runtime_metadata(operation.runtime_metadata), :telemetry_event))},
+          timeout: #{render_term(Map.get(runtime_metadata(operation.runtime_metadata), :timeout_ms))},
           pagination: #{render_term(runtime_pagination(pagination_policy))}
-        })
+        }
       end
     """
   end
@@ -1008,45 +1027,10 @@ defmodule PristineCodegen.Render.ElixirSDK do
   defp maybe_render_schema_runtime_alias(_schemas, base_module),
     do: render_schema_runtime_alias(base_module)
 
-  defp runtime_execute_binding(%ProviderIR{provider: %{client_module: nil}}),
-    do: {"client", "opts", ""}
-
-  defp runtime_execute_binding(%ProviderIR{provider: %{client_module: client_module}}) do
-    {"runtime_client", "execute_opts",
-     "runtime_client = #{inspect(client_module)}.pristine_client(client)\n        execute_opts = #{inspect(client_module)}.runtime_execute_opts(client, opts)\n        "}
-  end
-
-  defp runtime_operation_binding(
-         %ProviderIR{provider: %{client_module: nil}},
-         _operation_var,
-         _client_var,
-         _execute_opts_var
-       ),
-       do: ""
-
-  defp runtime_operation_binding(
-         %ProviderIR{provider: %{client_module: client_module}},
-         operation_var,
-         client_var,
-         execute_opts_var
-       ) do
-    "#{operation_var} = #{inspect(client_module)}.runtime_operation(#{client_var}, #{operation_var}, #{execute_opts_var})\n        "
-  end
-
   defp format_source!(source) do
     source
     |> Code.format_string!()
     |> IO.iodata_to_binary()
     |> Kernel.<>("\n")
-  end
-
-  defp integer_literal(nil), do: "nil"
-
-  defp integer_literal(value) when is_integer(value) do
-    value
-    |> Integer.to_string()
-    |> String.reverse()
-    |> String.replace(~r/.{3}(?!$)/, "\\0_")
-    |> String.reverse()
   end
 end

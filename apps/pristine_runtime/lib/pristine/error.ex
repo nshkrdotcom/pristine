@@ -43,8 +43,9 @@ defmodule Pristine.Error do
       end
   """
 
-  alias Pristine.Core.Response, as: TransportResponse
-  alias Pristine.Response
+  alias Pristine.Core.Response
+  alias Pristine.Response, as: PublicResponse
+  alias Pristine.SDK.ProviderProfile
 
   @type error_type ::
           :bad_request
@@ -64,12 +65,32 @@ defmodule Pristine.Error do
           status: integer() | nil,
           message: String.t() | nil,
           body: term(),
-          response: Response.t() | nil
+          response: Response.t() | nil,
+          provider: atom() | String.t() | nil,
+          provider_code: atom() | nil,
+          headers: map(),
+          request_id: String.t() | nil,
+          retry_after_ms: non_neg_integer() | nil,
+          documentation_url: String.t() | nil,
+          additional_data: term()
         }
 
   @retriable_types [:rate_limit, :internal_server, :timeout, :connection]
 
-  defexception [:type, :status, :message, :body, :response]
+  defexception [
+    :type,
+    :status,
+    :message,
+    :body,
+    :response,
+    :provider,
+    :provider_code,
+    :headers,
+    :request_id,
+    :retry_after_ms,
+    :documentation_url,
+    :additional_data
+  ]
 
   @doc """
   Create an error from an HTTP response.
@@ -84,20 +105,61 @@ defmodule Pristine.Error do
       iex> error.type
       :rate_limit
   """
-  @spec from_response(Response.t() | TransportResponse.t()) :: t()
-  def from_response(%TransportResponse{} = response) do
-    response
-    |> Response.from_transport()
+  @spec from_response(PublicResponse.t() | Response.t()) :: t()
+  def from_response(%PublicResponse{} = response) do
+    %Response{
+      status: response.status,
+      headers: response.headers,
+      body: response.body,
+      metadata: response.metadata
+    }
     |> from_response()
   end
 
-  def from_response(%Response{status: status} = response) do
-    %__MODULE__{
-      type: status_to_type(status),
-      status: status,
-      message: status_to_message(status),
+  def from_response(%Response{} = response) do
+    from_response(response, body: response.body)
+  end
+
+  def from_response(%PublicResponse{} = response, opts) when is_list(opts) do
+    %Response{
+      status: response.status,
+      headers: response.headers,
       body: response.body,
-      response: response
+      metadata: response.metadata
+    }
+    |> from_response(opts)
+  end
+
+  @spec from_response(Response.t(), keyword()) :: t()
+  def from_response(%Response{status: status} = response, opts) when is_list(opts) do
+    body = Keyword.get(opts, :body, response.body)
+    profile = Keyword.get(opts, :profile)
+    normalized_headers = ProviderProfile.normalize_headers(response.headers)
+    normalized_body = ProviderProfile.normalize_body(body)
+
+    rate_limited? =
+      ProviderProfile.rate_limited?(profile, status, normalized_headers, normalized_body)
+
+    retry_after_ms =
+      Keyword.get(opts, :retry_after_ms) ||
+        ProviderProfile.retry_after_ms(profile, normalized_headers)
+
+    normalized_response = %Response{response | body: normalized_body, headers: normalized_headers}
+
+    %__MODULE__{
+      type: error_type(status, rate_limited?),
+      status: status,
+      message: ProviderProfile.message(profile, normalized_body) || status_to_message(status),
+      body: normalized_body,
+      response: normalized_response,
+      provider: provider(profile),
+      provider_code:
+        ProviderProfile.provider_code(profile, status, normalized_body, rate_limited?),
+      headers: normalized_headers,
+      request_id: ProviderProfile.request_id(profile, normalized_body, normalized_headers),
+      retry_after_ms: retry_after_ms,
+      documentation_url: ProviderProfile.documentation_url(profile, normalized_body),
+      additional_data: ProviderProfile.additional_data(profile, normalized_body)
     }
   end
 
@@ -112,9 +174,20 @@ defmodule Pristine.Error do
   """
   @spec connection_error(term()) :: t()
   def connection_error(reason) do
+    connection_error(reason, [])
+  end
+
+  @spec connection_error(term(), keyword()) :: t()
+  def connection_error(reason, opts) when is_list(opts) do
+    profile = Keyword.get(opts, :profile)
+
     %__MODULE__{
       type: :connection,
-      message: "Connection failed: #{inspect(reason)}"
+      message: "Connection failed: #{inspect(reason)}",
+      body: %{reason: inspect(reason)},
+      provider: provider(profile),
+      provider_code: ProviderProfile.connection_code(profile),
+      headers: %{}
     }
   end
 
@@ -131,7 +204,25 @@ defmodule Pristine.Error do
   def timeout_error do
     %__MODULE__{
       type: :timeout,
-      message: "Request timed out"
+      message: "Request timed out",
+      headers: %{}
+    }
+  end
+
+  @doc """
+  Create a validation error.
+  """
+  @spec validation_error(term(), term(), keyword()) :: t()
+  def validation_error(reason, body, opts \\ []) do
+    profile = Keyword.get(opts, :profile)
+
+    %__MODULE__{
+      type: :bad_request,
+      message: "Validation error: #{inspect(reason)}",
+      body: body,
+      provider: provider(profile),
+      provider_code: ProviderProfile.validation_code(profile),
+      headers: %{}
     }
   end
 
@@ -200,6 +291,9 @@ defmodule Pristine.Error do
   defp type_retriable?(type) when type in @retriable_types, do: true
   defp type_retriable?(_type), do: false
 
+  defp error_type(_status, true), do: :rate_limit
+  defp error_type(status, false), do: status_to_type(status)
+
   defp status_to_type(400), do: :bad_request
   defp status_to_type(401), do: :authentication
   defp status_to_type(403), do: :permission_denied
@@ -231,4 +325,7 @@ defmodule Pristine.Error do
   defp type_to_message(:timeout), do: "Request timed out"
   defp type_to_message(:connection), do: "Connection failed"
   defp type_to_message(_), do: "Unknown error"
+
+  defp provider(%ProviderProfile{provider: provider}), do: provider
+  defp provider(_profile), do: nil
 end

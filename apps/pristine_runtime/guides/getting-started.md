@@ -5,69 +5,67 @@ provider facades:
 
 - `Pristine.Client`
 - `Pristine.Operation`
+- `Pristine.context/1`
+- `Pristine.foundation_context/1`
 - `Pristine.execute/3`
+- `Pristine.execute_request/3`
 - `Pristine.stream/3`
+- `Pristine.SDK.OpenAPI.Client`
 - `Pristine.OAuth2`
 
 ## 1. Build A Runtime Client
 
-Use `Pristine.Client.foundation/1` for the recommended production profile:
+Use `Pristine.foundation_context/1` for the recommended production profile:
 
 ```elixir
-client =
-  Pristine.Client.foundation(
+context =
+  Pristine.foundation_context(
     base_url: "https://api.example.com",
     transport: Pristine.Adapters.Transport.Finch,
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
-    default_auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
+    auth: [{Pristine.Adapters.Auth.Bearer, token: System.fetch_env!("API_TOKEN")}]
   )
 ```
 
-## 2. Render A Runtime Operation
+## 2. Build A Request Spec Or Operation
 
-Generated providers render a `Pristine.Operation` and call the runtime
-directly.
+Generated providers now emit request maps and call `Pristine.execute_request/3`
+through their thin client facade. The lower-level `Pristine.Operation` path is
+still available when you need to assemble operations by hand.
 
 ```elixir
-operation =
-  Pristine.Operation.new(%{
-    id: "users.get",
-    method: :get,
-    path_template: "/v1/users/{id}",
-    path_params: %{"id" => "user-123"},
-    query: %{"include" => "workspace"},
-    response_schemas: %{200 => nil},
-    auth: %{
-      use_client_default?: true,
-      override: nil,
-      security_schemes: ["bearerAuth"]
-    },
-    runtime: %{
-      resource: "users",
-      retry_group: "users.read",
-      circuit_breaker: "users_api",
-      rate_limit_group: "users.integration",
-      telemetry_event: [:my_sdk, :users, :get],
-      timeout_ms: nil
-    }
-  })
+request = %{
+  id: "users.get",
+  method: :get,
+  path_template: "/v1/users/{id}",
+  path_params: %{"id" => "user-123"},
+  query: %{"include" => "workspace"},
+  auth: %{use_client_default?: true, override: nil, security_schemes: ["bearerAuth"]},
+  resource: "users",
+  retry: "users.read",
+  circuit_breaker: "users_api",
+  rate_limit: "users.integration",
+  telemetry: [:my_sdk, :users, :get]
+}
 ```
 
 ## 3. Execute Or Stream
 
 ```elixir
-{:ok, data} = Pristine.execute(client, operation)
+{:ok, data} = Pristine.execute_request(request, context)
 ```
 
-`Pristine.stream/3` consumes the same `Pristine.Operation` envelope. The stream
-transport returns a `Pristine.Response` whose `:stream` field is enumerable.
+`Pristine.stream/3` still consumes the lower-level `Pristine.Operation`
+envelope. The stream transport returns a `Pristine.Response` whose `:stream`
+field is enumerable.
 
 ## 4. Generated Wrapper Helpers
 
 Generated operation modules can keep their rendering logic small by using
-`Pristine.Operation.partition/2`, `Pristine.Operation.render_path/2`,
-`Pristine.Operation.items/2`, and `Pristine.Operation.next_page/2`.
+`Pristine.SDK.OpenAPI.Client.partition/2`,
+`Pristine.SDK.OpenAPI.Client.items/2`, and
+`Pristine.SDK.OpenAPI.Client.next_page_request/2`.
 
 ## Next
 

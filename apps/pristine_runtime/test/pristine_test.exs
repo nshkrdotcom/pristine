@@ -3,12 +3,11 @@ defmodule PristineTest do
   doctest Pristine
 
   test "top-level API keeps the rebuilt runtime boundary" do
+    assert function_exported?(Pristine, :context, 1)
+    assert function_exported?(Pristine, :foundation_context, 1)
     assert function_exported?(Pristine, :execute, 3)
+    assert function_exported?(Pristine, :execute_request, 3)
     assert function_exported?(Pristine, :stream, 3)
-
-    refute function_exported?(Pristine, :context, 1)
-    refute function_exported?(Pristine, :foundation_context, 1)
-    refute function_exported?(Pristine, :execute_request, 3)
   end
 
   test "builds a Foundation-backed client via the public helper" do

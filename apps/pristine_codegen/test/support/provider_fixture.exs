@@ -16,6 +16,7 @@ defmodule PristineCodegen.TestSupport.SampleProvider do
       provider: %{
         id: :widget_api,
         base_module: @base_module,
+        client_module: WidgetAPI.Client,
         package_app: :widget_api,
         package_name: "widget_api",
         source_strategy: :openapi_plus_source_plugin
@@ -164,6 +165,18 @@ defmodule PristineCodegen.TestSupport.SampleProvider do
     File.write!(refresh_marker, "sample refresh\n")
     :ok
   end
+end
+
+defmodule WidgetAPI.Client do
+  @moduledoc false
+
+  @type t :: keyword()
+
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) when is_list(opts), do: opts
+
+  @spec execute_generated_request(term(), map()) :: {:ok, map()}
+  def execute_generated_request(_client, _request), do: {:ok, %{}}
 end
 
 defmodule PristineCodegen.TestSupport.SampleProvider.SourcePlugin do

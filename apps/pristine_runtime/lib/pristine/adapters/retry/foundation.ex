@@ -70,9 +70,17 @@ defmodule Pristine.Adapters.Retry.Foundation do
       iex> Pristine.Adapters.Retry.Foundation.parse_retry_after(%{"retry-after" => "5"})
       5000
   """
-  def parse_retry_after(%{headers: headers}), do: HTTP.parse_retry_after(headers)
-  def parse_retry_after(%{"headers" => headers}), do: HTTP.parse_retry_after(headers)
-  def parse_retry_after(headers), do: HTTP.parse_retry_after(headers)
+  def parse_retry_after(response_or_headers, opts \\ [])
+
+  def parse_retry_after(%{headers: headers}, opts), do: parse_retry_after(headers, opts)
+  def parse_retry_after(%{"headers" => headers}, opts), do: parse_retry_after(headers, opts)
+
+  def parse_retry_after(headers, opts) do
+    case retry_after_header_present?(headers) do
+      true -> HTTP.parse_retry_after(headers, 0)
+      false -> reset_at_retry_after(headers, opts)
+    end
+  end
 
   @impl true
   def build_policy(opts \\ []) do
@@ -184,4 +192,55 @@ defmodule Pristine.Adapters.Retry.Foundation do
       Keyword.put(opts, :progress_timeout_ms, policy.progress_timeout_ms)
     end
   end
+
+  defp reset_at_retry_after(headers, opts) do
+    opts
+    |> Keyword.get(:reset_at_headers, [])
+    |> Enum.find_value(fn header ->
+      case header_value(headers, header) do
+        nil -> nil
+        value -> reset_delta_ms(value)
+      end
+    end)
+  end
+
+  defp retry_after_header_present?(headers) do
+    not is_nil(header_value(headers, "retry-after")) or
+      not is_nil(header_value(headers, "retry-after-ms"))
+  end
+
+  defp header_value(headers, name) when is_map(headers) do
+    downcased_name = String.downcase(name)
+
+    Enum.find_value(headers, fn {key, value} ->
+      if String.downcase(to_string(key)) == downcased_name and is_binary(value), do: value
+    end)
+  end
+
+  defp header_value(headers, name) when is_list(headers) do
+    downcased_name = String.downcase(name)
+
+    Enum.find_value(headers, fn
+      {key, value} when is_binary(value) ->
+        if String.downcase(to_string(key)) == downcased_name, do: value
+
+      _other ->
+        nil
+    end)
+  end
+
+  defp header_value(_headers, _name), do: nil
+
+  defp reset_delta_ms(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {epoch, _rest} when epoch >= 0 ->
+        now_epoch = DateTime.utc_now() |> DateTime.to_unix()
+        max(epoch - now_epoch, 0) * 1_000
+
+      _other ->
+        nil
+    end
+  end
+
+  defp reset_delta_ms(_value), do: nil
 end

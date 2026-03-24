@@ -8,8 +8,10 @@ and code generation code lives in child apps.
 
 - `apps/pristine_runtime`
   The publishable `pristine` runtime package. This app owns request execution,
-  Foundation-backed runtime wiring, OAuth helpers, and the
-  `Pristine.Client` / `Pristine.Operation` contract.
+  Foundation-backed runtime wiring, OAuth helpers, the classic
+  `Pristine.Client` / `Pristine.Operation` contract, and the SDK-facing
+  `Pristine.foundation_context/1` / `Pristine.execute_request/3` boundary used
+  by first-party provider SDKs.
 - `apps/pristine_codegen`
   The publishable `pristine_codegen` package. This app owns the shared provider
   compiler, `PristineCodegen.ProviderIR`, bounded plugin contracts, renderer
