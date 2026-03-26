@@ -74,6 +74,16 @@ defmodule Pristine.Runtime.MixProject do
         "guides/manual-contexts-and-adapters.md",
         "guides/oauth-and-token-sources.md",
         "guides/streaming-and-sse.md"
+      ],
+      groups_for_extras: [
+        Overview: ["README.md"],
+        Guides: [
+          "guides/getting-started.md",
+          "guides/foundation-runtime.md",
+          "guides/manual-contexts-and-adapters.md",
+          "guides/oauth-and-token-sources.md",
+          "guides/streaming-and-sse.md"
+        ]
       ]
     ]
   end

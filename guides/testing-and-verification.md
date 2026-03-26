@@ -1,7 +1,7 @@
 # Testing And Verification
 
-The root project is responsible for workspace-wide checks. App-specific tests
-stay inside each app; the root only verifies monorepo contracts.
+The root project owns workspace-wide verification. App-specific tests stay in
+each package, while the root orchestrates shared quality gates.
 
 ## Root Commands
 
@@ -27,33 +27,36 @@ mix docs.all
 mix ci
 ```
 
-`mix test` covers the root workspace contracts only. `mix ci` is the full
-acceptance pass for the monorepo bootstrap.
+`mix test` covers the root workspace contracts only. `mix ci` is the complete
+workspace acceptance pass.
 
-Most root `monorepo.*` aliases delegate to `mix blitz.workspace <task>`. The
-Dialyzer alias stays root-owned so one run can analyze the shared package beam
-outputs without per-app build/deps isolation. Use the shorter `mr.*` aliases
-for day-to-day work.
+## Workspace Verification Model
 
-To tune workspace fan-out for one run, pass `--max-concurrency N` to a
+Most `monorepo.*` aliases delegate to `mix blitz.workspace <task>`. Dialyzer is
+the exception: it runs once from the repo root against the shared `_build`
+outputs so the whole workspace is analyzed in one consistent PLT and build
+context.
+
+Use `mr.*` aliases for daily work. Use `monorepo.*` aliases when you want the
+spelled-out task names.
+
+To tune fan-out for a single run, pass `--max-concurrency N` to a
 `mix monorepo.*` command. To set a default locally, export
 `PRISTINE_MONOREPO_MAX_CONCURRENCY`.
 
-## App Boundaries
+## Package-Level Iteration
 
-- `apps/pristine_runtime`
-  Runtime execution, OAuth, streaming, adapters, and the direct
-  `Pristine.Client` / `Pristine.Operation` runtime surface.
-- `apps/pristine_codegen`
-  Shared provider compiler, `ProviderIR` normalization, bounded plugins,
-  generated source rendering, and shared Mix task coverage.
-- `apps/pristine_provider_testkit`
-  Shared artifact freshness and provider conformance helpers for downstream
-  provider repos.
+Use app-local commands when you are changing one package in isolation:
 
-## Provider Verification
+```bash
+cd apps/pristine_runtime && mix test
+cd apps/pristine_codegen && mix test
+cd apps/pristine_provider_testkit && mix test
+```
 
-Provider repos should delegate generation through the shared task family:
+## Provider Repositories
+
+Provider repositories should use the shared codegen and testkit entrypoints:
 
 ```bash
 mix pristine.codegen.generate MyProvider.Provider --project-root .
@@ -62,19 +65,6 @@ mix pristine.codegen.ir MyProvider.Provider --project-root .
 mix pristine.codegen.refresh MyProvider.Provider --project-root .
 ```
 
-Provider freshness and conformance tests should use
+Provider freshness and conformance assertions should use
 `PristineProviderTestkit.Conformance.verify_provider/2` plus
-`PristineProviderTestkit.Artifacts`.
-
-## Package-Level Checks
-
-Use app-local commands when you want to iterate on one package:
-
-```bash
-cd apps/pristine_runtime && mix test
-cd apps/pristine_codegen && mix test
-cd apps/pristine_provider_testkit && mix test
-```
-
-The runtime and codegen apps still own their own docs generation. Workspace
-Dialyzer runs once from the root against the shared compiled package outputs.
+`PristineProviderTestkit.Artifacts` for low-level file assertions.

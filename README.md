@@ -1,17 +1,18 @@
 # Pristine Workspace
 
-`pristine` is a tooling-root, non-umbrella Elixir monorepo. The repo root owns
-workspace tooling, quality gates, and repo-level docs only. Publishable runtime
-and code generation code lives in child apps.
+`pristine` is a tooling-root, non-umbrella Elixir monorepo for a generated SDK
+stack. The repo root owns workspace tooling, shared quality gates, and the
+monorepo-level guides. Publishable runtime and compiler code lives in child
+apps.
 
-## Workspace Apps
+## Package Map
 
 - `apps/pristine_runtime`
-  The publishable `pristine` runtime package. This app owns request execution,
+  The publishable `pristine` runtime package. It owns request execution,
   Foundation-backed runtime wiring, OAuth helpers, the classic
   `Pristine.Client` / `Pristine.Operation` contract, and the SDK-facing
   `Pristine.foundation_context/1` / `Pristine.execute_request/3` boundary used
-  by first-party provider SDKs.
+  by generated provider SDKs.
 - `apps/pristine_codegen`
   The publishable `pristine_codegen` package. This app owns the shared provider
   compiler, `PristineCodegen.ProviderIR`, bounded plugin contracts, renderer
@@ -19,6 +20,23 @@ and code generation code lives in child apps.
 - `apps/pristine_provider_testkit`
   Shared freshness and conformance helpers for downstream provider SDK repos.
   This app stays unpublished for now.
+
+## Start Here
+
+The root HexDocs are organized into three tracks:
+
+- project documents: `README`, `CHANGELOG`, and `LICENSE`
+- user guides: workspace overview, getting started, runtime usage, code
+  generation, provider verification, and testing
+- developer guides: architecture, runtime internals, codegen internals, and
+  monorepo maintenance
+
+If you are adopting the stack:
+
+- start with `guides/workspace-overview.md`
+- move to `guides/getting-started.md`
+- then choose `guides/runtime-and-sdk-usage.md` or
+  `guides/code-generation-and-artifacts.md`
 
 ## Monorepo Commands
 
@@ -41,7 +59,7 @@ mix ci
 `mix test` validates the root workspace contracts only. `mix ci` is the main
 workspace acceptance gate.
 
-## Shortcuts
+## Shortcut Aliases
 
 The root `mix.exs` also defines `mr.*` aliases for the same monorepo task
 surface:
@@ -58,7 +76,7 @@ mix mr.docs
 
 These are shortcuts for the corresponding `mix monorepo.*` commands above.
 
-## Blitz Workspace
+## Workspace Runner
 
 The repo no longer carries its own monorepo runner implementation. Most
 `monorepo.*` commands are root aliases to the generic
@@ -77,10 +95,11 @@ Workspace policy lives in the root `mix.exs` under `:blitz_workspace`:
 - `PRISTINE_MONOREPO_MAX_CONCURRENCY` and `--max-concurrency N` override the
   current run directly
 
-## Where To Start
+## Package Docs
 
 - Runtime package docs: `apps/pristine_runtime/README.md`
 - Codegen package docs: `apps/pristine_codegen/README.md`
 - Provider testkit docs: `apps/pristine_provider_testkit/README.md`
+- Workspace overview: `guides/workspace-overview.md`
 - Workspace verification guide: `guides/testing-and-verification.md`
 - Workspace examples index: `examples/index.md`

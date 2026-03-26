@@ -93,8 +93,43 @@ defmodule Pristine.Workspace.MixProject do
       homepage_url: @source_url,
       extras: [
         "README.md",
+        "CHANGELOG.md",
+        "LICENSE.md",
+        "guides/workspace-overview.md",
+        "guides/getting-started.md",
+        "guides/runtime-and-sdk-usage.md",
+        "guides/code-generation-and-artifacts.md",
+        "guides/provider-verification.md",
         "guides/testing-and-verification.md",
+        "guides/architecture-and-package-boundaries.md",
+        "guides/runtime-internals.md",
+        "guides/codegen-internals.md",
+        "guides/maintaining-the-monorepo.md",
         "examples/index.md"
+      ],
+      groups_for_extras: [
+        Project: [
+          "README.md",
+          "CHANGELOG.md",
+          "LICENSE.md"
+        ],
+        "User Guides": [
+          "guides/workspace-overview.md",
+          "guides/getting-started.md",
+          "guides/runtime-and-sdk-usage.md",
+          "guides/code-generation-and-artifacts.md",
+          "guides/provider-verification.md",
+          "guides/testing-and-verification.md"
+        ],
+        "Developer Guides": [
+          "guides/architecture-and-package-boundaries.md",
+          "guides/runtime-internals.md",
+          "guides/codegen-internals.md",
+          "guides/maintaining-the-monorepo.md"
+        ],
+        Examples: [
+          "examples/index.md"
+        ]
       ]
     ]
   end

@@ -58,6 +58,10 @@ defmodule Pristine.Codegen.MixProject do
       extras: [
         "README.md",
         "guides/code-generation.md"
+      ],
+      groups_for_extras: [
+        Overview: ["README.md"],
+        Guides: ["guides/code-generation.md"]
       ]
     ]
   end

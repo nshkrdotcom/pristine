@@ -1,5 +1,8 @@
 # Pristine Workspace Examples
 
+This workspace keeps examples intentionally small. Runtime-facing examples live
+with the runtime package so they can evolve alongside the code they exercise.
+
 ## Runtime Demo
 
 The runtime example now lives with the runtime package:
