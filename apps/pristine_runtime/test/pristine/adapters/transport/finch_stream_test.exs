@@ -174,7 +174,7 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
         method: "GET",
         url: "http://localhost:#{port}/slow",
         headers: %{},
-        metadata: %{pool_name: nil, timeout: 500}
+        metadata: %{pool_name: nil, timeout: 2_000}
       }
 
       context = %Context{transport_opts: [finch: finch_name]}

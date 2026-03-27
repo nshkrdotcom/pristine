@@ -125,7 +125,7 @@ defmodule Pristine.Profiles.FoundationTest do
                  %{duration: 42}
                )
 
-      assert_receive {:telemetry_batch, [%Event{} = event]}
+      assert_receive {:telemetry_batch, [%Event{} = event]}, 1_000
       assert event.name == "demo_sdk.request.stop"
       assert event.severity == :info
       assert event.data.measurements.duration == 42

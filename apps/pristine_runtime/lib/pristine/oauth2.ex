@@ -25,7 +25,8 @@ defmodule Pristine.OAuth2 do
   def authorization_request(%Provider{} = provider, opts \\ []) do
     with :ok <- ensure_available(provider),
          {:ok, client_id} <- fetch_required(opts, :client_id, provider, :missing_client_id),
-         {:ok, request, params} <- build_authorization_request(provider, opts),
+         {:ok, %AuthorizationRequest{} = request, params} <-
+           build_authorization_request(provider, opts),
          {:ok, url} <-
            Backend.authorization_url(
              provider,
