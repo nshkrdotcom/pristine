@@ -36,23 +36,20 @@ For active local development, prefer sibling-relative path dependencies:
  path: "../pristine/apps/pristine_provider_testkit", only: :test}
 ```
 
-If the sibling checkout is not available, use a pinned git ref with `subdir:`
+If the sibling checkout is not available, use a GitHub fallback with `subdir:`
 for each child app:
 
 ```elixir
 {:pristine,
  github: "nshkrdotcom/pristine",
- ref: "<pinned-commit-sha>",
  subdir: "apps/pristine_runtime"}
 
 {:pristine_codegen,
  github: "nshkrdotcom/pristine",
- ref: "<pinned-commit-sha>",
  subdir: "apps/pristine_codegen"}
 
 {:pristine_provider_testkit,
  github: "nshkrdotcom/pristine",
- ref: "<pinned-commit-sha>",
  subdir: "apps/pristine_provider_testkit",
  only: :test}
 ```

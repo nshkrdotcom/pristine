@@ -33,7 +33,7 @@ For local development beside this repo, use sibling-relative paths:
 {:pristine_codegen, path: "../pristine/apps/pristine_codegen"}
 ```
 
-If the sibling checkout is absent, fall back to pinned git refs with `subdir:`
+If the sibling checkout is absent, fall back to GitHub `subdir:` dependencies
 instead of introducing vendored `deps/*` copies.
 
 ## Common Workspace Commands

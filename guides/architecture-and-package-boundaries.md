@@ -67,8 +67,8 @@ That means downstream repos should:
 - consume `apps/pristine_provider_testkit` as `:pristine_provider_testkit`
 
 For local development, sibling-relative `path:` dependencies are the preferred
-shape. When a sibling checkout is unavailable, use a pinned git `ref:` with
-`subdir:` for the specific child app.
+shape. When a sibling checkout is unavailable, use a GitHub `subdir:`
+dependency for the specific child app.
 
 Do not build connector or SDK repos around committed vendored `deps/pristine`
 layouts. One OTP app should have one origin within a given dependency graph.

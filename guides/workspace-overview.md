@@ -23,7 +23,7 @@ is for local tooling, verification, and docs only.
 The intended downstream pattern is:
 
 - sibling-relative `path:` dependencies during active local development
-- pinned git `ref:` plus `subdir:` when the sibling checkout is absent
+- GitHub `subdir:` dependencies when the sibling checkout is absent
 
 The workspace should not be re-vendored inside another repo's committed
 `deps/` directory. That creates a second origin for the same OTP apps and makes
