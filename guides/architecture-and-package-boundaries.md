@@ -54,3 +54,21 @@ provider repositories a stable freshness and conformance surface.
 This separation keeps runtime releases focused, keeps build-time code isolated,
 and prevents provider repositories from drifting into bespoke generation rules
 that diverge from the shared compiler.
+
+## Consumption And Packaging
+
+This repo is a non-umbrella workspace with publishable child apps. The package
+boundaries are the child apps, not the tooling root.
+
+That means downstream repos should:
+
+- consume `apps/pristine_runtime` as `:pristine`
+- consume `apps/pristine_codegen` as `:pristine_codegen`
+- consume `apps/pristine_provider_testkit` as `:pristine_provider_testkit`
+
+For local development, sibling-relative `path:` dependencies are the preferred
+shape. When a sibling checkout is unavailable, use a pinned git `ref:` with
+`subdir:` for the specific child app.
+
+Do not build connector or SDK repos around committed vendored `deps/pristine`
+layouts. One OTP app should have one origin within a given dependency graph.

@@ -15,6 +15,20 @@ Pristine is split into three distinct responsibilities:
 The root project is not the product runtime. It is the monorepo entrypoint for
 tooling, verification, and docs.
 
+## Consumption Boundary
+
+Consumer repos should depend on the child packages directly. The root workspace
+is for local tooling, verification, and docs only.
+
+The intended downstream pattern is:
+
+- sibling-relative `path:` dependencies during active local development
+- pinned git `ref:` plus `subdir:` when the sibling checkout is absent
+
+The workspace should not be re-vendored inside another repo's committed
+`deps/` directory. That creates a second origin for the same OTP apps and makes
+consumer behavior diverge from local workspace behavior.
+
 ## Who Uses What
 
 Use the runtime package when you need to execute requests or build SDK clients.

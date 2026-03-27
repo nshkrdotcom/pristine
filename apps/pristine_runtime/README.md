@@ -2,6 +2,12 @@
 
 `apps/pristine_runtime` publishes the `pristine` runtime package.
 
+Consumer repos should depend on this child app directly. In local development,
+that typically means `{:pristine, path: "../pristine/apps/pristine_runtime"}`.
+If a sibling checkout is not available, use a pinned git ref with
+`subdir: "apps/pristine_runtime"` instead of vendoring another copy of the
+workspace into committed `deps/`.
+
 The public runtime contract is:
 
 - `Pristine.Client`

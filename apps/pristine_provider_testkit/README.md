@@ -3,6 +3,10 @@
 `apps/pristine_provider_testkit` holds shared verification helpers for
 downstream provider SDK repos.
 
+When used from a downstream repo, consume this child app directly rather than
+depending on the workspace root. For local development, the expected shape is
+`{:pristine_provider_testkit, path: "../pristine/apps/pristine_provider_testkit", only: :test}`.
+
 The current shared surface is:
 
 - `PristineProviderTestkit.Artifacts`

@@ -17,6 +17,25 @@ Fetch dependencies from the repo root:
 mix monorepo.deps.get
 ```
 
+## Consuming Child Apps
+
+`pristine` is a workspace, not a single runtime package. Downstream projects
+should consume the child apps they need:
+
+- `apps/pristine_runtime` as `:pristine`
+- `apps/pristine_codegen` as `:pristine_codegen`
+- `apps/pristine_provider_testkit` as `:pristine_provider_testkit`
+
+For local development beside this repo, use sibling-relative paths:
+
+```elixir
+{:pristine, path: "../pristine/apps/pristine_runtime"}
+{:pristine_codegen, path: "../pristine/apps/pristine_codegen"}
+```
+
+If the sibling checkout is absent, fall back to pinned git refs with `subdir:`
+instead of introducing vendored `deps/*` copies.
+
 ## Common Workspace Commands
 
 The repo root is the control plane for workspace checks:

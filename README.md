@@ -21,6 +21,46 @@ apps.
   Shared freshness and conformance helpers for downstream provider SDK repos.
   This app stays unpublished for now.
 
+## Consumption Model
+
+Downstream repos should consume the child apps directly. Do not depend on the
+workspace root as a runtime package, and do not vendor a second copy of
+`pristine` into committed `deps/`.
+
+For active local development, prefer sibling-relative path dependencies:
+
+```elixir
+{:pristine, path: "../pristine/apps/pristine_runtime"}
+{:pristine_codegen, path: "../pristine/apps/pristine_codegen"}
+{:pristine_provider_testkit,
+ path: "../pristine/apps/pristine_provider_testkit", only: :test}
+```
+
+If the sibling checkout is not available, use a pinned git ref with `subdir:`
+for each child app:
+
+```elixir
+{:pristine,
+ github: "nshkrdotcom/pristine",
+ ref: "<pinned-commit-sha>",
+ subdir: "apps/pristine_runtime"}
+
+{:pristine_codegen,
+ github: "nshkrdotcom/pristine",
+ ref: "<pinned-commit-sha>",
+ subdir: "apps/pristine_codegen"}
+
+{:pristine_provider_testkit,
+ github: "nshkrdotcom/pristine",
+ ref: "<pinned-commit-sha>",
+ subdir: "apps/pristine_provider_testkit",
+ only: :test}
+```
+
+`subdir:` is intentional. The child apps share workspace-local `_build`,
+`deps`, and `mix.lock` paths, so full checkout plus `subdir:` is the stable
+fallback shape.
+
 ## Start Here
 
 The root HexDocs are organized into three tracks:

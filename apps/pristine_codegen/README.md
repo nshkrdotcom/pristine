@@ -2,6 +2,13 @@
 
 `apps/pristine_codegen` is the publishable `pristine_codegen` package.
 
+Consumer repos should depend on this child app directly. In local development,
+that typically means
+`{:pristine_codegen, path: "../pristine/apps/pristine_codegen"}`. If a sibling
+checkout is not available, use a pinned git ref with
+`subdir: "apps/pristine_codegen"` instead of vendoring another copy of the
+workspace into committed `deps/`.
+
 This app owns the shared provider compiler:
 
 - `PristineCodegen.Provider`
