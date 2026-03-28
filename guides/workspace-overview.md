@@ -22,8 +22,10 @@ is for local tooling, verification, and docs only.
 
 The intended downstream pattern is:
 
-- sibling-relative `path:` dependencies during active local development
-- GitHub `subdir:` dependencies when the sibling checkout is absent
+- Hex for `:pristine`
+- GitHub `subdir:` dependencies for `:pristine_codegen` and
+  `:pristine_provider_testkit`
+- sibling-relative `path:` dependencies for active local development
 
 The workspace should not be re-vendored inside another repo's committed
 `deps/` directory. That creates a second origin for the same OTP apps and makes

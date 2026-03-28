@@ -5,12 +5,10 @@ defmodule Pristine.Build.DependencyResolver do
   @repo "nshkrdotcom/pristine"
 
   def pristine_runtime(opts \\ []) do
-    resolve(
-      :pristine,
-      ["apps/pristine_runtime"],
-      [github: @repo, branch: "master", subdir: "apps/pristine_runtime"],
-      opts
-    )
+    case workspace_path(["apps/pristine_runtime"]) do
+      nil -> {:pristine, "~> 0.2.0", opts}
+      path -> {:pristine, Keyword.merge([path: path], opts)}
+    end
   end
 
   def pristine_codegen(opts \\ []) do

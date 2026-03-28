@@ -1,14 +1,25 @@
-# Pristine Runtime
+<p align="center">
+  <img src="assets/pristine.svg" width="200" height="200" alt="Pristine logo" />
+</p>
 
-`apps/pristine_runtime` publishes the `pristine` runtime package.
+# Pristine
 
-Consumer repos should depend on this child app directly. In local development,
-that typically means `{:pristine, path: "../pristine/apps/pristine_runtime"}`.
-If a sibling checkout is not available, use a GitHub fallback with
-`subdir: "apps/pristine_runtime"` instead of vendoring another copy of the
-workspace into committed `deps/`.
+`pristine` is the published runtime package from
+`apps/pristine_runtime`. It is the only package in this monorepo intended for
+Hex consumption.
 
-The public runtime contract is:
+Use Hex for normal runtime adoption:
+
+```elixir
+{:pristine, "~> 0.2.0"}
+```
+
+The companion projects `pristine_codegen` and `pristine_provider_testkit` stay
+in this repository as GitHub-sourced build-time and test-time dependencies.
+
+## Runtime Surface
+
+The public runtime boundary is:
 
 - `Pristine.Client`
 - `Pristine.Operation`
@@ -19,13 +30,14 @@ The public runtime contract is:
 - `Pristine.execute/3`
 - `Pristine.execute_request/3`
 - `Pristine.stream/3`
-- `Pristine.SDK.*`
+- `Pristine.SDK.OpenAPI.Client`
+- `Pristine.SDK.ProviderProfile`
 - `Pristine.OAuth2`
 
-`Pristine.Client` / `Pristine.Operation` remain the low-level manual contract.
-First-party provider SDKs now target the lighter request-spec boundary built
-from `Pristine.foundation_context/1`, `Pristine.execute_request/3`, and
-`Pristine.SDK.OpenAPI.Client`.
+Use `Pristine.foundation_context/1` plus `Pristine.execute_request/3` for the
+recommended production path and for generated provider SDKs. Use
+`Pristine.Client` plus `Pristine.Operation` when you want lower-level manual
+control over operation construction and execution.
 
 ## Example
 
@@ -55,6 +67,18 @@ request = %{
 {:ok, response} = Pristine.execute_request(request, context)
 ```
 
+## Why This Package Exists
+
+`pristine` owns the generic runtime concerns shared by provider SDKs:
+
+- transport and streaming
+- serialization and multipart handling
+- auth and OAuth helpers
+- retry, rate limiting, circuit breaking, and telemetry
+- request path safety and response classification
+
+Generated SDKs describe requests. `pristine` executes them.
+
 ## Guides
 
 - `guides/getting-started.md`
@@ -62,6 +86,12 @@ request = %{
 - `guides/manual-contexts-and-adapters.md`
 - `guides/oauth-and-token-sources.md`
 - `guides/streaming-and-sse.md`
+
+## Project Files
+
+- `CHANGELOG.md`
+- `LICENSE.md`
+- `examples/demo.exs`
 
 ## Workspace
 

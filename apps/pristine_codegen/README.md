@@ -1,13 +1,25 @@
 # Pristine Codegen
 
-`apps/pristine_codegen` is the publishable `pristine_codegen` package.
+`apps/pristine_codegen` is the shared provider compiler for downstream SDK
+repositories.
 
-Consumer repos should depend on this child app directly. In local development,
-that typically means
-`{:pristine_codegen, path: "../pristine/apps/pristine_codegen"}`. If a sibling
-checkout is not available, use a GitHub fallback with
-`subdir: "apps/pristine_codegen"` instead of vendoring another copy of the
-workspace into committed `deps/`.
+This package is intended to stay GitHub sourced rather than Hex published.
+
+Use it with the published `pristine` runtime on Hex:
+
+```elixir
+{:pristine, "~> 0.2.0"}
+{:pristine_codegen,
+ github: "nshkrdotcom/pristine",
+ branch: "master",
+ subdir: "apps/pristine_codegen"}
+```
+
+For local development across sibling repos, prefer:
+
+```elixir
+{:pristine_codegen, path: "../pristine/apps/pristine_codegen"}
+```
 
 This app owns the shared provider compiler:
 
@@ -84,7 +96,7 @@ end
 compilation.provider_ir
 ```
 
-Generated provider modules target the current runtime contract directly:
+Generated provider modules target the published `pristine` runtime directly:
 
 - `Pristine.Client`
 - `Pristine.Operation`
@@ -95,6 +107,11 @@ Providers may also declare repo-specific committed artifacts in
 `artifact_plan.artifacts` and implement `render_artifact/4`. The shared
 compiler normalizes those artifact contents before writing and freshness
 verification, so provider hooks can return normal binaries or iodata.
+
+## Scope
+
+This README is intentionally specific to the compiler. For the monorepo layout
+and package-publishing policy, start at the GitHub root `README.md`.
 
 ## Guide
 

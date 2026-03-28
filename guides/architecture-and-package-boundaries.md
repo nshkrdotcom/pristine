@@ -57,18 +57,19 @@ that diverge from the shared compiler.
 
 ## Consumption And Packaging
 
-This repo is a non-umbrella workspace with publishable child apps. The package
-boundaries are the child apps, not the tooling root.
+This repo is a non-umbrella workspace. The package boundaries are the child
+apps, not the tooling root.
 
 That means downstream repos should:
 
-- consume `apps/pristine_runtime` as `:pristine`
-- consume `apps/pristine_codegen` as `:pristine_codegen`
-- consume `apps/pristine_provider_testkit` as `:pristine_provider_testkit`
+- consume `:pristine` from Hex
+- consume `apps/pristine_codegen` as GitHub `subdir:` or sibling `path:`
+- consume `apps/pristine_provider_testkit` as GitHub `subdir:` or sibling
+  `path:` for test-only verification support
 
 For local development, sibling-relative `path:` dependencies are the preferred
-shape. When a sibling checkout is unavailable, use a GitHub `subdir:`
-dependency for the specific child app.
+shape for all three child apps. Outside the local workspace, the intended split
+is Hex for `:pristine` and GitHub `subdir:` dependencies for the other two.
 
 Do not build connector or SDK repos around committed vendored `deps/pristine`
 layouts. One OTP app should have one origin within a given dependency graph.

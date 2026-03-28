@@ -3,9 +3,31 @@
 `apps/pristine_provider_testkit` holds shared verification helpers for
 downstream provider SDK repos.
 
-When used from a downstream repo, consume this child app directly rather than
-depending on the workspace root. For local development, the expected shape is
-`{:pristine_provider_testkit, path: "../pristine/apps/pristine_provider_testkit", only: :test}`.
+This package is test-only infrastructure and is intended to stay GitHub
+sourced.
+
+Use it alongside Hex `pristine` and GitHub `pristine_codegen`:
+
+```elixir
+{:pristine, "~> 0.2.0"}
+{:pristine_codegen,
+ github: "nshkrdotcom/pristine",
+ branch: "master",
+ subdir: "apps/pristine_codegen"}
+{:pristine_provider_testkit,
+ github: "nshkrdotcom/pristine",
+ branch: "master",
+ subdir: "apps/pristine_provider_testkit",
+ only: :test}
+```
+
+For local development, the expected shape is:
+
+```elixir
+{:pristine_provider_testkit,
+ path: "../pristine/apps/pristine_provider_testkit",
+ only: :test}
+```
 
 The current shared surface is:
 

@@ -22,9 +22,16 @@ mix monorepo.deps.get
 `pristine` is a workspace, not a single runtime package. Downstream projects
 should consume the child apps they need:
 
-- `apps/pristine_runtime` as `:pristine`
-- `apps/pristine_codegen` as `:pristine_codegen`
-- `apps/pristine_provider_testkit` as `:pristine_provider_testkit`
+- `:pristine` from Hex for runtime use
+- `apps/pristine_codegen` from GitHub `subdir:` or a sibling `path:`
+- `apps/pristine_provider_testkit` from GitHub `subdir:` or a sibling `path:`
+  when provider-repo tests need the shared verification helpers
+
+For a normal runtime dependency, use:
+
+```elixir
+{:pristine, "~> 0.2.0"}
+```
 
 For local development beside this repo, use sibling-relative paths:
 
@@ -33,8 +40,9 @@ For local development beside this repo, use sibling-relative paths:
 {:pristine_codegen, path: "../pristine/apps/pristine_codegen"}
 ```
 
-If the sibling checkout is absent, fall back to GitHub `subdir:` dependencies
-instead of introducing vendored `deps/*` copies.
+If the sibling checkout is absent, keep `:pristine` on Hex and use GitHub
+`subdir:` dependencies for the build-time packages instead of introducing
+vendored `deps/*` copies.
 
 ## Common Workspace Commands
 
