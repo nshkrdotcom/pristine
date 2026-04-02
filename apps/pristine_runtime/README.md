@@ -30,6 +30,7 @@ The public runtime boundary is:
 - `Pristine.execute/3`
 - `Pristine.execute_request/3`
 - `Pristine.stream/3`
+- `Pristine.SDK.*`
 - `Pristine.SDK.OpenAPI.Client`
 - `Pristine.SDK.ProviderProfile`
 - `Pristine.OAuth2`
@@ -78,6 +79,12 @@ request = %{
 - request path safety and response classification
 
 Generated SDKs describe requests. `pristine` executes them.
+
+Auth ownership stays split intentionally:
+
+- `pristine` owns generic OAuth and token-source runtime mechanics
+- provider SDKs own provider-specific helper modules and docs
+- higher control planes own durable install and secret authority
 
 ## Guides
 

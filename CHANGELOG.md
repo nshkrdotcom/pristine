@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   app, each with its own package docs and tests.
 - Added the shared code generation compiler pipeline, canonical
   `PristineCodegen.ProviderIR`, artifact rendering and verification support, and
-  the `mix pristine.codegen.generate`, `verify`, `ir`, and `refresh` tasks.
+  the generator, verifier, IR inspection, and refresh workspace tasks for the
+  codegen toolchain.
 - Added runtime-facing `Pristine.Client`, `Pristine.Operation`,
   `Pristine.Response`, `Pristine.SDK.OpenAPI.Client`, and
   `Pristine.SDK.ProviderProfile` modules to support both direct runtime use and

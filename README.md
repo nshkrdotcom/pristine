@@ -89,6 +89,8 @@ mix monorepo.test
 mix monorepo.credo --strict
 mix monorepo.dialyzer
 mix monorepo.docs
+mix mr.compile
+mix mr.test
 mix quality
 mix docs.all
 mix ci
@@ -96,6 +98,9 @@ mix ci
 
 `mix test` validates the root workspace contracts only. `mix ci` is the full
 workspace acceptance gate.
+
+When you need the underlying workspace runner directly, use
+`mix blitz.workspace <task>`.
 
 ## License
 

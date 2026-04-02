@@ -17,6 +17,7 @@ defmodule Pristine.ProviderTestkit.MixProject do
       build_path: "../../_build",
       deps_path: "../../deps",
       lockfile: "../../mix.lock",
+      test_ignore_filters: ["test/support/provider_fixture.exs"],
       deps: deps(),
       docs: docs(),
       description: description(),

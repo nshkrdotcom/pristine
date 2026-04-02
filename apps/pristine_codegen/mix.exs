@@ -17,6 +17,7 @@ defmodule Pristine.Codegen.MixProject do
       build_path: "../../_build",
       deps_path: "../../deps",
       lockfile: "../../mix.lock",
+      test_ignore_filters: test_ignore_filters(),
       deps: deps(),
       docs: docs(),
       description: description(),
@@ -50,6 +51,13 @@ defmodule Pristine.Codegen.MixProject do
     """
     Shared provider compiler, ProviderIR, and rendering package for Pristine-based SDKs.
     """
+  end
+
+  defp test_ignore_filters do
+    [
+      ~r/^test\/fixtures\//,
+      "test/support/provider_fixture.exs"
+    ]
   end
 
   defp docs do

@@ -4,6 +4,14 @@
 URL generation, token exchange, token refresh, and token persistence over the
 runtime transport boundary.
 
+Ownership split:
+
+- `pristine` owns the generic OAuth runtime mechanics
+- provider SDK repos own provider URLs, scopes, and provider-local helper
+  modules
+- higher control planes own durable install records, secret authority, and
+  hosted callback routes
+
 ## Build A Provider From Security-Scheme Metadata
 
 ```elixir
@@ -68,3 +76,6 @@ client =
 `Pristine.OAuth2.SavedToken` uses `Pristine.OAuth2` directly for refresh flows.
 Browser launch and loopback callback capture remain optional adapter seams on
 top of the runtime boundary.
+
+That means a provider SDK can expose a thin helper layer over `Pristine.OAuth2`
+without reimplementing token persistence or refresh merge behavior.
