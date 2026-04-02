@@ -19,7 +19,7 @@ plane for docs, workspace tooling, and shared quality gates.
 Use Hex for the runtime:
 
 ```elixir
-{:pristine, "~> 0.2.0"}
+{:pristine, "~> 0.2.1"}
 ```
 
 Use GitHub `subdir:` dependencies for the build-time and test-time packages:

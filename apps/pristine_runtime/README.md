@@ -11,7 +11,7 @@ Hex consumption.
 Use Hex for normal runtime adoption:
 
 ```elixir
-{:pristine, "~> 0.2.0"}
+{:pristine, "~> 0.2.1"}
 ```
 
 The companion projects `pristine_codegen` and `pristine_provider_testkit` stay

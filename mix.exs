@@ -1,7 +1,7 @@
 defmodule Pristine.Workspace.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.1"
   @source_url "https://github.com/nshkrdotcom/pristine"
   @workspace_packages [
     pristine: "apps/pristine_runtime",

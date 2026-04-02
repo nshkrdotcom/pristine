@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-01
+
+### Changed
+
+- Aligned the root workspace docs and dependency examples with the `0.2.1`
+  runtime release.
+- Documented the direct `mix mr.*` aliases and the underlying
+  `mix blitz.workspace <task>` runner more clearly in the workspace README.
+
+### Fixed
+
+- Synchronized workspace release metadata and changelog history after the
+  `0.2.0` monorepo split release.
+
 ## [0.2.0] - 2026-03-27
 
 ### Added
