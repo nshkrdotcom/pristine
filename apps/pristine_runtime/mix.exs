@@ -94,7 +94,7 @@ defmodule Pristine.Runtime.MixProject do
     [
       name: "pristine",
       description: description(),
-      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE.md),
+      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE.md assets/pristine.svg),
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       maintainers: ["nshkrdotcom"]
