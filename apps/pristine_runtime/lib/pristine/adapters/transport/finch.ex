@@ -1,35 +1,21 @@
 defmodule Pristine.Adapters.Transport.Finch do
   @moduledoc """
-  Finch-backed transport adapter.
+  Compatibility-named unary HTTP transport adapter backed by the Execution Plane.
   """
 
   @behaviour Pristine.Ports.Transport
 
+  alias ExecutionPlane.HTTP, as: ExecutionPlaneHTTP
   alias Pristine.Core.{Context, Request, Response}
 
   @impl true
   def send(%Request{} = request, %Context{} = context) do
-    finch = Keyword.get(context.transport_opts, :finch, Finch)
-    pool = resolve_pool(request.metadata, context.transport_opts, finch)
-
     case normalize_method(request.method) do
       {:ok, method} ->
-        headers = Enum.into(request.headers, [])
-        req = Finch.build(method, request.url, headers, request.body)
-        finch_opts = send_opts(request, context)
-
-        case Finch.request(req, pool, finch_opts) do
-          {:ok, response} ->
-            {:ok,
-             %Response{
-               status: response.status,
-               headers: Enum.into(response.headers, %{}),
-               body: response.body
-             }}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+        request
+        |> build_execution_request(method, context)
+        |> ExecutionPlaneHTTP.unary(lineage: execution_lineage(request))
+        |> normalize_execution_result()
 
       {:error, _} = error ->
         error
@@ -55,40 +41,41 @@ defmodule Pristine.Adapters.Transport.Finch do
 
   defp normalize_method(_), do: {:error, :invalid_method}
 
-  defp send_opts(%Request{} = request, %Context{} = context) do
-    request_timeout = Map.get(request.metadata, :timeout)
-
-    context.transport_opts
-    |> maybe_override_timeout(request_timeout)
-    |> finch_opts()
+  defp build_execution_request(%Request{} = request, method, %Context{} = _context) do
+    %{
+      url: request.url,
+      method: method,
+      headers: request.headers,
+      body: request.body,
+      timeout_ms: Map.get(request.metadata, :timeout)
+    }
   end
 
-  defp maybe_override_timeout(opts, timeout) when is_integer(timeout) and timeout >= 0 do
-    Keyword.put(opts, :timeout, timeout)
+  defp execution_lineage(%Request{} = request) do
+    case idempotency_key(request.headers) do
+      nil -> %{}
+      key -> %{idempotency_key: key}
+    end
   end
 
-  defp maybe_override_timeout(opts, _timeout), do: opts
-
-  defp finch_opts(opts) do
-    timeout = Keyword.get(opts, :timeout)
-    receive_timeout = Keyword.get(opts, :receive_timeout, timeout)
-
-    opts
-    |> Keyword.drop([:timeout, :receive_timeout, :pool_name, :finch])
-    |> maybe_put_receive_timeout(receive_timeout)
+  defp normalize_execution_result({:ok, result}) do
+    {:ok,
+     %Response{
+       status: result.outcome.raw_payload.status_code,
+       headers: result.outcome.raw_payload.headers,
+       body: result.outcome.raw_payload.body
+     }}
   end
 
-  defp maybe_put_receive_timeout(opts, nil), do: opts
-  defp maybe_put_receive_timeout(opts, timeout), do: Keyword.put(opts, :receive_timeout, timeout)
-
-  defp resolve_pool(metadata, transport_opts, finch)
-       when is_map(metadata) and is_list(transport_opts) do
-    metadata
-    |> Map.get(:pool_name)
-    |> fallback_pool(Keyword.get(transport_opts, :pool_name))
-    |> fallback_pool(finch)
+  defp normalize_execution_result({:error, result}) do
+    {:error, {:execution_plane_transport, result.outcome.failure, result.outcome.raw_payload}}
   end
 
-  defp fallback_pool(nil, fallback), do: fallback
-  defp fallback_pool(pool, _fallback), do: pool
+  defp idempotency_key(headers) when is_map(headers) do
+    Enum.find_value(headers, fn {key, value} ->
+      if String.contains?(String.downcase(to_string(key)), "idempotency-key") do
+        to_string(value)
+      end
+    end)
+  end
 end

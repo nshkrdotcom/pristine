@@ -5,6 +5,7 @@ defmodule Pristine.Adapters.ResultClassifier.HTTP do
 
   @behaviour Pristine.Ports.ResultClassifier
 
+  alias ExecutionPlane.Contracts.Failure, as: ExecutionFailure
   alias Pristine.Core.{Response, ResultClassification}
   alias Pristine.Response, as: PublicResponse
   alias Pristine.SDK.ProviderProfile
@@ -156,6 +157,13 @@ defmodule Pristine.Adapters.ResultClassifier.HTTP do
 
   defp retryable_transport_error?(%Mint.TransportError{}), do: true
   defp retryable_transport_error?(%Mint.HTTPError{}), do: true
+
+  defp retryable_transport_error?(
+         {:execution_plane_transport, %ExecutionFailure{} = failure, _raw}
+       ),
+       do: failure.retryable?
+
+  defp retryable_transport_error?(%ExecutionFailure{} = failure), do: failure.retryable?
   defp retryable_transport_error?(:timeout), do: true
   defp retryable_transport_error?(_reason), do: false
 

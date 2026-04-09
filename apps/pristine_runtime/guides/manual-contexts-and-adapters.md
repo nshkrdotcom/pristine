@@ -3,6 +3,12 @@
 `Pristine.Client.new/1` gives direct control over the runtime ports and adapters
 without going through the curated Foundation profile.
 
+For the covered unary lane, `Pristine.Adapters.Transport.Finch` keeps its
+compatibility module name but no longer owns raw HTTP execution. It emits
+`HttpExecutionIntent.v1` and delegates the lower request/response hop to
+`execution_plane`, while `Pristine.Adapters.Transport.FinchStream` remains the
+stream transport path.
+
 ## Manual Client Wiring
 
 ```elixir

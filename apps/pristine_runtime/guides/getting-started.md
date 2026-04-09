@@ -56,6 +56,11 @@ request = %{
 {:ok, data} = Pristine.execute_request(request, context)
 ```
 
+For unary request/response execution, the default Finch-named adapter now emits
+`HttpExecutionIntent.v1` and delegates the lower HTTP hop to
+`execution_plane`. `Pristine.stream/3` remains the stream-oriented path and
+keeps using the explicit stream transport adapter.
+
 `Pristine.stream/3` still consumes the lower-level `Pristine.Operation`
 envelope. The stream transport returns a `Pristine.Response` whose `:stream`
 field is enumerable.

@@ -1,6 +1,7 @@
 defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
   use ExUnit.Case, async: true
 
+  alias ExecutionPlane.Contracts.Failure
   alias Pristine.Adapters.ResultClassifier.HTTP
   alias Pristine.Core.{EndpointMetadata, Response}
 
@@ -73,6 +74,23 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
       assert classification.limiter_backoff_ms == 7_000
       assert classification.breaker_outcome == :ignore
       assert classification.telemetry.classification == :rate_limited
+    end
+
+    test "treats execution-plane transport failures as retryable transport errors" do
+      classification =
+        HTTP.classify(
+          {:error,
+           {:execution_plane_transport,
+            Failure.new!(%{failure_class: :transport_failed, reason: "http request failed"}),
+            %{}}},
+          endpoint(:get),
+          %Pristine.Core.Context{},
+          []
+        )
+
+      assert classification.retry? == true
+      assert classification.breaker_outcome == :failure
+      assert classification.telemetry.classification == :transport_error
     end
   end
 

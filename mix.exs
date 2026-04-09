@@ -23,8 +23,7 @@ defmodule Pristine.Workspace.MixProject do
       dialyzer: dialyzer(),
       name: "Pristine Workspace",
       source_url: @source_url,
-      homepage_url: @source_url,
-      package: package()
+      homepage_url: @source_url
     ]
   end
 
@@ -83,18 +82,6 @@ defmodule Pristine.Workspace.MixProject do
     """
     Tooling root for the Pristine non-umbrella monorepo.
     """
-  end
-
-  defp package do
-    [
-      name: "pristine_workspace",
-      licenses: ["MIT"],
-      links: %{
-        "GitHub" => @source_url
-      },
-      files:
-        ~w(apps assets build_support .formatter.exs mix.exs README.md CHANGELOG.md LICENSE LICENSE.md guides examples)
-    ]
   end
 
   defp docs do

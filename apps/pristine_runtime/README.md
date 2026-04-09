@@ -40,6 +40,13 @@ recommended production path and for generated provider SDKs. Use
 `Pristine.Client` plus `Pristine.Operation` when you want lower-level manual
 control over operation construction and execution.
 
+For the covered Wave 3 unary lane, `Pristine.Adapters.Transport.Finch` remains
+the compatibility-named request adapter but now emits `HttpExecutionIntent.v1`
+and delegates raw request/response execution to `execution_plane`. `pristine`
+still owns request shaping, auth, retries, telemetry, normalized responses, and
+the transport-versus-semantic failure boundary. Streaming and SSE remain on the
+explicit stream transport lane.
+
 ## Example
 
 ```elixir

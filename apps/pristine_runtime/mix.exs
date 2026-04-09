@@ -33,6 +33,7 @@ defmodule Pristine.Runtime.MixProject do
 
   defp deps do
     [
+      {:execution_plane, path: "../../../execution_plane"},
       {:jason, "~> 1.4"},
       {:telemetry, "~> 1.4"},
       {:finch, "~> 0.21"},
