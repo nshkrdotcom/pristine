@@ -11,7 +11,7 @@ Use it with the published `pristine` runtime on Hex:
 {:pristine, "~> 0.2.0"}
 {:pristine_codegen,
  github: "nshkrdotcom/pristine",
- branch: "master",
+ branch: "main",
  subdir: "apps/pristine_codegen"}
 ```
 

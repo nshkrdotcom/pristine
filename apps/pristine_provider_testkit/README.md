@@ -12,11 +12,11 @@ Use it alongside Hex `pristine` and GitHub `pristine_codegen`:
 {:pristine, "~> 0.2.0"}
 {:pristine_codegen,
  github: "nshkrdotcom/pristine",
- branch: "master",
+ branch: "main",
  subdir: "apps/pristine_codegen"}
 {:pristine_provider_testkit,
  github: "nshkrdotcom/pristine",
- branch: "master",
+ branch: "main",
  subdir: "apps/pristine_provider_testkit",
  only: :test}
 ```

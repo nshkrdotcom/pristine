@@ -27,12 +27,12 @@ Use GitHub `subdir:` dependencies for the build-time and test-time packages:
 ```elixir
 {:pristine_codegen,
  github: "nshkrdotcom/pristine",
- branch: "master",
+ branch: "main",
  subdir: "apps/pristine_codegen"}
 
 {:pristine_provider_testkit,
  github: "nshkrdotcom/pristine",
- branch: "master",
+ branch: "main",
  subdir: "apps/pristine_provider_testkit",
  only: :test}
 ```
