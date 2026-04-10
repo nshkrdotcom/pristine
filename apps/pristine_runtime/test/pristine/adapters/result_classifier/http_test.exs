@@ -81,8 +81,7 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
         HTTP.classify(
           {:error,
            {:execution_plane_transport,
-            Failure.new!(%{failure_class: :transport_failed, reason: "http request failed"}),
-            %{}}},
+            Failure.new!(%{failure_class: :transport_failed, reason: "http request failed"}), %{}}},
           endpoint(:get),
           %Pristine.Core.Context{},
           []
