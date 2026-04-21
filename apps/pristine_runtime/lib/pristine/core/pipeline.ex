@@ -631,7 +631,8 @@ defmodule Pristine.Core.Pipeline do
   defp send_request(transport, request, context) do
     case transport.send(request, context) do
       {:ok, %Response{} = response} ->
-        {:ok, %Response{response | metadata: request.metadata}}
+        metadata = Map.merge(request.metadata || %{}, response.metadata || %{})
+        {:ok, %Response{response | metadata: metadata}}
 
       other ->
         other
