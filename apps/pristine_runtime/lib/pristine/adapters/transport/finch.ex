@@ -52,10 +52,12 @@ defmodule Pristine.Adapters.Transport.Finch do
   end
 
   defp execution_lineage(%Request{} = request) do
-    case idempotency_key(request.headers) do
-      nil -> %{}
-      key -> %{idempotency_key: key}
-    end
+    %{idempotency_key: idempotency_key(request.headers) || generated_idempotency_key()}
+  end
+
+  defp generated_idempotency_key do
+    token = System.unique_integer([:positive, :monotonic])
+    "pristine-http-finch-#{token}"
   end
 
   defp normalize_execution_result({:ok, result}) do
@@ -78,4 +80,6 @@ defmodule Pristine.Adapters.Transport.Finch do
       end
     end)
   end
+
+  defp idempotency_key(_headers), do: nil
 end

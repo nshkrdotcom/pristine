@@ -11,6 +11,7 @@ defmodule Pristine.Adapters.Transport.LowerSimulation do
   @behaviour Pristine.Ports.Transport
 
   alias ExecutionPlane.HTTP, as: ExecutionPlaneHTTP
+  alias Pristine.{AdapterSelectionPolicy, LowerSimulationScenario}
   alias Pristine.Core.{Context, Request, Response}
 
   @app :pristine
@@ -18,9 +19,63 @@ defmodule Pristine.Adapters.Transport.LowerSimulation do
   @default_side_effect_policy "deny_external_egress"
   @missing {__MODULE__, :missing}
 
+  @doc """
+  Declares the Phase 6 adapter selection policy for Pristine HTTP simulation.
+  """
+  @spec adapter_selection_policy() :: AdapterSelectionPolicy.t()
+  def adapter_selection_policy do
+    AdapterSelectionPolicy.new!(%{
+      selection_surface: "application_config",
+      owner_repo: "pristine",
+      config_key: "pristine.transport_simulation_profiles",
+      default_value_when_unset: "normal_http_transport",
+      fail_closed_action_when_misconfigured: "reject_required_or_invalid_profile"
+    })
+  end
+
+  @doc """
+  Builds the owner-local Phase 6 lower scenario declaration for an HTTP profile.
+  """
+  @spec lower_simulation_scenario!(String.t(), map() | keyword()) :: LowerSimulationScenario.t()
+  def lower_simulation_scenario!(scenario_ref, overrides \\ []) when is_binary(scenario_ref) do
+    overrides = normalize_overrides!(overrides)
+
+    %{
+      scenario_id: scenario_ref,
+      version: "1.0.0",
+      owner_repo: "pristine",
+      route_kind: "http_request",
+      protocol_surface: "http",
+      matcher_class: "deterministic_over_input",
+      status_or_exit_or_response_or_stream_or_chunk_or_fault_shape: %{
+        "status_code" => "configured",
+        "headers" => "configured",
+        "body" => "configured"
+      },
+      no_egress_assertion: %{
+        "external_egress" => "deny",
+        "process_spawn" => "deny",
+        "side_effect_result" => "not_attempted"
+      },
+      bounded_evidence_projection: %{
+        "contract_version" => "ExecutionPlane.LowerSimulationEvidence.v1",
+        "raw_payload_persistence" => "shape_only",
+        "fingerprints" => ["input", "response_shape"]
+      },
+      input_fingerprint_ref: "fingerprint://pristine/http/lower-simulation/input",
+      cleanup_behavior: %{
+        "runtime_artifacts" => "delete",
+        "durable_payload" => "deny_raw"
+      }
+    }
+    |> Map.merge(overrides)
+    |> LowerSimulationScenario.new!()
+  end
+
   @impl true
   def send(%Request{} = request, %Context{} = context) do
-    with {:ok, method} <- normalize_method(request.method),
+    with :ok <- reject_public_simulation_selector(context.transport_opts),
+         {:ok, method} <- normalize_method(request.method),
          {:ok, profile} <- resolve_profile(request, context),
          {:ok, descriptor} <- lower_simulation_descriptor(request, profile) do
       request
@@ -36,7 +91,8 @@ defmodule Pristine.Adapters.Transport.LowerSimulation do
   defp resolve_profile(%Request{} = request, %Context{} = context) do
     config = merged_config(context)
 
-    with {:ok, required?} <- required?(config),
+    with :ok <- reject_public_simulation_selector(config),
+         {:ok, required?} <- required?(config),
          {:ok, profile} <- configured_profile(config, request) do
       case profile do
         nil when required? ->
@@ -75,6 +131,41 @@ defmodule Pristine.Adapters.Transport.LowerSimulation do
   end
 
   defp merge_config(_app_config, context_config), do: context_config
+
+  defp normalize_overrides!(overrides) when is_map(overrides), do: overrides
+
+  defp normalize_overrides!(overrides) when is_list(overrides) do
+    if Keyword.keyword?(overrides) do
+      Map.new(overrides)
+    else
+      raise ArgumentError, "expected keyword overrides, got: #{inspect(overrides)}"
+    end
+  end
+
+  defp normalize_overrides!(overrides) do
+    raise ArgumentError, "expected map or keyword overrides, got: #{inspect(overrides)}"
+  end
+
+  defp reject_public_simulation_selector(values) when is_list(values) do
+    if Enum.any?(values, &public_simulation_entry?/1) do
+      {:error, {:public_simulation_selector_forbidden, :pristine}}
+    else
+      :ok
+    end
+  end
+
+  defp reject_public_simulation_selector(values) when is_map(values) do
+    if Map.has_key?(values, :simulation) or Map.has_key?(values, "simulation") do
+      {:error, {:public_simulation_selector_forbidden, :pristine}}
+    else
+      :ok
+    end
+  end
+
+  defp reject_public_simulation_selector(_values), do: :ok
+
+  defp public_simulation_entry?({key, _value}), do: key in [:simulation, "simulation"]
+  defp public_simulation_entry?(_entry), do: false
 
   defp required?(config) do
     case config_value(config, :required?, false) do
@@ -298,8 +389,16 @@ defmodule Pristine.Adapters.Transport.LowerSimulation do
 
   defp execution_lineage(%Request{} = request) do
     %{}
-    |> maybe_put(:idempotency_key, idempotency_key(request.headers))
+    |> maybe_put(
+      :idempotency_key,
+      idempotency_key(request.headers) || generated_idempotency_key()
+    )
     |> maybe_put(:request_id, request.endpoint_id)
+  end
+
+  defp generated_idempotency_key do
+    token = System.unique_integer([:positive, :monotonic])
+    "pristine-http-lower-#{token}"
   end
 
   defp normalize_method(method) when is_atom(method), do: {:ok, method}

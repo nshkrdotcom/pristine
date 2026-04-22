@@ -32,7 +32,9 @@ defmodule Pristine do
   """
   @spec execute(Client.t(), Operation.t(), keyword()) :: {:ok, term()} | {:error, term()}
   def execute(%Client{} = client, %Operation{} = operation, opts \\ []) do
-    Pipeline.execute_operation(operation, client.context, opts)
+    with :ok <- reject_public_simulation_selector(opts) do
+      Pipeline.execute_operation(operation, client.context, opts)
+    end
   end
 
   @doc """
@@ -45,7 +47,10 @@ defmodule Pristine do
         ) ::
           {:ok, term()} | {:error, term()}
   def execute_request(request_spec, %RuntimeContext{} = context, opts \\ []) do
-    Pipeline.execute_request(request_spec, context, opts)
+    with :ok <- reject_public_simulation_selector(request_spec),
+         :ok <- reject_public_simulation_selector(opts) do
+      Pipeline.execute_request(request_spec, context, opts)
+    end
   end
 
   @doc """
@@ -54,6 +59,29 @@ defmodule Pristine do
   @spec stream(Client.t(), Operation.t(), keyword()) ::
           {:ok, Pristine.Response.t()} | {:error, term()}
   def stream(%Client{} = client, %Operation{} = operation, opts \\ []) do
-    Pipeline.stream_operation(operation, client.context, opts)
+    with :ok <- reject_public_simulation_selector(opts) do
+      Pipeline.stream_operation(operation, client.context, opts)
+    end
   end
+
+  defp reject_public_simulation_selector(values) when is_list(values) do
+    if Enum.any?(values, &public_simulation_entry?/1) do
+      {:error, {:public_simulation_selector_forbidden, :pristine}}
+    else
+      :ok
+    end
+  end
+
+  defp reject_public_simulation_selector(values) when is_map(values) do
+    if Map.has_key?(values, :simulation) or Map.has_key?(values, "simulation") do
+      {:error, {:public_simulation_selector_forbidden, :pristine}}
+    else
+      :ok
+    end
+  end
+
+  defp reject_public_simulation_selector(_values), do: :ok
+
+  defp public_simulation_entry?({key, _value}), do: key in [:simulation, "simulation"]
+  defp public_simulation_entry?(_entry), do: false
 end
