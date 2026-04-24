@@ -9,7 +9,7 @@ unless Code.ensure_loaded?(Pristine.Build.DependencyResolver) do
 
     def pristine_runtime(opts \\ []) do
       case workspace_path(["apps/pristine_runtime"]) do
-        nil -> {:pristine, "~> 0.2.0", opts}
+        nil -> {:pristine, "~> 0.2.1", opts}
         path -> {:pristine, Keyword.merge([path: path], opts)}
       end
     end
@@ -46,8 +46,10 @@ unless Code.ensure_loaded?(Pristine.Build.DependencyResolver) do
     end
 
     defp prefer_workspace_paths? do
-      not Enum.member?(Path.split(@workspace_root), "deps")
+      not publishing_package?() and not Enum.member?(Path.split(@workspace_root), "deps")
     end
+
+    defp publishing_package?, do: Enum.any?(System.argv(), &(&1 in ["hex.build", "hex.publish"]))
 
     defp existing_path(relative_path) do
       expanded_path = Path.expand(relative_path, @workspace_root)

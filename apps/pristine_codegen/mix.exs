@@ -40,7 +40,7 @@ defmodule Pristine.Codegen.MixProject do
       DependencyResolver.pristine_runtime(),
       {:jason, "~> 1.4"},
       {:yaml_elixir, "~> 2.12"},
-      {:sinter, "~> 0.2.0"},
+      {:sinter, "~> 0.3.1"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false}

@@ -8,7 +8,7 @@ This package is intended to stay GitHub sourced rather than Hex published.
 Use it with the published `pristine` runtime on Hex:
 
 ```elixir
-{:pristine, "~> 0.2.0"}
+{:pristine, "~> 0.2.1"}
 {:pristine_codegen,
  github: "nshkrdotcom/pristine",
  branch: "main",

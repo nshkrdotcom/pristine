@@ -9,7 +9,7 @@ sourced.
 Use it alongside Hex `pristine` and GitHub `pristine_codegen`:
 
 ```elixir
-{:pristine, "~> 0.2.0"}
+{:pristine, "~> 0.2.1"}
 {:pristine_codegen,
  github: "nshkrdotcom/pristine",
  branch: "main",

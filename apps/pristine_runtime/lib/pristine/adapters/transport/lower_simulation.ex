@@ -17,6 +17,22 @@ defmodule Pristine.Adapters.Transport.LowerSimulation do
   @app :pristine
   @config_key :transport_simulation_profiles
   @default_side_effect_policy "deny_external_egress"
+  @default_no_egress_policy %{
+    "policy_ref" => "no-egress-policy://execution-plane/lower/v1",
+    "owner_repo" => "execution_plane",
+    "mode" => "deny",
+    "enforcement_boundary" => "lower_runtime",
+    "denied_surfaces" => %{
+      "external_egress" => "deny",
+      "process_spawn" => "deny",
+      "unregistered_provider_route" => "deny",
+      "raw_external_saas_write_path" => "deny"
+    },
+    "required_negative_evidence" => [
+      "attempted_unregistered_provider_route",
+      "attempted_raw_external_saas_write_path"
+    ]
+  }
   @missing {__MODULE__, :missing}
 
   @doc """
@@ -228,6 +244,7 @@ defmodule Pristine.Adapters.Transport.LowerSimulation do
          {:ok, outcome_status} <- outcome_status(profile),
          {:ok, metrics} <- metrics(profile),
          {:ok, side_effect_policy} <- side_effect_policy(profile),
+         {:ok, no_egress_policy} <- no_egress_policy(profile),
          {:ok, failure} <- failure(profile) do
       descriptor =
         %{
@@ -235,7 +252,8 @@ defmodule Pristine.Adapters.Transport.LowerSimulation do
           "status" => outcome_status,
           "raw_payload" => raw_payload,
           "metrics" => metrics,
-          "side_effect_policy" => side_effect_policy
+          "side_effect_policy" => side_effect_policy,
+          "no_egress_policy" => no_egress_policy
         }
         |> maybe_put("failure", failure)
 
@@ -332,6 +350,13 @@ defmodule Pristine.Adapters.Transport.LowerSimulation do
     case profile_value(profile, :side_effect_policy, @default_side_effect_policy) do
       value when is_binary(value) -> {:ok, value}
       other -> {:error, {:invalid_side_effect_policy, other}}
+    end
+  end
+
+  defp no_egress_policy(profile) do
+    case profile_value(profile, :no_egress_policy, @default_no_egress_policy) do
+      policy when is_map(policy) -> {:ok, stringify_keys(policy)}
+      other -> {:error, {:invalid_no_egress_policy, other}}
     end
   end
 

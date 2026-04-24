@@ -35,7 +35,7 @@ defmodule Pristine.Workspace.MixProject do
 
   defp deps do
     [
-      {:blitz, "~> 0.1.0", runtime: false},
+      {:blitz, "~> 0.2.0", runtime: false},
       workspace_package_deps(),
       {:plug, "~> 1.19", only: [:dev, :test], runtime: false},
       {:bandit, "~> 1.10", only: [:dev, :test], runtime: false},
