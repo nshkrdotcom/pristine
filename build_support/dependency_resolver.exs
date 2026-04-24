@@ -40,12 +40,12 @@ unless Code.ensure_loaded?(Pristine.Build.DependencyResolver) do
     end
 
     defp workspace_path(local_paths) do
-      if prefer_workspace_paths?() do
+      if local_workspace_deps?() do
         Enum.find_value(local_paths, &existing_path/1)
       end
     end
 
-    defp prefer_workspace_paths? do
+    defp local_workspace_deps? do
       not publishing_package?() and not Enum.member?(Path.split(@workspace_root), "deps")
     end
 
