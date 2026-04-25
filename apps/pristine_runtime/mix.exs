@@ -57,7 +57,7 @@ defmodule Pristine.Runtime.MixProject do
   end
 
   defp execution_plane_dep do
-    case execution_plane_workspace_dep_path("") do
+    case execution_plane_workspace_dep_path("core/execution_plane") do
       nil -> {:execution_plane, @execution_plane_version}
       path -> {:execution_plane, path: path}
     end
