@@ -3,7 +3,7 @@ defmodule Pristine.Runtime.MixProject do
 
   @version "0.2.1"
   @source_url "https://github.com/nshkrdotcom/pristine"
-  @execution_plane_contracts_version "~> 0.1.0"
+  @execution_plane_version "~> 0.1.0"
   @execution_plane_http_version "~> 0.1.0"
 
   def project do
@@ -35,7 +35,7 @@ defmodule Pristine.Runtime.MixProject do
 
   defp deps do
     [
-      execution_plane_contracts_dep(),
+      execution_plane_dep(),
       execution_plane_http_dep(),
       {:jason, "~> 1.4"},
       {:telemetry, "~> 1.4"},
@@ -56,10 +56,10 @@ defmodule Pristine.Runtime.MixProject do
     ]
   end
 
-  defp execution_plane_contracts_dep do
-    case execution_plane_workspace_dep_path("core/execution_plane_contracts") do
-      nil -> {:execution_plane_contracts, @execution_plane_contracts_version}
-      path -> {:execution_plane_contracts, path: path}
+  defp execution_plane_dep do
+    case execution_plane_workspace_dep_path("") do
+      nil -> {:execution_plane, @execution_plane_version}
+      path -> {:execution_plane, path: path}
     end
   end
 
