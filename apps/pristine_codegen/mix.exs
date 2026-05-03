@@ -55,7 +55,10 @@ defmodule Pristine.Codegen.MixProject do
 
   defp test_ignore_filters do
     [
-      ~r/^test\/fixtures\//,
+      "test/fixtures/golden/widget_api/generated/client.ex",
+      "test/fixtures/golden/widget_api/generated/runtime_schema.ex",
+      "test/fixtures/golden/widget_api/generated/types/widget.ex",
+      "test/fixtures/golden/widget_api/generated/widgets.ex",
       "test/support/provider_fixture.exs"
     ]
   end

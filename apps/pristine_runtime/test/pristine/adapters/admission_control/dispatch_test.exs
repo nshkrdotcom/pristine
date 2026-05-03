@@ -68,12 +68,18 @@ defmodule Pristine.Adapters.AdmissionControl.DispatchTest do
   end
 
   test "raises for invalid explicit dispatch configuration" do
-    assert_raise ArgumentError, ~r/dispatch/i, fn ->
-      DispatchAdapter.with_admission(fn -> :ok end, dispatch: :missing_dispatch)
-    end
+    admission_error =
+      assert_raise ArgumentError, fn ->
+        DispatchAdapter.with_admission(fn -> :ok end, dispatch: :missing_dispatch)
+      end
 
-    assert_raise ArgumentError, ~r/dispatch/i, fn ->
-      DispatchAdapter.set_backoff(100, dispatch: :missing_dispatch)
-    end
+    assert admission_error.message |> String.downcase() |> String.contains?("dispatch")
+
+    backoff_error =
+      assert_raise ArgumentError, fn ->
+        DispatchAdapter.set_backoff(100, dispatch: :missing_dispatch)
+      end
+
+    assert backoff_error.message |> String.downcase() |> String.contains?("dispatch")
   end
 end

@@ -278,9 +278,12 @@ defmodule Pristine.RequestExecutionTest do
       :ok
     end)
 
-    assert_raise ArgumentError, ~r/path traversal/i, fn ->
-      Pristine.execute(client, operation)
-    end
+    error =
+      assert_raise ArgumentError, fn ->
+        Pristine.execute(client, operation)
+      end
+
+    assert error.message |> String.downcase() |> String.contains?("path traversal")
   end
 
   test "stream/3 uses the public client and operation contract" do

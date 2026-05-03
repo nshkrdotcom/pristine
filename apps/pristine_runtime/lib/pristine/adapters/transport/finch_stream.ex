@@ -28,7 +28,7 @@ defmodule Pristine.Adapters.Transport.FinchStream do
 
   @behaviour Pristine.Ports.StreamTransport
 
-  alias Pristine.Core.{Context, Request, StreamResponse}
+  alias Pristine.Core.{Context, HTTPMethod, Request, StreamResponse}
   alias Pristine.Streaming.{Event, SSEDecoder}
 
   @default_timeout 60_000
@@ -94,9 +94,7 @@ defmodule Pristine.Adapters.Transport.FinchStream do
   defp normalize_method(method) when is_atom(method), do: method
 
   defp normalize_method(method) when is_binary(method) do
-    method
-    |> String.downcase()
-    |> String.to_existing_atom()
+    HTTPMethod.telemetry(method)
   end
 
   defp fallback_pool(nil, fallback), do: fallback

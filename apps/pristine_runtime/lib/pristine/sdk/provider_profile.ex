@@ -4,6 +4,16 @@ defmodule Pristine.SDK.ProviderProfile do
   """
 
   alias Pristine.Adapters.Retry.Foundation, as: FoundationRetry
+  alias Pristine.Core.HTTPMethod
+
+  @status_retry_override_keys %{
+    "breaker_outcome" => :breaker_outcome,
+    "limiter_backoff_ms" => :limiter_backoff_ms,
+    "retry" => :retry?,
+    "retry?" => :retry?,
+    "retry_groups" => :retry_groups,
+    "telemetry_classification" => :telemetry_classification
+  }
 
   @type retry_group_selector :: :all | [String.t()] | nil
   @type status_retry_override :: %{
@@ -430,12 +440,10 @@ defmodule Pristine.SDK.ProviderProfile do
     do: method in [:delete, :get, :head, :options, :put, :trace]
 
   defp safe_method?(method) when is_binary(method) do
-    method
-    |> String.downcase()
-    |> String.to_existing_atom()
-    |> safe_method?()
-  rescue
-    ArgumentError -> false
+    case HTTPMethod.telemetry(method) do
+      atom when is_atom(atom) -> safe_method?(atom)
+      _other -> false
+    end
   end
 
   defp safe_method?(_method), do: false
@@ -464,25 +472,45 @@ defmodule Pristine.SDK.ProviderProfile do
   defp normalize_status_retry_overrides(_overrides), do: %{}
 
   defp normalize_status_retry_override(override) when is_map(override) do
-    override
-    |> Map.new(fn {key, value} ->
-      normalized_key =
-        case key do
-          atom when is_atom(atom) -> atom
-          binary when is_binary(binary) -> String.to_atom(binary)
-        end
+    Enum.reduce(override, %{}, fn {key, value}, acc ->
+      case status_retry_override_key(key) do
+        nil ->
+          acc
 
-      normalized_value =
-        case normalized_key do
-          :retry_groups -> normalize_retry_group_selector(value)
-          _other -> value
-        end
-
-      {normalized_key, normalized_value}
+        normalized_key ->
+          Map.put(
+            acc,
+            normalized_key,
+            normalize_status_retry_override_value(normalized_key, value)
+          )
+      end
     end)
   end
 
   defp normalize_status_retry_override(_override), do: %{}
+
+  defp status_retry_override_key(key) when is_atom(key) do
+    if key in [
+         :breaker_outcome,
+         :limiter_backoff_ms,
+         :retry?,
+         :retry_groups,
+         :telemetry_classification
+       ] do
+      key
+    end
+  end
+
+  defp status_retry_override_key(key) when is_binary(key) do
+    Map.get(@status_retry_override_keys, key)
+  end
+
+  defp status_retry_override_key(_key), do: nil
+
+  defp normalize_status_retry_override_value(:retry_groups, value),
+    do: normalize_retry_group_selector(value)
+
+  defp normalize_status_retry_override_value(_key, value), do: value
 
   defp normalize_integer_key_map(map) when is_map(map) do
     Map.new(map, fn {key, value} -> {normalize_integer_key(key), value} end)

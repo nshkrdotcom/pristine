@@ -2,6 +2,7 @@ defmodule PristineCodegen.ProviderIRTest do
   use ExUnit.Case, async: true
 
   alias PristineCodegen.Compiler
+  alias PristineCodegen.Normalize
   alias PristineCodegen.ProviderIR
   alias PristineCodegen.TestSupport.SampleProvider
 
@@ -90,6 +91,17 @@ defmodule PristineCodegen.ProviderIRTest do
              "WidgetAPI.Generated.Types.Widget"
 
     assert Jason.decode!(Jason.encode!(provider_ir)) == provider_ir
+  end
+
+  test "rejects generated identifiers that are not bounded Elixir identifiers" do
+    definition =
+      []
+      |> SampleProvider.definition()
+      |> put_in([:operations, Access.at(0), :function], "bad-name!")
+
+    assert_raise ArgumentError, fn ->
+      Normalize.from_definition(definition)
+    end
   end
 
   defp tmp_project_root!(suffix) do

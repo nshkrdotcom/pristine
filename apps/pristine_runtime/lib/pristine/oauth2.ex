@@ -16,6 +16,11 @@ defmodule Pristine.OAuth2 do
 
   alias Pristine.Ports.OAuthBackend.Request, as: BackendRequest
 
+  @oauth_body_atom_keys %{
+    "error" => :error,
+    "error_description" => :error_description
+  }
+
   @type result(value) :: {:ok, value} | {:error, Error.t()}
 
   @spec available?() :: boolean()
@@ -365,9 +370,7 @@ defmodule Pristine.OAuth2 do
   end
 
   defp body_value(body, key) when is_map(body) do
-    Map.get(body, key) || Map.get(body, String.to_atom(key))
-  rescue
-    ArgumentError -> Map.get(body, key)
+    Map.get(body, key) || Map.get(body, Map.get(@oauth_body_atom_keys, key))
   end
 
   defp stringify_keys(map) when is_map(map) do

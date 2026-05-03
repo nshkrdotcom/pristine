@@ -91,4 +91,34 @@ defmodule Pristine.OperationTest do
     assert next_operation.path_template == "/user/repos"
     assert next_operation.query == %{"page" => "2", "per_page" => "50"}
   end
+
+  test "pagination helpers accept unquoted next link relations" do
+    operation =
+      Operation.new(%{
+        id: "repos.list",
+        method: :get,
+        path_template: "/user/repos",
+        pagination: %{
+          strategy: :link_header,
+          request_mapping: %{limit_param: "per_page"},
+          response_mapping: %{link_header: "link"},
+          default_limit: 30,
+          items_path: nil
+        }
+      })
+
+    response = %Pristine.Response{
+      status: 200,
+      headers: %{
+        "link" =>
+          "<https://api.example.com/user/repos?page=2&per_page=50>; rel=next, " <>
+            "<https://api.example.com/user/repos?page=4&per_page=50>; rel=last"
+      },
+      body: []
+    }
+
+    assert %Operation{} = next_operation = Operation.next_page(operation, response)
+    assert next_operation.path_template == "/user/repos"
+    assert next_operation.query == %{"page" => "2", "per_page" => "50"}
+  end
 end

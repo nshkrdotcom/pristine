@@ -1,6 +1,7 @@
 defmodule PristineCodegen.Normalize do
   @moduledoc false
 
+  alias PristineCodegen.Identifier
   alias PristineCodegen.ProviderIR
   alias PristineCodegen.ProviderIR.Artifact
   alias PristineCodegen.ProviderIR.ArtifactPlan
@@ -287,7 +288,7 @@ defmodule PristineCodegen.Normalize do
   end
 
   defp normalize_key_spec(string_key) when is_binary(string_key) do
-    {string_key, String.to_atom(string_key)}
+    {string_key, Identifier.atom!(string_key, "key spec")}
   end
 
   defp normalize_generated_module(_base_module, module) when is_atom(module), do: module
@@ -298,17 +299,23 @@ defmodule PristineCodegen.Normalize do
       |> String.split(".")
       |> Enum.reject(&(&1 == ""))
 
-    Module.concat([base_module, Generated | Enum.map(segments, &String.to_atom/1)])
+    bounded_segments = Enum.map(segments, &Identifier.module_segment!(&1, "generated module"))
+
+    Module.concat([base_module, Generated | bounded_segments])
   end
 
   defp normalize_function(function) when is_atom(function), do: function
-  defp normalize_function(function) when is_binary(function), do: String.to_atom(function)
+
+  defp normalize_function(function) when is_binary(function),
+    do: Identifier.atom!(function, "function")
 
   defp normalize_method(method) when is_atom(method), do: method
-  defp normalize_method(method) when is_binary(method), do: String.to_atom(method)
+
+  defp normalize_method(method) when is_binary(method),
+    do: method |> String.downcase() |> Identifier.atom!("method")
 
   defp normalize_param_key(key) when is_atom(key), do: key
-  defp normalize_param_key(key) when is_binary(key), do: String.to_atom(key)
+  defp normalize_param_key(key) when is_binary(key), do: Identifier.atom!(key, "parameter key")
   defp normalize_param_key(key), do: key
 
   defp normalize_status_key(status) when is_integer(status), do: status
@@ -341,9 +348,6 @@ defmodule PristineCodegen.Normalize do
   end
 
   defp code_artifact_id(relative_path) do
-    relative_path
-    |> Path.rootname()
-    |> String.replace("/", "_")
-    |> String.to_atom()
+    Identifier.artifact_atom!(relative_path)
   end
 end

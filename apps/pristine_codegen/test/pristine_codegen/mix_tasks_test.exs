@@ -15,11 +15,14 @@ defmodule PristineCodegen.MixTasksTest do
 
     Mix.Task.reenable("pristine.codegen.verify")
 
-    assert_raise Mix.Error, ~r/generated artifacts are stale/, fn ->
-      capture_io(fn ->
-        Verify.run([@provider, "--project-root", project_root])
-      end)
-    end
+    error =
+      assert_raise Mix.Error, fn ->
+        capture_io(fn ->
+          Verify.run([@provider, "--project-root", project_root])
+        end)
+      end
+
+    assert String.contains?(error.message, "generated artifacts are stale")
 
     Mix.Task.reenable("pristine.codegen.generate")
 

@@ -38,6 +38,8 @@ defmodule Pristine.Streaming.SSEDecoder do
 
   defstruct buffer: "", last_event_id: nil
 
+  @event_boundaries ["\r\n\r\n", "\n\n", "\r\r"]
+
   @doc """
   Create a new decoder with an empty buffer.
 
@@ -126,18 +128,42 @@ defmodule Pristine.Streaming.SSEDecoder do
 
   # Split on event boundary (blank line)
   defp split_event_block(data) do
-    case Regex.split(~r/\r\n\r\n|\n\n|\r\r/, data, parts: 2) do
-      [_single] ->
+    case earliest_event_boundary(data) do
+      nil ->
         :incomplete
 
-      [event_block, rest] ->
+      {start, length} ->
+        <<event_block::binary-size(start), _boundary::binary-size(length), rest::binary>> = data
         {event_block, rest}
+    end
+  end
+
+  defp earliest_event_boundary(data) do
+    Enum.reduce(@event_boundaries, nil, fn boundary, best ->
+      case :binary.match(data, boundary) do
+        :nomatch -> best
+        {start, length} -> earlier_boundary(best, {start, length})
+      end
+    end)
+  end
+
+  defp earlier_boundary(nil, candidate), do: candidate
+
+  defp earlier_boundary({best_start, best_length} = best, {start, length}) do
+    cond do
+      start < best_start -> {start, length}
+      start == best_start and length > best_length -> {start, length}
+      true -> best
     end
   end
 
   # Decode a single event block into an Event struct
   defp decode_event(block) do
-    lines = String.split(block, ~r/\r\n|\n|\r/)
+    lines =
+      block
+      |> String.replace("\r\n", "\n")
+      |> String.replace("\r", "\n")
+      |> String.split("\n")
 
     parsed =
       Enum.reduce(lines, %{data: [], event: nil, id: nil, retry: nil}, fn line, acc ->

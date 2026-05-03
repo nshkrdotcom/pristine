@@ -138,12 +138,7 @@ defmodule Pristine.Operation do
   @spec render_path(String.t(), map()) :: String.t()
   def render_path(path_template, path_params)
       when is_binary(path_template) and is_map(path_params) do
-    Regex.replace(~r/\{([^}]+)\}/, path_template, fn _full, name ->
-      case Map.fetch(path_params, name) do
-        {:ok, value} when not is_nil(value) -> encode_path_value(value)
-        _ -> raise KeyError, key: name, term: path_params
-      end
-    end)
+    render_path_template(path_template, path_params, "")
   end
 
   @spec response_schema(t(), integer() | nil) :: term()
@@ -378,15 +373,67 @@ defmodule Pristine.Operation do
   defp next_link_url(value) when is_binary(value) do
     value
     |> String.split(",")
-    |> Enum.find_value(fn segment ->
-      case Regex.run(~r/<([^>]+)>\s*;\s*rel=\"([^\"]+)\"/, String.trim(segment)) do
-        [_, url, "next"] -> url
-        _ -> nil
+    |> Enum.find_value(&next_link_segment_url/1)
+  end
+
+  defp next_link_url(_value), do: nil
+
+  defp next_link_segment_url(segment) do
+    with {:ok, url, attrs} <- parse_link_segment(String.trim(segment)),
+         true <- link_rel_next?(attrs) do
+      url
+    else
+      _other -> nil
+    end
+  end
+
+  defp parse_link_segment("<" <> rest) do
+    case take_until_link_close(rest, "") do
+      {:ok, url, attrs_source} -> {:ok, url, parse_link_attrs(attrs_source)}
+      :error -> :error
+    end
+  end
+
+  defp parse_link_segment(_segment), do: :error
+
+  defp take_until_link_close(">" <> rest, acc), do: {:ok, acc, rest}
+  defp take_until_link_close("", _acc), do: :error
+
+  defp take_until_link_close(<<char, rest::binary>>, acc),
+    do: take_until_link_close(rest, acc <> <<char>>)
+
+  defp parse_link_attrs(attrs_source) do
+    attrs_source
+    |> String.split(";")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.reduce(%{}, fn attr, acc ->
+      case String.split(attr, "=", parts: 2) do
+        [key, value] -> Map.put(acc, String.downcase(key), trim_link_attr_value(value))
+        _other -> acc
       end
     end)
   end
 
-  defp next_link_url(_value), do: nil
+  defp trim_link_attr_value(value) do
+    value = String.trim(value)
+
+    if String.starts_with?(value, "\"") and String.ends_with?(value, "\"") and
+         byte_size(value) >= 2 do
+      value
+      |> String.slice(1, byte_size(value) - 2)
+      |> String.trim()
+    else
+      value
+    end
+  end
+
+  defp link_rel_next?(attrs) do
+    attrs
+    |> Map.get("rel", "")
+    |> String.split(" ", trim: true)
+    |> Enum.member?("next")
+  end
 
   defp header_value(headers, target) when is_map(headers) do
     target = String.downcase(to_string(target))
@@ -662,4 +709,32 @@ defmodule Pristine.Operation do
     |> to_string()
     |> URI.encode(&URI.char_unreserved?/1)
   end
+
+  defp render_path_template("", _path_params, acc), do: acc
+
+  defp render_path_template("{" <> rest, path_params, acc) do
+    case take_path_param_name(rest, "") do
+      {:ok, name, remaining} ->
+        value =
+          case Map.fetch(path_params, name) do
+            {:ok, value} when not is_nil(value) -> value
+            _other -> raise KeyError, key: name, term: path_params
+          end
+
+        render_path_template(remaining, path_params, acc <> encode_path_value(value))
+
+      :error ->
+        acc <> "{" <> rest
+    end
+  end
+
+  defp render_path_template(<<char, rest::binary>>, path_params, acc) do
+    render_path_template(rest, path_params, acc <> <<char>>)
+  end
+
+  defp take_path_param_name("}" <> rest, acc), do: {:ok, acc, rest}
+  defp take_path_param_name("", _acc), do: :error
+
+  defp take_path_param_name(<<char, rest::binary>>, acc),
+    do: take_path_param_name(rest, acc <> <<char>>)
 end

@@ -37,7 +37,7 @@ defmodule Pristine.Core.RequestPath do
   end
 
   defp encoded_traversal?(value) do
-    if String.match?(value, ~r/%2e/i) do
+    if value |> String.downcase() |> String.contains?("%2e") do
       decoded_contains_traversal?(value)
     else
       false

@@ -4,6 +4,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
   generated provider client, operation, pagination, and type modules.
   """
 
+  alias PristineCodegen.Identifier
   alias PristineCodegen.ProviderIR
   alias PristineCodegen.RenderedFile
 
@@ -135,17 +136,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
 
         values =
           Enum.reduce(fields, %{}, fn field, acc ->
-            case Map.fetch(validated, field.name) do
-              {:ok, value} ->
-                Map.put(
-                  acc,
-                  String.to_atom(field.name),
-                  materialize_openapi_value(field.type, value)
-                )
-
-              :error ->
-                acc
-            end
+            put_materialized_field(acc, module, validated, field)
           end)
 
         if function_exported?(module, :__struct__, 0) do
@@ -153,6 +144,39 @@ defmodule PristineCodegen.Render.ElixirSDK do
         else
           values
         end
+      end
+
+      defp put_materialized_field(acc, module, validated, field) do
+        with {:ok, value} <- Map.fetch(validated, field.name),
+             {:ok, key} <- materialize_field_key(module, field.name) do
+          Map.put(acc, key, materialize_openapi_value(field.type, value))
+        else
+          _other -> acc
+        end
+      end
+
+      defp materialize_field_key(module, field_name) do
+        if function_exported?(module, :__struct__, 0) do
+          module
+          |> struct_field_keys()
+          |> materialize_struct_field_key(field_name)
+        else
+          {:ok, field_name}
+        end
+      end
+
+      defp materialize_struct_field_key(keys, field_name) do
+        Enum.find_value(keys, :error, &matching_struct_field_key(&1, field_name))
+      end
+
+      defp matching_struct_field_key(key, field_name) do
+        if Atom.to_string(key) == field_name, do: {:ok, key}
+      end
+
+      defp struct_field_keys(module) do
+        module.__struct__()
+        |> Map.keys()
+        |> Enum.reject(&(&1 == :__struct__))
       end
 
       defp materialize_openapi_value(_type, nil), do: nil
@@ -652,7 +676,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
     struct_source =
       case default_schema do
         %ProviderIR.Schema{fields: fields} when fields != [] ->
-          fields = Enum.map(fields, &String.to_atom(&1.name))
+          fields = Enum.map(fields, &Identifier.atom!(&1.name, "schema field"))
           required_fields = required_field_atoms(default_schema.fields)
 
           """
@@ -685,7 +709,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
           field_types =
             fields
             |> Enum.map_join(",\n", fn field ->
-              "        #{field.name}: #{render_typespec(field.type, module_name)}"
+              "        #{Identifier.atom!(field.name, "schema field")}: #{render_typespec(field.type, module_name)}"
             end)
 
           "%__MODULE__{\n#{field_types}\n      }"
@@ -760,7 +784,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
   defp render_fields_keyword(fields) do
     fields
     |> Enum.map_join(",\n", fn field ->
-      "      #{String.to_atom(field.name)}: #{render_term(field.type)}"
+      "      #{Identifier.atom!(field.name, "schema field")}: #{render_term(field.type)}"
     end)
   end
 
@@ -833,7 +857,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
     case auth_policy do
       %ProviderIR.AuthPolicy{mode: mode, override_source: %{key: key}}
       when mode in [:request_override, :request_override_optional] ->
-        Map.put(base, :auth, {key, String.to_atom(key)})
+        Map.put(base, :auth, {key, Identifier.atom!(key, "auth override key")})
 
       %ProviderIR.AuthPolicy{mode: mode, override_source: %{mode: :key, key: key}}
       when mode in [:request_override, :request_override_optional] ->
@@ -965,7 +989,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
   defp required_field_atoms(fields) do
     fields
     |> Enum.filter(&Map.get(&1, :required, false))
-    |> Enum.map(&String.to_atom(&1.name))
+    |> Enum.map(&Identifier.atom!(&1.name, "required schema field"))
   end
 
   defp operation_doc(operation) do

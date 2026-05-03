@@ -165,9 +165,12 @@ defmodule Pristine.Adapters.Semaphore.CountingTest do
     end
 
     test "raises for uninitialized semaphore" do
-      assert_raise ArgumentError, ~r/not initialized/, fn ->
-        Counting.available(:uninitialized_sem)
-      end
+      error =
+        assert_raise ArgumentError, fn ->
+          Counting.available(:uninitialized_sem)
+        end
+
+      assert String.contains?(error.message, "not initialized")
     end
   end
 

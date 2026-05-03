@@ -200,9 +200,12 @@ defmodule Pristine.Core.PipelineTest do
       }
     }
 
-    assert_raise ArgumentError, ~r/legacy retry option/, fn ->
-      Pipeline.execute_endpoint(endpoint(retry: "default"), %{}, context)
-    end
+    error =
+      assert_raise ArgumentError, fn ->
+        Pipeline.execute_endpoint(endpoint(retry: "default"), %{}, context)
+      end
+
+    assert String.contains?(error.message, "legacy retry option")
   end
 
   defp endpoint(overrides \\ []) do

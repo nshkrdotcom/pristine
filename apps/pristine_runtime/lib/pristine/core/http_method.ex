@@ -8,7 +8,8 @@ defmodule Pristine.Core.HTTPMethod do
     "options" => :options,
     "patch" => :patch,
     "post" => :post,
-    "put" => :put
+    "put" => :put,
+    "trace" => :trace
   }
 
   @spec telemetry(atom() | String.t() | term()) :: atom() | String.t() | term()

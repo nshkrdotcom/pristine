@@ -20,11 +20,13 @@ defmodule PristineCodegen.PluginContractTest do
   test "auth plugins must return provider ir instead of provider-specific state" do
     project_root = tmp_project_root!("auth_contract")
 
-    assert_raise ArgumentError,
-                 ~r/expected auth plugin .* to return PristineCodegen.ProviderIR/,
-                 fn ->
-                   Compiler.compile(InvalidAuthProvider, project_root: project_root)
-                 end
+    error =
+      assert_raise ArgumentError, fn ->
+        Compiler.compile(InvalidAuthProvider, project_root: project_root)
+      end
+
+    assert String.contains?(error.message, "expected auth plugin")
+    assert String.contains?(error.message, "to return PristineCodegen.ProviderIR")
   end
 
   defp tmp_project_root!(suffix) do

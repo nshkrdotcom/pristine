@@ -73,14 +73,17 @@ defmodule Pristine.Profiles.FoundationTest do
     end
 
     test "requires a dispatch server handle when admission control is enabled" do
-      assert_raise ArgumentError, ~r/dispatch/, fn ->
-        FoundationProfile.context(
-          base_url: "https://api.example.com",
-          transport: Pristine.TransportMock,
-          serializer: Pristine.SerializerMock,
-          admission_control: [enabled: true]
-        )
-      end
+      error =
+        assert_raise ArgumentError, fn ->
+          FoundationProfile.context(
+            base_url: "https://api.example.com",
+            transport: Pristine.TransportMock,
+            serializer: Pristine.SerializerMock,
+            admission_control: [enabled: true]
+          )
+        end
+
+      assert String.contains?(error.message, "dispatch")
     end
   end
 

@@ -134,17 +134,7 @@ defmodule Pristine.Runtime.Schema do
 
     values =
       Enum.reduce(fields, %{}, fn field, acc ->
-        case Map.fetch(validated, field.name) do
-          {:ok, value} ->
-            Map.put(
-              acc,
-              String.to_atom(field.name),
-              materialize_openapi_value(field.type, value)
-            )
-
-          :error ->
-            acc
-        end
+        put_materialized_field(acc, module, validated, field)
       end)
 
     if function_exported?(module, :__struct__, 0) do
@@ -152,6 +142,39 @@ defmodule Pristine.Runtime.Schema do
     else
       values
     end
+  end
+
+  defp put_materialized_field(acc, module, validated, field) do
+    with {:ok, value} <- Map.fetch(validated, field.name),
+         {:ok, key} <- materialize_field_key(module, field.name) do
+      Map.put(acc, key, materialize_openapi_value(field.type, value))
+    else
+      _other -> acc
+    end
+  end
+
+  defp materialize_field_key(module, field_name) do
+    if function_exported?(module, :__struct__, 0) do
+      module
+      |> struct_field_keys()
+      |> materialize_struct_field_key(field_name)
+    else
+      {:ok, field_name}
+    end
+  end
+
+  defp materialize_struct_field_key(keys, field_name) do
+    Enum.find_value(keys, :error, &matching_struct_field_key(&1, field_name))
+  end
+
+  defp matching_struct_field_key(key, field_name) do
+    if Atom.to_string(key) == field_name, do: {:ok, key}
+  end
+
+  defp struct_field_keys(module) do
+    module.__struct__()
+    |> Map.keys()
+    |> Enum.reject(&(&1 == :__struct__))
   end
 
   defp materialize_spec({module, type}, data, _type_schemas)
