@@ -5,7 +5,7 @@ defmodule Pristine.Core.Pipeline do
 
   require Logger
 
-  alias Pristine.Adapters.Auth.{Basic, Bearer}
+  alias Pristine.Adapters.Auth.{Basic, Bearer, GovernedCredential}
 
   alias Pristine.Core.{
     Context,
@@ -642,6 +642,9 @@ defmodule Pristine.Core.Pipeline do
   @doc false
   def build_request(endpoint, body, content_type, %Context{} = context, opts) do
     path = Keyword.get(opts, :path, endpoint.path)
+    reject_governed_context_smuggling!(context)
+    reject_governed_endpoint_headers!(context, endpoint.headers)
+    reject_governed_request_smuggling!(context, opts)
 
     extra_headers =
       opts
@@ -737,6 +740,88 @@ defmodule Pristine.Core.Pipeline do
   end
 
   defp normalize_header_map(_headers), do: %{}
+
+  defp reject_governed_context_smuggling!(%Context{governed_authority: nil}), do: :ok
+
+  defp reject_governed_context_smuggling!(
+         %Context{governed_authority: authority, extra_headers: extra_headers} = context
+       ) do
+    cond do
+      context.base_url != authority.base_url ->
+        raise ArgumentError,
+              "governed authority rejects direct base_url; use authority materialization"
+
+      context.headers != authority.headers ->
+        raise ArgumentError,
+              "governed authority rejects direct headers; use authority materialization"
+
+      context.auth != [GovernedCredential.new(authority)] ->
+        raise ArgumentError,
+              "governed authority rejects direct auth; use authority materialization"
+
+      is_function(extra_headers, 3) ->
+        raise ArgumentError,
+              "governed authority rejects direct extra_headers; use authority materialization"
+
+      true ->
+        :ok
+    end
+  end
+
+  defp reject_governed_endpoint_headers!(%Context{governed_authority: nil}, _headers), do: :ok
+
+  defp reject_governed_endpoint_headers!(%Context{}, headers) do
+    headers
+    |> normalize_header_map()
+    |> Enum.each(fn {name, _value} ->
+      if governed_sensitive_header?(name) do
+        raise ArgumentError,
+              "governed authority rejects direct auth headers; use authority materialization"
+      end
+    end)
+  end
+
+  defp governed_sensitive_header?(name) do
+    String.downcase(to_string(name)) in [
+      "authorization",
+      "proxy-authorization",
+      "x-api-key",
+      "cf-access-client-secret"
+    ]
+  end
+
+  defp reject_governed_request_smuggling!(%Context{governed_authority: nil}, _opts), do: :ok
+
+  defp reject_governed_request_smuggling!(%Context{extra_headers: extra_headers}, _opts)
+       when is_function(extra_headers, 3) do
+    raise ArgumentError,
+          "governed authority rejects direct extra_headers; use authority materialization"
+  end
+
+  defp reject_governed_request_smuggling!(%Context{}, opts) do
+    cond do
+      direct_header_override?(opts) ->
+        raise ArgumentError,
+              "governed authority rejects direct request headers; use authority materialization"
+
+      Keyword.has_key?(opts, :auth) ->
+        raise ArgumentError,
+              "governed authority rejects direct auth overrides; use authority materialization"
+
+      true ->
+        :ok
+    end
+  end
+
+  defp direct_header_override?(opts) do
+    case Keyword.fetch(opts, :headers) do
+      :error -> false
+      {:ok, nil} -> false
+      {:ok, []} -> false
+      {:ok, headers} when is_map(headers) -> map_size(headers) > 0
+      {:ok, _headers} -> true
+    end
+  end
 
   defp maybe_put_new(opts, _key, nil), do: opts
 

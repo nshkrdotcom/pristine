@@ -12,6 +12,11 @@ Ownership split:
 - higher control planes own durable install records, secret authority, and
   hosted callback routes
 
+Env-backed OAuth client ids, client secrets, and saved token files are
+standalone compatibility inputs. When a runtime context has
+`governed_authority`, Pristine rejects OAuth token requests and saved-token
+refresh paths so unmanaged local OAuth state cannot satisfy governed authority.
+
 ## Build A Provider From Security-Scheme Metadata
 
 ```elixir
@@ -35,6 +40,9 @@ provider =
 
 ## Build An Authorization Request
 
+This example is standalone OAuth setup. The env values are direct local inputs
+and are not governed authority.
+
 ```elixir
 {:ok, authorization_request} =
   Pristine.OAuth2.authorization_request(
@@ -50,7 +58,8 @@ provider =
 ## Exchange A Code
 
 OAuth token exchange uses a runtime client context for transport and serializer
-selection.
+selection. This direct `CLIENT_ID` and `CLIENT_SECRET` example is standalone
+compatibility.
 
 ```elixir
 client =
@@ -79,3 +88,7 @@ top of the runtime boundary.
 
 That means a provider SDK can expose a thin helper layer over `Pristine.OAuth2`
 without reimplementing token persistence or refresh merge behavior.
+
+In governed mode, use the selected authority materializer to produce a
+`Pristine.GovernedAuthority` instead of loading `Pristine.Adapters.TokenSource.File`
+or refreshing `Pristine.OAuth2.SavedToken` from local state.

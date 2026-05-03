@@ -6,6 +6,10 @@ admission-control adapters into one provider-agnostic runtime client.
 
 ## Build A Foundation Client
 
+This direct `default_auth` example is standalone compatibility. Governed
+execution must use `governed_authority` instead of env-backed `default_auth`,
+direct headers, or direct base URL inputs.
+
 ```elixir
 client =
   Pristine.Client.foundation(
@@ -14,6 +18,27 @@ client =
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
     default_auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))],
+    telemetry: [namespace: [:my_sdk]]
+  )
+```
+
+```elixir
+authority =
+  Pristine.GovernedAuthority.new!(
+    base_url: "https://api.example.com",
+    credential_ref: "credential:example:workspace-123",
+    credential_lease_ref: "lease:example:one-effect",
+    target_ref: "target:example:production",
+    redaction_ref: "redaction:headers",
+    credential_headers: %{"authorization" => "Bearer authority-materialized-token"}
+  )
+
+client =
+  Pristine.Client.foundation(
+    governed_authority: authority,
+    transport: Pristine.Adapters.Transport.Finch,
+    transport_opts: [finch: MyApp.Finch],
+    serializer: Pristine.Adapters.Serializer.JSON,
     telemetry: [namespace: [:my_sdk]]
   )
 ```

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added governed Pristine HTTP authority docs and runtime fail-closed behavior
+  for direct base URLs, headers, auth overrides, and OAuth saved-token sources
+  while preserving standalone direct auth compatibility.
 - Replaced dynamic atom conversion and pattern-engine parsing in runtime and
   codegen boundaries with bounded identifiers and deterministic scanners.
 - Updated source package constraints to consume `sinter` `0.3.1`.

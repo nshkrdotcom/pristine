@@ -6,6 +6,10 @@
 
 ## Build A Streaming Client
 
+This direct streaming client is standalone compatibility. Governed streaming
+uses `governed_authority` and rejects env-backed `default_auth` and direct
+headers.
+
 ```elixir
 client =
   Pristine.Client.new(
@@ -14,6 +18,26 @@ client =
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
     default_auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
+  )
+```
+
+```elixir
+authority =
+  Pristine.GovernedAuthority.new!(
+    base_url: "https://api.example.com",
+    credential_ref: "credential:example:workspace-123",
+    credential_lease_ref: "lease:example:one-effect",
+    target_ref: "target:example:production",
+    redaction_ref: "redaction:headers",
+    credential_headers: %{"authorization" => "Bearer authority-materialized-token"}
+  )
+
+client =
+  Pristine.Client.new(
+    governed_authority: authority,
+    stream_transport: Pristine.Adapters.Transport.FinchStream,
+    transport_opts: [finch: MyApp.Finch],
+    serializer: Pristine.Adapters.Serializer.JSON
   )
 ```
 

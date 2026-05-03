@@ -17,6 +17,10 @@ provider facades:
 
 Use `Pristine.foundation_context/1` for the recommended production profile:
 
+This first example is standalone direct use. Reading `API_TOKEN` before
+building the context is compatible for direct providers, but it is not governed
+authority.
+
 ```elixir
 context =
   Pristine.foundation_context(
@@ -25,6 +29,29 @@ context =
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
     auth: [{Pristine.Adapters.Auth.Bearer, token: System.fetch_env!("API_TOKEN")}]
+  )
+```
+
+For governed execution, pass only an authority-materialized value for the
+credential and target.
+
+```elixir
+authority =
+  Pristine.GovernedAuthority.new!(
+    base_url: "https://api.example.com",
+    credential_ref: "credential:example:workspace-123",
+    credential_lease_ref: "lease:example:one-effect",
+    target_ref: "target:example:production",
+    redaction_ref: "redaction:headers",
+    credential_headers: %{"authorization" => "Bearer authority-materialized-token"}
+  )
+
+context =
+  Pristine.foundation_context(
+    governed_authority: authority,
+    transport: Pristine.Adapters.Transport.Finch,
+    transport_opts: [finch: MyApp.Finch],
+    serializer: Pristine.Adapters.Serializer.JSON
   )
 ```
 

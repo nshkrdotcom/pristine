@@ -19,12 +19,14 @@ defmodule Pristine.Adapters.TokenSource.Refreshable do
 
   @behaviour Pristine.Ports.TokenSource
 
+  alias Pristine.Core.Context
   alias Pristine.OAuth2
   alias Pristine.OAuth2.{Provider, SavedToken, Token}
 
   @impl true
   def fetch(opts) do
-    with {:ok, {source_module, source_opts}} <- fetch_inner_source(opts),
+    with :ok <- reject_governed_token_source(opts),
+         {:ok, {source_module, source_opts}} <- fetch_inner_source(opts),
          {:ok, %Token{} = token} <- normalize_fetch_result(source_module.fetch(source_opts)) do
       maybe_refresh(token, source_module, source_opts, opts)
     end
@@ -79,6 +81,14 @@ defmodule Pristine.Adapters.TokenSource.Refreshable do
 
       _other ->
         {:error, :missing_inner_token_source}
+    end
+  end
+
+  defp reject_governed_token_source(opts) do
+    case Keyword.get(opts, :context) do
+      %Context{governed_authority: nil} -> :ok
+      %Context{} -> {:error, :governed_oauth_token_source_forbidden}
+      _other -> :ok
     end
   end
 

@@ -5,7 +5,11 @@ defmodule Pristine.Core.Context do
   `Pristine.Client` is the public runtime client contract.
   """
 
+  alias Pristine.Adapters.Auth.GovernedCredential
+  alias Pristine.GovernedAuthority
+
   defstruct config: nil,
+            governed_authority: nil,
             base_url: nil,
             pool_base: nil,
             headers: %{},
@@ -50,6 +54,7 @@ defmodule Pristine.Core.Context do
 
   @type t :: %__MODULE__{
           config: term() | nil,
+          governed_authority: GovernedAuthority.t() | nil,
           base_url: String.t() | nil,
           pool_base: term() | nil,
           headers: map(),
@@ -95,8 +100,11 @@ defmodule Pristine.Core.Context do
 
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
+    opts = normalize_governed_opts(opts)
+
     %__MODULE__{
       config: Keyword.get(opts, :config),
+      governed_authority: Keyword.get(opts, :governed_authority),
       base_url: Keyword.get(opts, :base_url),
       pool_base: Keyword.get(opts, :pool_base),
       headers: Keyword.get(opts, :headers, %{}),
@@ -141,5 +149,45 @@ defmodule Pristine.Core.Context do
       redact_headers: Keyword.get(opts, :redact_headers),
       extra_headers: Keyword.get(opts, :extra_headers)
     }
+  end
+
+  defp normalize_governed_opts(opts) do
+    case Keyword.get(opts, :governed_authority) do
+      nil ->
+        opts
+
+      authority_opts ->
+        authority = GovernedAuthority.new!(authority_opts)
+        reject_governed_direct_opts!(opts)
+
+        opts
+        |> Keyword.put(:governed_authority, authority)
+        |> Keyword.put(:base_url, authority.base_url)
+        |> Keyword.put(:headers, authority.headers)
+        |> Keyword.put(:auth, [GovernedCredential.new(authority)])
+    end
+  end
+
+  defp reject_governed_direct_opts!(opts) do
+    Enum.each(
+      [:base_url, :headers, :auth, :default_headers, :default_auth, :extra_headers],
+      fn key ->
+        if present_direct_option?(opts, key) do
+          raise ArgumentError,
+                "governed authority rejects direct #{key}; use authority materialization"
+        end
+      end
+    )
+  end
+
+  defp present_direct_option?(opts, key) do
+    case Keyword.fetch(opts, key) do
+      :error -> false
+      {:ok, nil} -> false
+      {:ok, ""} -> false
+      {:ok, []} -> false
+      {:ok, value} when is_map(value) -> map_size(value) > 0
+      {:ok, _value} -> true
+    end
   end
 end

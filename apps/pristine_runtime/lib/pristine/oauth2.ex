@@ -132,6 +132,7 @@ defmodule Pristine.OAuth2 do
     with :ok <- ensure_available(provider),
          {:ok, context} <- fetch_context(opts, provider),
          {:ok, client_id} <- fetch_required(opts, :client_id, provider, :missing_client_id),
+         :ok <- reject_governed_oauth_request(context, provider),
          {:ok, backend_request} <-
            Backend.build_request(
              provider,
@@ -161,6 +162,7 @@ defmodule Pristine.OAuth2 do
     with :ok <- ensure_available(provider),
          {:ok, context} <- fetch_context(opts, provider),
          {:ok, client_id} <- fetch_required(opts, :client_id, provider, :missing_client_id),
+         :ok <- reject_governed_oauth_request(context, provider),
          {:ok, backend_request} <-
            Backend.build_request(
              provider,
@@ -315,6 +317,12 @@ defmodule Pristine.OAuth2 do
       _other ->
         {:error, Error.new(:invalid_context, provider: provider.name)}
     end
+  end
+
+  defp reject_governed_oauth_request(%Context{governed_authority: nil}, _provider), do: :ok
+
+  defp reject_governed_oauth_request(%Context{}, provider) do
+    {:error, Error.new(:governed_oauth_request_forbidden, provider: provider.name)}
   end
 
   defp fetch_required(opts, key, provider, reason) do

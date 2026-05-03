@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added `Pristine.GovernedAuthority` and governed credential auth handling so
+  authority-selected HTTP credentials can execute while direct base URLs,
+  headers, auth overrides, and OAuth saved-token sources fail closed in
+  governed mode.
 - Updated the runtime package source constraint to consume `sinter` `0.3.1`.
 
 ## [0.2.1] - 2026-04-01

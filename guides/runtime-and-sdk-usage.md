@@ -7,7 +7,11 @@ The runtime package supports two equally important contracts:
   `Pristine.foundation_context/1`, `Pristine.execute_request/3`, and
   `Pristine.SDK.OpenAPI.Client`
 
-## Recommended Production Path
+## Recommended Standalone Production Path
+
+This direct context shape is standalone compatibility. A provider facade may
+read env or local config before constructing this context for direct use, but
+those values are not governed authority.
 
 Use the Foundation-backed runtime context for most real integrations:
 
@@ -33,6 +37,36 @@ request = %{
   rate_limit: "widgets.integration",
   telemetry: [:my_sdk, :widgets, :list]
 }
+
+{:ok, response} = Pristine.execute_request(request, context)
+```
+
+## Governed Production Path
+
+Governed mode starts only from a `Pristine.GovernedAuthority` value produced by
+the selected authority materializer. Pristine rejects direct base URLs, direct
+headers, direct auth adapters, request auth overrides, request headers, and
+OAuth saved-token sources while that value is attached.
+
+```elixir
+authority =
+  Pristine.GovernedAuthority.new!(
+    base_url: "https://api.example.com",
+    credential_ref: "credential:example:workspace-123",
+    credential_lease_ref: "lease:example:one-effect",
+    target_ref: "target:example:production",
+    redaction_ref: "redaction:headers",
+    headers: %{"x-authority-target" => "target:example:production"},
+    credential_headers: %{"authorization" => "Bearer authority-materialized-token"}
+  )
+
+context =
+  Pristine.foundation_context(
+    governed_authority: authority,
+    transport: Pristine.Adapters.Transport.Finch,
+    transport_opts: [finch: MyApp.Finch],
+    serializer: Pristine.Adapters.Serializer.JSON
+  )
 
 {:ok, response} = Pristine.execute_request(request, context)
 ```

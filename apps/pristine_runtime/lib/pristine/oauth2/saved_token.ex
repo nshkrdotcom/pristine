@@ -3,6 +3,7 @@ defmodule Pristine.OAuth2.SavedToken do
   Shared persisted-token workflow for OAuth2 token sources.
   """
 
+  alias Pristine.Core.Context
   alias Pristine.OAuth2.{Provider, Token}
 
   @spec load({module(), keyword()} | module()) :: {:ok, Token.t()} | :error | {:error, term()}
@@ -23,7 +24,8 @@ defmodule Pristine.OAuth2.SavedToken do
 
   @spec refresh(Provider.t(), keyword()) :: {:ok, Token.t()} | :error | {:error, term()}
   def refresh(%Provider{} = provider, opts) when is_list(opts) do
-    with {:ok, source} <- fetch_token_source(opts),
+    with :ok <- reject_governed_token_source(opts),
+         {:ok, source} <- fetch_token_source(opts),
          {:ok, %Token{} = saved_token} <- load(source),
          {:ok, refresh_token} <- fetch_refresh_token(saved_token),
          {:ok, %Token{} = refreshed_token} <-
@@ -57,6 +59,14 @@ defmodule Pristine.OAuth2.SavedToken do
 
       _other ->
         {:error, :missing_token_source}
+    end
+  end
+
+  defp reject_governed_token_source(opts) do
+    case Keyword.get(opts, :context) do
+      %Context{governed_authority: nil} -> :ok
+      %Context{} -> {:error, :governed_oauth_token_source_forbidden}
+      _other -> :ok
     end
   end
 

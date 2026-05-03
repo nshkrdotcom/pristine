@@ -23,6 +23,7 @@ The public runtime boundary is:
 
 - `Pristine.Client`
 - `Pristine.Operation`
+- `Pristine.GovernedAuthority`
 - `Pristine.context/1`
 - `Pristine.foundation_context/1`
 - `Pristine.Response`
@@ -47,7 +48,11 @@ still owns request shaping, auth, retries, telemetry, normalized responses, and
 the transport-versus-semantic failure boundary. Streaming and SSE remain on the
 explicit stream transport lane.
 
-## Example
+## Standalone Example
+
+Standalone direct use may still source local development credentials from env
+or local config before constructing a Pristine context. Those values are direct
+runtime inputs only and do not satisfy governed authority.
 
 ```elixir
 context =
@@ -75,6 +80,36 @@ request = %{
 {:ok, response} = Pristine.execute_request(request, context)
 ```
 
+## Governed Example
+
+Governed execution starts from an authority-materialized value. Direct
+`base_url`, `headers`, `auth`, request header overrides, request auth
+overrides, and OAuth saved-token sources are rejected when
+`governed_authority` is present.
+
+```elixir
+authority =
+  Pristine.GovernedAuthority.new!(
+    base_url: "https://api.example.com",
+    credential_ref: "credential:example:workspace-123",
+    credential_lease_ref: "lease:example:one-effect",
+    target_ref: "target:example:production",
+    redaction_ref: "redaction:headers",
+    headers: %{"x-authority-target" => "target:example:production"},
+    credential_headers: %{"authorization" => "Bearer authority-materialized-token"}
+  )
+
+context =
+  Pristine.foundation_context(
+    governed_authority: authority,
+    transport: Pristine.Adapters.Transport.Finch,
+    transport_opts: [finch: MyApp.Finch],
+    serializer: Pristine.Adapters.Serializer.JSON
+  )
+
+{:ok, response} = Pristine.execute_request(request, context)
+```
+
 ## Why This Package Exists
 
 `pristine` owns the generic runtime concerns shared by provider SDKs:
@@ -92,6 +127,9 @@ Auth ownership stays split intentionally:
 - `pristine` owns generic OAuth and token-source runtime mechanics
 - provider SDKs own provider-specific helper modules and docs
 - higher control planes own durable install and secret authority
+- governed mode accepts only explicit authority materialization and keeps direct
+  env, default auth, token files, and local config in standalone compatibility
+  mode
 
 ## Guides
 

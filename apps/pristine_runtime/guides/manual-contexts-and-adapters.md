@@ -11,6 +11,10 @@ stream transport path.
 
 ## Manual Client Wiring
 
+This direct wiring example is standalone compatibility. Env-backed
+`default_auth`, direct `base_url`, and `default_headers` are rejected when a
+governed authority is attached.
+
 ```elixir
 client =
   Pristine.Client.new(
@@ -25,6 +29,34 @@ client =
     telemetry: Pristine.Adapters.Telemetry.Noop,
     default_headers: %{"x-client" => "manual"},
     default_auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
+  )
+```
+
+Governed manual wiring supplies the authority value and adapter choices only:
+
+```elixir
+authority =
+  Pristine.GovernedAuthority.new!(
+    base_url: "https://api.example.com",
+    credential_ref: "credential:example:workspace-123",
+    credential_lease_ref: "lease:example:one-effect",
+    target_ref: "target:example:production",
+    redaction_ref: "redaction:headers",
+    headers: %{"x-authority-target" => "target:example:production"},
+    credential_headers: %{"authorization" => "Bearer authority-materialized-token"}
+  )
+
+client =
+  Pristine.Client.new(
+    governed_authority: authority,
+    transport: Pristine.Adapters.Transport.Finch,
+    stream_transport: Pristine.Adapters.Transport.FinchStream,
+    transport_opts: [finch: MyApp.Finch],
+    serializer: Pristine.Adapters.Serializer.JSON,
+    retry: Pristine.Adapters.Retry.Noop,
+    rate_limiter: Pristine.Adapters.RateLimit.Noop,
+    circuit_breaker: Pristine.Adapters.CircuitBreaker.Noop,
+    telemetry: Pristine.Adapters.Telemetry.Noop
   )
 ```
 
