@@ -91,12 +91,18 @@ overrides, and OAuth saved-token sources are rejected when
 authority =
   Pristine.GovernedAuthority.new!(
     base_url: "https://api.example.com",
-    credential_ref: "credential:example:workspace-123",
-    credential_lease_ref: "lease:example:one-effect",
-    target_ref: "target:example:production",
-    redaction_ref: "redaction:headers",
-    headers: %{"x-authority-target" => "target:example:production"},
-    credential_headers: %{"authorization" => "Bearer authority-materialized-token"}
+    base_url_ref: "base-url://example/workspace-123",
+    credential_handle_ref: "credential-handle://example/workspace-123",
+    credential_lease_ref: "credential-lease://example/one-effect",
+    target_ref: "target://example/production",
+    request_scope_ref: "request-scope://example/widgets/list",
+    header_policy_ref: "header-policy://example/default",
+    materialization_kind: "bearer",
+    bearer_token_ref: "bearer-token://example/one-effect",
+    redaction_ref: "redaction://headers",
+    headers: %{"x-authority-target" => "target://example/production"},
+    credential_headers: %{"authorization" => "Bearer authority-materialized-token"},
+    allowed_header_names: ["authorization", "x-authority-target"]
   )
 
 context =

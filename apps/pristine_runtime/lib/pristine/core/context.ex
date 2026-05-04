@@ -170,7 +170,23 @@ defmodule Pristine.Core.Context do
 
   defp reject_governed_direct_opts!(opts) do
     Enum.each(
-      [:base_url, :headers, :auth, :default_headers, :default_auth, :extra_headers],
+      [
+        :api_key,
+        :auth,
+        :base_url,
+        :bearer,
+        :default_auth,
+        :default_client,
+        :default_headers,
+        :env,
+        :extra_headers,
+        :headers,
+        :middleware,
+        :oauth_token_source,
+        :request_auth,
+        :token_file,
+        :token_source
+      ],
       fn key ->
         if present_direct_option?(opts, key) do
           raise ArgumentError,

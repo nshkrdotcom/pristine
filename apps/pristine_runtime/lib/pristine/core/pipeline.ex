@@ -808,9 +808,30 @@ defmodule Pristine.Core.Pipeline do
         raise ArgumentError,
               "governed authority rejects direct auth overrides; use authority materialization"
 
+      direct_materialization_override?(opts) ->
+        raise ArgumentError,
+              "governed authority rejects direct materialization overrides; use authority materialization"
+
       true ->
         :ok
     end
+  end
+
+  defp direct_materialization_override?(opts) do
+    Enum.any?(
+      [
+        :api_key,
+        :bearer,
+        :default_client,
+        :env,
+        :middleware,
+        :oauth_token_source,
+        :request_auth,
+        :token_file,
+        :token_source
+      ],
+      &Keyword.has_key?(opts, &1)
+    )
   end
 
   defp direct_header_override?(opts) do

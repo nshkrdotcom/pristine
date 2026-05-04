@@ -5,11 +5,157 @@ defmodule Pristine.GovernedAuthorityTest do
   alias Pristine.Adapters.Auth.Bearer
   alias Pristine.Adapters.TokenSource.File
   alias Pristine.Core.{Context, EndpointMetadata, Pipeline, Request, Response}
+  alias Pristine.GovernedAuthority
   alias Pristine.OAuth2
   alias Pristine.OAuth2.{Provider, SavedToken}
 
   setup :set_mox_from_context
   setup :verify_on_exit!
+
+  test "governed authority requires credential-handle and request materialization refs" do
+    authority =
+      GovernedAuthority.new!(
+        phase6_authority(
+          materialization_kind: "oauth-token-source",
+          oauth_token_source_ref: "oauth-token-source://tenant-1/pristine/notion"
+        )
+      )
+
+    assert authority.credential_handle_ref == "credential-handle://tenant-1/pristine/notion"
+    assert authority.credential_lease_ref == "credential-lease://tenant-1/pristine/notion"
+    assert authority.request_scope_ref == "request-scope://tenant-1/pristine/notion/list"
+    assert authority.base_url_ref == "base-url://tenant-1/pristine/notion"
+    assert authority.header_policy_ref == "header-policy://tenant-1/pristine/notion"
+    assert authority.materialization_kind == "oauth_token_source"
+    assert authority.oauth_token_source_ref == "oauth-token-source://tenant-1/pristine/notion"
+  end
+
+  test "governed authority supports app, installation, and user token materialization refs" do
+    cases = [
+      {"app-token", :app_token_ref, "app-token://tenant-1/pristine/app"},
+      {
+        "installation-token",
+        :installation_token_ref,
+        "installation-token://tenant-1/pristine/install"
+      },
+      {"user-token", :user_token_ref, "user-token://tenant-1/pristine/user"}
+    ]
+
+    for {kind, ref_field, ref} <- cases do
+      authority =
+        phase6_authority([
+          {:materialization_kind, kind},
+          {:bearer_token_ref, nil},
+          {ref_field, ref}
+        ])
+        |> GovernedAuthority.new!()
+
+      assert Map.fetch!(authority, ref_field) == ref
+    end
+  end
+
+  test "governed authority rejects standalone evidence and unmanaged auth inputs" do
+    unmanaged_inputs = [
+      bearer: "raw-bearer-token",
+      api_key: "raw-api-key",
+      env: %{"API_TOKEN" => "raw-env-token"},
+      token_file: "/tmp/pristine-token.json",
+      default_client: :provider_default_client,
+      middleware: fn request -> request end,
+      oauth_token_source: {File, path: "/tmp/pristine-token.json"}
+    ]
+
+    for {key, value} <- unmanaged_inputs do
+      error =
+        assert_raise ArgumentError, fn ->
+          phase6_authority([{key, value}])
+          |> GovernedAuthority.new!()
+        end
+
+      assert String.contains?(error.message, "governed authority rejects unmanaged #{key}")
+    end
+  end
+
+  test "governed request options reject unmanaged auth materialization inputs" do
+    context = governed_context()
+
+    rejected_options = [
+      middleware: fn request -> request end,
+      token_source: {File, path: "/tmp/pristine-token.json"},
+      oauth_token_source: {File, path: "/tmp/pristine-token.json"},
+      api_key: "raw-api-key",
+      bearer: "raw-bearer-token",
+      token_file: "/tmp/pristine-token.json",
+      default_client: :provider_default_client
+    ]
+
+    for {key, value} <- rejected_options do
+      error =
+        assert_raise ArgumentError, fn ->
+          Pipeline.build_request(endpoint(), nil, nil, context, [{key, value}])
+        end
+
+      assert String.contains?(error.message, "governed authority")
+    end
+  end
+
+  test "governed authority inspection redacts materialized credential headers" do
+    authority =
+      phase6_authority(
+        credential_headers: %{
+          "Authorization" => "Bearer crash-secret",
+          "X-Installation-Token" => "install-secret"
+        },
+        allowed_header_names: ["Authorization", "X-Governed-Target", "X-Installation-Token"]
+      )
+      |> GovernedAuthority.new!()
+
+    rendered = inspect(authority)
+
+    refute String.contains?(rendered, "crash-secret")
+    refute String.contains?(rendered, "install-secret")
+    assert String.contains?(rendered, "[REDACTED]")
+  end
+
+  test "multiple governed HTTP identities materialize concurrently through distinct refs" do
+    first =
+      governed_context(
+        governed_authority:
+          phase6_authority(
+            credential_handle_ref: "credential-handle://tenant-1/pristine/notion-a",
+            credential_lease_ref: "credential-lease://tenant-1/pristine/notion-a",
+            request_scope_ref: "request-scope://tenant-1/pristine/notion-a/list",
+            target_ref: "target://tenant-1/pristine/notion-a",
+            credential_headers: %{"Authorization" => "Bearer governed-token-a"}
+          )
+      )
+
+    second =
+      governed_context(
+        governed_authority:
+          phase6_authority(
+            credential_handle_ref: "credential-handle://tenant-1/pristine/notion-b",
+            credential_lease_ref: "credential-lease://tenant-1/pristine/notion-b",
+            request_scope_ref: "request-scope://tenant-1/pristine/notion-b/list",
+            target_ref: "target://tenant-1/pristine/notion-b",
+            credential_headers: %{"Authorization" => "Bearer governed-token-b"}
+          )
+      )
+
+    expect_successful_pipeline(first, fn %Request{headers: headers} ->
+      assert headers["Authorization"] == "Bearer governed-token-a"
+    end)
+
+    assert {:ok, %{"ok" => true}} =
+             Pipeline.execute_endpoint(endpoint(), %{"ok" => true}, first)
+
+    expect_successful_pipeline(second, fn %Request{headers: headers} ->
+      assert headers["Authorization"] == "Bearer governed-token-b"
+    end)
+
+    assert {:ok, %{"ok" => true}} =
+             Pipeline.execute_endpoint(endpoint(), %{"ok" => true}, second)
+  end
 
   test "governed context materializes authority-selected base url and credential headers" do
     context = governed_context()
@@ -203,15 +349,26 @@ defmodule Pristine.GovernedAuthorityTest do
   end
 
   defp authority do
+    phase6_authority()
+  end
+
+  defp phase6_authority(overrides \\ []) do
     [
       base_url: "https://governed.example.test",
-      credential_ref: "credential-123",
-      credential_lease_ref: "lease-123",
-      target_ref: "target-123",
-      redaction_ref: "redaction-123",
+      base_url_ref: "base-url://tenant-1/pristine/notion",
+      credential_handle_ref: "credential-handle://tenant-1/pristine/notion",
+      credential_lease_ref: "credential-lease://tenant-1/pristine/notion",
+      target_ref: "target://tenant-1/pristine/notion",
+      request_scope_ref: "request-scope://tenant-1/pristine/notion/list",
+      header_policy_ref: "header-policy://tenant-1/pristine/notion",
+      materialization_kind: "bearer",
+      bearer_token_ref: "bearer-token://tenant-1/pristine/notion",
+      redaction_ref: "redaction://tenant-1/pristine/notion",
       headers: %{"X-Governed-Target" => "target-123"},
-      credential_headers: %{"Authorization" => "Bearer governed-token"}
+      credential_headers: %{"Authorization" => "Bearer governed-token"},
+      allowed_header_names: ["Authorization", "X-Governed-Target"]
     ]
+    |> Keyword.merge(overrides)
   end
 
   defp endpoint do
