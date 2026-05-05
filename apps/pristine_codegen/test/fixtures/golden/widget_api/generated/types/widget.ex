@@ -1,6 +1,6 @@
 defmodule WidgetAPI.Generated.Types.Widget do
   @moduledoc """
-  Generated Widget API type for widget.
+  Generated Widget API type module `WidgetAPI.Generated.Types.Widget`.
   """
 
   alias WidgetAPI.Generated.RuntimeSchema, as: RuntimeSchema

@@ -536,7 +536,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
       end)
 
     schema_helpers = render_schema_helpers(provider_ir.provider.base_module, module_name, schemas)
-    extension_use = render_module_extension_use(module_name)
+    extension_use = render_module_extension_use(operations)
 
     runtime_schema_alias =
       maybe_render_schema_runtime_alias(schemas, provider_ir.provider.base_module)
@@ -567,7 +567,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
     source = """
     defmodule #{inspect(module_name)} do
       @moduledoc \"\"\"
-      Generated #{provider_label(provider_ir)} operations for #{module_segment_label(module_name)}.
+      Generated #{provider_label(provider_ir)} operations module `#{inspect(module_name)}`.
       \"\"\"
 
     #{extension_use}#{runtime_schema_alias}#{openapi_client_alias}#{functions}
@@ -591,7 +591,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
     source = """
     defmodule #{inspect(module_name)} do
       @moduledoc \"\"\"
-      Generated #{provider_label(provider_ir)} type for #{module_segment_label(module_name)}.
+      Generated #{provider_label(provider_ir)} type module `#{inspect(module_name)}`.
       \"\"\"
 
     #{runtime_schema_alias}#{struct_source}
@@ -860,14 +860,6 @@ defmodule PristineCodegen.Render.ElixirSDK do
     end
   end
 
-  defp module_segment_label(module_name) do
-    module_name
-    |> Module.split()
-    |> List.last()
-    |> Macro.underscore()
-    |> String.replace("_", " ")
-  end
-
   defp provider_label(%ProviderIR{provider: provider}) do
     provider.package_name
     |> String.split("_")
@@ -1069,9 +1061,26 @@ defmodule PristineCodegen.Render.ElixirSDK do
   defp rendered_typespec_name(:map), do: :t
   defp rendered_typespec_name(type_name), do: type_name
 
-  defp render_module_extension_use(module_name) do
-    _module_name = module_name
-    ""
+  defp render_module_extension_use(operations) do
+    operations
+    |> Enum.flat_map(fn operation ->
+      operation.runtime_metadata
+      |> Map.get(:module_uses, [])
+      |> List.wrap()
+    end)
+    |> Enum.uniq()
+    |> Enum.map_join("\n", fn
+      module when is_atom(module) ->
+        "  use #{inspect(module)}\n"
+
+      other ->
+        raise ArgumentError,
+              "module use extensions must be source-owned module atoms, got #{inspect(other)}"
+    end)
+    |> case do
+      "" -> ""
+      source -> source <> "\n"
+    end
   end
 
   defp render_schema_runtime_alias(base_module) do

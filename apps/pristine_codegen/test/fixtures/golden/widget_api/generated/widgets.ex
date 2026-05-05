@@ -1,6 +1,6 @@
 defmodule WidgetAPI.Generated.Widgets do
   @moduledoc """
-  Generated Widget API operations for widgets.
+  Generated Widget API operations module `WidgetAPI.Generated.Widgets`.
   """
 
   alias Pristine.SDK.OpenAPI.Client, as: OpenAPIClient
