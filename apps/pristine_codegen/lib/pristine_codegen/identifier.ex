@@ -1,13 +1,25 @@
 defmodule PristineCodegen.Identifier do
   @moduledoc false
 
-  @spec atom!(atom() | String.t(), String.t()) :: atom()
-  def atom!(value, context \\ "identifier")
-  def atom!(value, _context) when is_atom(value), do: value
+  @spec atom_source!(atom() | String.t(), String.t()) :: String.t()
+  def atom_source!(value, context \\ "identifier")
+  def atom_source!(value, _context) when is_atom(value), do: inspect(value)
 
-  def atom!(value, context) when is_binary(value) do
+  def atom_source!(value, context) when is_binary(value) do
     if atom_identifier?(value) do
-      :"#{value}"
+      ":" <> value
+    else
+      raise ArgumentError, "#{context} is not a bounded Elixir identifier: #{inspect(value)}"
+    end
+  end
+
+  @spec atom_key_source!(atom() | String.t(), String.t()) :: String.t()
+  def atom_key_source!(value, context \\ "identifier")
+  def atom_key_source!(value, _context) when is_atom(value), do: Atom.to_string(value)
+
+  def atom_key_source!(value, context) when is_binary(value) do
+    if atom_identifier?(value) do
+      value
     else
       raise ArgumentError, "#{context} is not a bounded Elixir identifier: #{inspect(value)}"
     end
@@ -20,14 +32,6 @@ defmodule PristineCodegen.Identifier do
     else
       raise ArgumentError, "#{context} is not a bounded module segment: #{inspect(value)}"
     end
-  end
-
-  @spec artifact_atom!(String.t()) :: atom()
-  def artifact_atom!(relative_path) when is_binary(relative_path) do
-    relative_path
-    |> Path.rootname()
-    |> String.replace("/", "_")
-    |> atom!("artifact id")
   end
 
   defp atom_identifier?(<<first, rest::binary>>) when first in ?a..?z or first == ?_ do

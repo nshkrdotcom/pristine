@@ -3,7 +3,8 @@ defmodule Pristine.PoolKey do
   Centralized pool key generation and URL normalization.
 
   Ensures every pool key follows the `{normalized_base_url, pool_type}` convention
-  and derives deterministic Finch pool names per host + operation type.
+  while keeping process names source-owned. URL- and resource-derived values are
+  never converted into atoms.
   """
 
   @doc """
@@ -35,13 +36,13 @@ defmodule Pristine.PoolKey do
   end
 
   @doc """
-  Derive a Finch pool name for a base pool, base URL, and pool type.
+  Return the configured source-owned Finch pool name for a base URL and pool type.
   """
   @spec pool_name(atom(), String.t(), atom()) :: atom()
   def pool_name(base_pool, base_url, pool_type)
       when is_atom(base_pool) and is_atom(pool_type) and is_binary(base_url) do
-    normalized = normalize_base_url(base_url)
-    :"#{base_pool}.#{pool_type}.#{:erlang.phash2(normalized)}"
+    _ = normalize_base_url(base_url)
+    base_pool
   end
 
   @doc """
@@ -50,18 +51,7 @@ defmodule Pristine.PoolKey do
   """
   @spec resolve_pool_name(atom(), String.t(), atom()) :: atom()
   def resolve_pool_name(base_pool, base_url, pool_type) do
-    typed_name = pool_name(base_pool, base_url, pool_type)
-
-    cond do
-      Process.whereis(typed_name) ->
-        typed_name
-
-      Process.whereis(base_pool) ->
-        base_pool
-
-      true ->
-        base_pool
-    end
+    pool_name(base_pool, base_url, pool_type)
   end
 
   defp parse_base_url(url) do

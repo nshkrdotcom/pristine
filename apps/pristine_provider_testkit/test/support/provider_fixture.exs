@@ -23,7 +23,7 @@ defmodule PristineProviderTestkit.TestSupport.SampleProvider do
       operations: [
         %{
           id: "widgets/list",
-          module: "Widgets",
+          module: WidgetAPI.Generated.Widgets,
           function: :list_widgets,
           method: :get,
           path_template: "/v1/widgets",
@@ -55,7 +55,7 @@ defmodule PristineProviderTestkit.TestSupport.SampleProvider do
       schemas: [
         %{
           id: "Widget",
-          module: "Types.Widget",
+          module: WidgetAPI.Generated.Types.Widget,
           kind: :object,
           fields: [
             %{name: "id", type: :string, required: true}

@@ -8,7 +8,9 @@ defmodule PristineCodegen.TaskSupport do
     provider_module =
       case positional do
         [provider_module] ->
-          Module.concat(String.split(provider_module, "."))
+          provider_module
+          |> String.split(".")
+          |> Module.safe_concat()
 
         _other ->
           Mix.raise("expected a provider module argument")

@@ -257,7 +257,7 @@ defmodule Tinkex.Streaming.SSEDecoder do
 
 The Tinkex Elixir SSE decoder is **functionally equivalent** to the Python version:
 - Stateful buffer for incomplete chunks
-- Event boundary detection via regex (`~r/\r\n\r\n|\n\n|\r\r/`)
+- Event boundary detection via fixed delimiter checks
 - Field parsing (event, data, id, retry)
 - Comment line filtering
 - Multi-line data accumulation

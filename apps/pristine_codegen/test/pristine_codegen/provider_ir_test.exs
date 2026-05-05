@@ -104,6 +104,34 @@ defmodule PristineCodegen.ProviderIRTest do
     end
   end
 
+  test "rejects binary generated module names before atom construction" do
+    definition =
+      []
+      |> SampleProvider.definition()
+      |> put_in([:operations, Access.at(0), :module], "Widgets")
+
+    error =
+      assert_raise ArgumentError, fn ->
+        Normalize.from_definition(definition)
+      end
+
+    assert String.contains?(error.message, "source-owned module atom")
+  end
+
+  test "rejects binary parameter keys before atom construction" do
+    definition =
+      []
+      |> SampleProvider.definition()
+      |> put_in([:operations, Access.at(0), :query_params, Access.at(0), :key], "cursor")
+
+    error =
+      assert_raise ArgumentError, fn ->
+        Normalize.from_definition(definition)
+      end
+
+    assert String.contains?(error.message, "source-owned atom")
+  end
+
   defp tmp_project_root!(suffix) do
     root =
       Path.join(

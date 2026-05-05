@@ -1,7 +1,6 @@
 defmodule PristineCodegen.Normalize do
   @moduledoc false
 
-  alias PristineCodegen.Identifier
   alias PristineCodegen.ProviderIR
   alias PristineCodegen.ProviderIR.Artifact
   alias PristineCodegen.ProviderIR.ArtifactPlan
@@ -13,6 +12,18 @@ defmodule PristineCodegen.Normalize do
   alias PristineCodegen.ProviderIR.Provider
   alias PristineCodegen.ProviderIR.RuntimeDefaults
   alias PristineCodegen.ProviderIR.Schema
+
+  @binary_methods %{
+    "get" => :get,
+    "post" => :post,
+    "put" => :put,
+    "patch" => :patch,
+    "delete" => :delete,
+    "head" => :head,
+    "options" => :options,
+    "trace" => :trace,
+    "connect" => :connect
+  }
 
   @spec from_definition(map()) :: ProviderIR.t()
   def from_definition(definition) when is_map(definition) do
@@ -288,34 +299,40 @@ defmodule PristineCodegen.Normalize do
   end
 
   defp normalize_key_spec(string_key) when is_binary(string_key) do
-    {string_key, Identifier.atom!(string_key, "key spec")}
+    raise ArgumentError,
+          "key spec must use a source-owned atom key, got binary key #{inspect(string_key)}"
   end
 
   defp normalize_generated_module(_base_module, module) when is_atom(module), do: module
 
   defp normalize_generated_module(base_module, module) when is_binary(module) do
-    segments =
-      module
-      |> String.split(".")
-      |> Enum.reject(&(&1 == ""))
-
-    bounded_segments = Enum.map(segments, &Identifier.module_segment!(&1, "generated module"))
-
-    Module.concat([base_module, Generated | bounded_segments])
+    raise ArgumentError,
+          "generated module for #{inspect(base_module)} must be a source-owned module atom, got #{inspect(module)}"
   end
 
   defp normalize_function(function) when is_atom(function), do: function
 
-  defp normalize_function(function) when is_binary(function),
-    do: Identifier.atom!(function, "function")
+  defp normalize_function(function) when is_binary(function) do
+    raise ArgumentError,
+          "function must be a source-owned atom, got binary identifier #{inspect(function)}"
+  end
 
   defp normalize_method(method) when is_atom(method), do: method
 
-  defp normalize_method(method) when is_binary(method),
-    do: method |> String.downcase() |> Identifier.atom!("method")
+  defp normalize_method(method) when is_binary(method) do
+    case Map.fetch(@binary_methods, String.downcase(method)) do
+      {:ok, method_atom} -> method_atom
+      :error -> raise ArgumentError, "unknown HTTP method #{inspect(method)}"
+    end
+  end
 
   defp normalize_param_key(key) when is_atom(key), do: key
-  defp normalize_param_key(key) when is_binary(key), do: Identifier.atom!(key, "parameter key")
+
+  defp normalize_param_key(key) when is_binary(key) do
+    raise ArgumentError,
+          "parameter key must use a source-owned atom, got binary key #{inspect(key)}"
+  end
+
   defp normalize_param_key(key), do: key
 
   defp normalize_status_key(status) when is_integer(status), do: status
@@ -348,6 +365,6 @@ defmodule PristineCodegen.Normalize do
   end
 
   defp code_artifact_id(relative_path) do
-    Identifier.artifact_atom!(relative_path)
+    relative_path
   end
 end

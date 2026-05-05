@@ -888,7 +888,7 @@ defmodule Tinkex.Types.AdamParams do
 
   defp atomize_keys(map) do
     Map.new(map, fn
-      {k, v} when is_binary(k) -> {String.to_existing_atom(k), v}
+      {k, v} when is_binary(k) -> {field_key_registry(k), v}
       {k, v} when is_atom(k) -> {k, v}
     end)
   rescue

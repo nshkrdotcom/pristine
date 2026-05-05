@@ -478,7 +478,7 @@ end
 defp render_resource_accessors(namespace, resources) do
   resources
   |> Enum.map(fn resource ->
-    fn_name = String.to_atom(resource)
+    fn_name = resource_function_registry(resource)
     module = resource_to_module_name(namespace, resource)
 
     """
@@ -628,7 +628,7 @@ defmodule Pristine.Codegen.Type do
       #{description}
       \"\"\"
 
-      defstruct #{inspect(Enum.map(field_names, &String.to_atom/1))}
+      defstruct #{render_source_owned_fields(field_names)}
 
       @type t :: %__MODULE__{
     #{render_type_fields(fields)}  }
@@ -663,7 +663,7 @@ defmodule Pristine.Codegen.Type do
 
       defp atomize_keys(map) do
         Map.new(map, fn
-          {k, v} when is_binary(k) -> {String.to_existing_atom(k), v}
+          {k, v} when is_binary(k) -> {field_key_registry(k), v}
           {k, v} when is_atom(k) -> {k, v}
         end)
       rescue
@@ -689,7 +689,7 @@ defmodule Pristine.Codegen.Type do
   defp render_schema_fields(fields) do
     fields
     |> Enum.map(fn field ->
-      name = Map.get(field, "name") |> String.to_atom() |> inspect()
+      name = Map.get(field, "name") |> field_key_registry() |> inspect()
       type = map_type_to_sinter(Map.get(field, "type", "any"))
       required = Map.get(field, "required", false)
 

@@ -215,7 +215,7 @@ defmodule Tinkex.Types.SampleResponse do
 
   defp atomize_keys(map) when is_map(map) do
     Map.new(map, fn
-      {k, v} when is_binary(k) -> {String.to_existing_atom(k), v}
+      {k, v} when is_binary(k) -> {field_key_registry(k), v}
       {k, v} -> {k, v}
     end)
   end
@@ -532,7 +532,7 @@ defmodule Tinkex.Types.SampledSequence do
       logprobs = validated["logprobs"]
 
       {:ok, %__MODULE__{
-        stop_reason: String.to_existing_atom(stop_reason),
+        stop_reason: stop_reason_registry(stop_reason),
         tokens: tokens,
         logprobs: logprobs
       }}

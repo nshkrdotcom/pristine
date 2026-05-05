@@ -9,7 +9,7 @@ defmodule PristineCodegen.ProviderIR do
     """
 
     @type t :: %__MODULE__{
-            id: atom(),
+            id: atom() | String.t(),
             base_module: module(),
             client_module: module() | nil,
             package_app: atom(),

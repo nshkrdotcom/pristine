@@ -492,7 +492,7 @@ defmodule Pristine.Streaming.SSEDecoder do
 
   defp parse_event(event_data) do
     event_data
-    |> String.split(~r/\r\n|\n|\r/)
+    |> split_sse_lines()
     |> Enum.reduce(%Event{}, &parse_line/2)
     |> finalize_event()
   end

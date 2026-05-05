@@ -89,7 +89,7 @@ defmodule Pristine.Profiles.FoundationTest do
 
   describe "attach_reporter/2" do
     test "derives events from the context and forwards emitted telemetry into TelemetryReporter" do
-      reporter_name = :"reporter_#{System.unique_integer([:positive])}"
+      reporter_name = __MODULE__.Reporter
 
       context =
         FoundationProfile.context(

@@ -33,7 +33,7 @@ defmodule PristineCodegen.TestSupport.SampleProvider do
       operations: [
         %{
           id: "widgets/list",
-          module: "Widgets",
+          module: WidgetAPI.Generated.Widgets,
           function: :list_widgets,
           method: :get,
           path_template: "/v1/widgets",
@@ -73,7 +73,7 @@ defmodule PristineCodegen.TestSupport.SampleProvider do
       schemas: [
         %{
           id: "Widget",
-          module: "Types.Widget",
+          module: WidgetAPI.Generated.Types.Widget,
           kind: :object,
           fields: [
             %{name: "id", type: :string, required: true},
@@ -188,7 +188,7 @@ defmodule PristineCodegen.TestSupport.SampleProvider.SourcePlugin do
       operations: [
         %{
           id: "sessions/create",
-          module: "Sessions",
+          module: WidgetAPI.Generated.Sessions,
           function: :create_session,
           method: :post,
           path_template: "/v1/sessions",
@@ -223,7 +223,7 @@ defmodule PristineCodegen.TestSupport.SampleProvider.SourcePlugin do
       schemas: [
         %{
           id: "SessionToken",
-          module: "Types.SessionToken",
+          module: WidgetAPI.Generated.Types.SessionToken,
           kind: :object,
           fields: [
             %{name: "token", type: :string, required: true}
@@ -259,7 +259,7 @@ defmodule PristineCodegen.TestSupport.SampleProvider.AuthPlugin do
         id: "session_basic",
         mode: :request_override,
         security_schemes: ["basicAuth"],
-        override_source: %{key: "auth"},
+        override_source: %{key: :auth},
         strategy_label: "Per-request session client credentials"
       }
     ]

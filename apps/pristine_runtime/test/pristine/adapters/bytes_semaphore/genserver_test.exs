@@ -15,7 +15,7 @@ defmodule Pristine.Adapters.BytesSemaphore.GenServerTest do
     end
 
     test "starts with name registration" do
-      name = :"test_sem_#{:erlang.unique_integer([:positive])}"
+      name = __MODULE__.RegisteredSemaphore
       {:ok, _sem} = BytesSemaphore.start_link(max_bytes: 500, name: name)
       assert BytesSemaphore.available(name) == 500
     end

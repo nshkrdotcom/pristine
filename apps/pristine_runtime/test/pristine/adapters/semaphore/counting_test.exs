@@ -3,9 +3,8 @@ defmodule Pristine.Adapters.Semaphore.CountingTest do
 
   alias Pristine.Adapters.Semaphore.Counting
 
-  setup do
-    # Generate unique name for each test to avoid state leakage
-    name = :"test_sem_#{:erlang.unique_integer([:positive])}"
+  setup context do
+    name = {__MODULE__, context.test}
     {:ok, name: name}
   end
 

@@ -344,7 +344,7 @@ With custom serializer/validator for base64 encoding.
   {:gteq, number()} |
   {:lt, number()} |
   {:lteq, number()} |
-  {:format, Regex.t()} |
+  {:format, module()} |
   {:choices, [term()]}
 ```
 

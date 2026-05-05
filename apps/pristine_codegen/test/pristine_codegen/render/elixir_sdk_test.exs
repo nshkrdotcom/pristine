@@ -2,6 +2,7 @@ defmodule PristineCodegen.Render.ElixirSDKTest do
   use ExUnit.Case, async: true
 
   alias PristineCodegen.Compiler
+  alias PristineCodegen.Render.ElixirSDK
   alias PristineCodegen.TestSupport.SampleProvider
 
   @golden_root Path.expand("../../fixtures/golden/widget_api", __DIR__)
@@ -51,6 +52,28 @@ defmodule PristineCodegen.Render.ElixirSDKTest do
     Enum.each(rendered_files, fn {relative_path, contents} ->
       Code.compile_string(contents, relative_path)
     end)
+  end
+
+  test "rejects binary auth override keys before rendering generated atoms" do
+    project_root = tmp_project_root!("renderer-auth-key")
+
+    assert {:ok, compilation} =
+             Compiler.compile(SampleProvider, project_root: project_root)
+
+    auth_policies =
+      Enum.map(compilation.provider_ir.auth_policies, fn
+        %{id: "session_basic"} = policy -> %{policy | override_source: %{key: "auth"}}
+        policy -> policy
+      end)
+
+    provider_ir = %{compilation.provider_ir | auth_policies: auth_policies}
+
+    error =
+      assert_raise ArgumentError, fn ->
+        ElixirSDK.render(provider_ir)
+      end
+
+    assert String.contains?(error.message, "source-owned atom")
   end
 
   defp tmp_project_root!(suffix) do

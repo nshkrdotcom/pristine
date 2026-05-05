@@ -115,7 +115,7 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
     @describetag skip: @socket_skip
 
     test "uses request timeout metadata when opening the stream" do
-      finch_name = :"pristine_stream_finch_#{System.unique_integer([:positive])}"
+      finch_name = __MODULE__.TimeoutFinch
       {:ok, finch_pid} = Finch.start_link(name: finch_name)
 
       {:ok, server_pid} =
@@ -149,7 +149,7 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
     end
 
     test "falls back to the configured Finch instance when metadata pool_name is nil" do
-      finch_name = :"pristine_stream_finch_#{System.unique_integer([:positive])}"
+      finch_name = __MODULE__.FallbackFinch
       {:ok, finch_pid} = Finch.start_link(name: finch_name)
 
       {:ok, server_pid} =

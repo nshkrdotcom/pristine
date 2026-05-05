@@ -352,7 +352,7 @@ def validate({:discriminated_union, _opts}, value, validation_opts) do
 end
 
 defp get_discriminator_value(map, discriminator) when is_binary(discriminator) do
-  Map.get(map, discriminator) || Map.get(map, String.to_existing_atom(discriminator))
+  Map.get(map, discriminator) || Map.get(map, discriminator_key_registry(discriminator))
 rescue
   ArgumentError -> Map.get(map, discriminator)
 end

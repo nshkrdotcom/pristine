@@ -8,7 +8,7 @@ defmodule Pristine.TelemetryReporterSupport do
   @spec module() :: module()
   def module do
     Application.get_env(:pristine, :telemetry_reporter_module) ||
-      Module.concat(["TelemetryReporter"])
+      TelemetryReporter
   end
 
   @spec fetch() :: {:ok, module()} | {:error, :missing_dependency}

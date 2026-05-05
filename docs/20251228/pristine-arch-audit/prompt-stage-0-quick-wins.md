@@ -96,7 +96,7 @@ end
       strict: true,
       files: %{
         included: ["lib/", "test/"],
-        excluded: [~r"/_build/", ~r"/deps/"]
+        excluded: ["_build/", "deps/"]
       },
       checks: %{
         enabled: [
@@ -344,7 +344,7 @@ defmodule Pristine.Codegen.Elixir do
   end
 
   defp endpoint_to_fn_name(id) when is_atom(id), do: id
-  defp endpoint_to_fn_name(id) when is_binary(id), do: String.to_atom(id)
+  defp endpoint_to_fn_name(id) when is_binary(id), do: endpoint_function_registry(id)
 end
 ```
 

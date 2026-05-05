@@ -58,10 +58,10 @@ defmodule PristineCodegen.Render.ElixirSDK do
   end
 
   defp render_runtime_schema_file(provider_ir) do
-    module_name = provider_runtime_schema_module(provider_ir.provider.base_module)
+    module_source = provider_runtime_schema_module_source(provider_ir.provider.base_module)
 
     source = """
-    defmodule #{inspect(module_name)} do
+    defmodule #{module_source} do
       @moduledoc false
 
       alias Sinter.Schema
@@ -513,7 +513,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
 
   defp render_client_file(provider_ir) do
     source = """
-    defmodule #{inspect(provider_client_module(provider_ir.provider.base_module))} do
+    defmodule #{provider_client_module_source(provider_ir.provider.base_module)} do
       @moduledoc \"\"\"
       Generated #{provider_label(provider_ir)} client facade over `#{inspect(provider_ir.provider.client_module)}`.
       \"\"\"
@@ -703,12 +703,12 @@ defmodule PristineCodegen.Render.ElixirSDK do
     struct_source =
       case default_schema do
         %ProviderIR.Schema{fields: fields} when fields != [] ->
-          fields = Enum.map(fields, &Identifier.atom!(&1.name, "schema field"))
-          required_fields = required_field_atoms(default_schema.fields)
+          fields = Enum.map(fields, &Identifier.atom_source!(&1.name, "schema field"))
+          required_fields = required_field_sources(default_schema.fields)
 
           """
-          @enforce_keys #{inspect(required_fields)}
-          defstruct #{inspect(fields)}
+          @enforce_keys [#{Enum.join(required_fields, ", ")}]
+          defstruct [#{Enum.join(fields, ", ")}]
           """
 
         _other ->
@@ -736,7 +736,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
           field_types =
             fields
             |> Enum.map_join(",\n", fn field ->
-              "        #{Identifier.atom!(field.name, "schema field")}: #{render_typespec(field.type, module_name)}"
+              "        #{Identifier.atom_key_source!(field.name, "schema field")}: #{render_typespec(field.type, module_name)}"
             end)
 
           "%__MODULE__{\n#{field_types}\n      }"
@@ -755,7 +755,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
 
   defp render_schema_helpers(base_module, _module_name, schemas) do
     default_type_name = default_type_name(schemas)
-    _runtime_schema_module = inspect(provider_runtime_schema_module(base_module))
+    _runtime_schema_module = provider_runtime_schema_module_source(base_module)
 
     fields_clauses =
       schemas
@@ -811,7 +811,7 @@ defmodule PristineCodegen.Render.ElixirSDK do
   defp render_fields_keyword(fields) do
     fields
     |> Enum.map_join(",\n", fn field ->
-      "      #{Identifier.atom!(field.name, "schema field")}: #{render_term(field.type)}"
+      "      #{Identifier.atom_key_source!(field.name, "schema field")}: #{render_term(field.type)}"
     end)
   end
 
@@ -834,10 +834,15 @@ defmodule PristineCodegen.Render.ElixirSDK do
     |> Kernel.<>(".ex")
   end
 
-  defp provider_client_module(base_module), do: Module.concat([base_module, Generated, Client])
+  defp provider_client_module_source(base_module),
+    do: generated_module_source(base_module, ["Client"])
 
-  defp provider_runtime_schema_module(base_module),
-    do: Module.concat([base_module, Generated, RuntimeSchema])
+  defp provider_runtime_schema_module_source(base_module),
+    do: generated_module_source(base_module, ["RuntimeSchema"])
+
+  defp generated_module_source(base_module, suffix_segments) do
+    Enum.join([inspect(base_module), "Generated" | suffix_segments], ".")
+  end
 
   defp module_relative_segments(module_name, base_module) do
     module_segments = Module.split(module_name)
@@ -883,8 +888,13 @@ defmodule PristineCodegen.Render.ElixirSDK do
 
     case auth_policy do
       %ProviderIR.AuthPolicy{mode: mode, override_source: %{key: key}}
-      when mode in [:request_override, :request_override_optional] ->
-        Map.put(base, :auth, {key, Identifier.atom!(key, "auth override key")})
+      when mode in [:request_override, :request_override_optional] and is_atom(key) ->
+        Map.put(base, :auth, {Atom.to_string(key), key})
+
+      %ProviderIR.AuthPolicy{mode: mode, override_source: %{key: key}}
+      when mode in [:request_override, :request_override_optional] and is_binary(key) ->
+        raise ArgumentError,
+              "auth override key must use a source-owned atom, got binary key #{inspect(key)}"
 
       %ProviderIR.AuthPolicy{mode: mode, override_source: %{mode: :key, key: key}}
       when mode in [:request_override, :request_override_optional] ->
@@ -1013,10 +1023,10 @@ defmodule PristineCodegen.Render.ElixirSDK do
     end
   end
 
-  defp required_field_atoms(fields) do
+  defp required_field_sources(fields) do
     fields
     |> Enum.filter(&Map.get(&1, :required, false))
-    |> Enum.map(&Identifier.atom!(&1.name, "required schema field"))
+    |> Enum.map(&Identifier.atom_source!(&1.name, "required schema field"))
   end
 
   defp operation_doc(operation) do
@@ -1060,17 +1070,12 @@ defmodule PristineCodegen.Render.ElixirSDK do
   defp rendered_typespec_name(type_name), do: type_name
 
   defp render_module_extension_use(module_name) do
-    helper_module = Module.concat([module_name, Helpers])
-
-    if Code.ensure_loaded?(helper_module) do
-      "  use #{inspect(helper_module)}\n\n"
-    else
-      ""
-    end
+    _module_name = module_name
+    ""
   end
 
   defp render_schema_runtime_alias(base_module) do
-    "  alias #{inspect(provider_runtime_schema_module(base_module))}, as: RuntimeSchema\n\n"
+    "  alias #{provider_runtime_schema_module_source(base_module)}, as: RuntimeSchema\n\n"
   end
 
   defp maybe_render_schema_runtime_alias([], _base_module), do: ""
