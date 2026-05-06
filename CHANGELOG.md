@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Aligned the root workspace docs and dependency examples with the `0.2.1`
   runtime release.
 - Documented the direct `mix mr.*` aliases and the underlying
-  `mix blitz.workspace <task>` runner more clearly in the workspace README.
+  `mix blitz.workspace.impact <task>` runner more clearly in the workspace README.
 
 ### Fixed
 

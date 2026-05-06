@@ -24,13 +24,13 @@ defmodule Pristine.Workspace.MonorepoContractTest do
   ]
 
   @expected_monorepo_aliases [
-    {:"monorepo.deps.get", ["blitz.workspace deps_get"]},
-    {:"monorepo.format", ["blitz.workspace format"]},
-    {:"monorepo.compile", ["blitz.workspace compile"]},
-    {:"monorepo.test", ["blitz.workspace test"]},
-    {:"monorepo.credo", ["blitz.workspace credo"]},
+    {:"monorepo.deps.get", ["blitz.workspace.impact deps_get --"]},
+    {:"monorepo.format", ["blitz.workspace.impact format --"]},
+    {:"monorepo.compile", ["blitz.workspace.impact compile --"]},
+    {:"monorepo.test", ["blitz.workspace.impact test --"]},
+    {:"monorepo.credo", ["blitz.workspace.impact credo --"]},
     {:"monorepo.dialyzer", ["compile", "dialyzer --force-check"]},
-    {:"monorepo.docs", ["blitz.workspace docs"]}
+    {:"monorepo.docs", ["blitz.workspace.impact docs --"]}
   ]
 
   defp dep_opts(deps, app) do

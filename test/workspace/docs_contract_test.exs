@@ -29,7 +29,7 @@ defmodule Pristine.Workspace.DocsContractTest do
     assert readme =~ "mix mr.compile"
     assert readme =~ "mix quality"
     assert readme =~ "mix ci"
-    assert readme =~ "mix blitz.workspace <task>"
+    assert readme =~ "mix blitz.workspace.impact <task>"
     assert readme =~ "apps/pristine_runtime/README.md"
     assert readme =~ "apps/pristine_codegen/README.md"
 

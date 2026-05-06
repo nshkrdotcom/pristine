@@ -100,7 +100,7 @@ mix ci
 workspace acceptance gate.
 
 When you need the underlying workspace runner directly, use
-`mix blitz.workspace <task>`.
+`mix blitz.workspace.impact <task>`.
 
 ## License
 

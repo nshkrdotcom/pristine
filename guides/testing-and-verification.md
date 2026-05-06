@@ -32,7 +32,7 @@ workspace acceptance pass.
 
 ## Workspace Verification Model
 
-Most `monorepo.*` aliases delegate to `mix blitz.workspace <task>`. Dialyzer is
+Most `monorepo.*` aliases delegate to `mix blitz.workspace.impact <task>`. Dialyzer is
 the exception: it runs once from the repo root against the shared `_build`
 outputs so the whole workspace is analyzed in one consistent PLT and build
 context.
