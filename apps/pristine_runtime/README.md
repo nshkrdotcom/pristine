@@ -24,6 +24,7 @@ The public runtime boundary is:
 - `Pristine.Client`
 - `Pristine.Operation`
 - `Pristine.GovernedAuthority`
+- `Pristine.GovernedOperationDescriptor`
 - `Pristine.context/1`
 - `Pristine.foundation_context/1`
 - `Pristine.Response`
@@ -50,8 +51,8 @@ explicit stream transport lane.
 
 ## Standalone Example
 
-Standalone direct use may still source local development credentials from env
-or local config before constructing a Pristine context. Those values are direct
+Standalone direct use may still pass explicitly loaded local development
+credentials before constructing a Pristine context. Those values are direct
 runtime inputs only and do not satisfy governed authority.
 
 ```elixir
@@ -61,7 +62,7 @@ context =
     transport: Pristine.Adapters.Transport.Finch,
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
-    auth: [{Pristine.Adapters.Auth.Bearer, token: System.fetch_env!("API_TOKEN")}]
+    auth: [{Pristine.Adapters.Auth.Bearer, token: load_local_development_token()}]
   )
 
 request = %{
@@ -79,6 +80,32 @@ request = %{
 
 {:ok, response} = Pristine.execute_request(request, context)
 ```
+
+## Governed Operation Descriptor
+
+`Pristine.GovernedOperationDescriptor` is a standalone-safe ref descriptor for
+OpenAPI operations that will be admitted by an owning control plane. It covers
+tool tasks, eval dataset loaders, generated SDKs, and AppKit management APIs
+without adding a Jido, Citadel, Mezzanine, or AppKit dependency to Pristine.
+
+```elixir
+descriptor =
+  Pristine.GovernedOperationDescriptor.new!(
+    operation_ref: "pristine-operation://github/issues/list",
+    connector_admission_ref: "connector-admission://tenant-1/github",
+    provider_account_ref: "provider-account://tenant-1/github/app",
+    credential_lease_ref: "credential-lease://tenant-1/github/app",
+    operation_policy_ref: "operation-policy://tenant-1/github/issues/list",
+    tenant_ref: "tenant://tenant-1",
+    subject_ref: "subject://tenant-1/operator/ada",
+    trace_ref: "trace://tenant-1/github/issues/list",
+    redaction_ref: "redaction://tenant-1/github",
+    usage_contexts: [:tool_task, :eval_dataset_loader, :generated_sdk, :appkit_management_api]
+  )
+```
+
+Descriptors reject unmanaged auth material such as raw keys, bearer strings,
+token files, default clients, request auth overrides, and provider payloads.
 
 ## Governed Example
 
