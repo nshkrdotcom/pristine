@@ -2,8 +2,9 @@ defmodule Pristine.GovernedOperationDescriptor do
   @moduledoc """
   Standalone-safe descriptor for governed OpenAPI operation admission.
 
-  This does not call Jido or Citadel. It gives generated SDKs and callers a
-  ref-only value that can be handed to the owning control plane for admission.
+  This does not call outer runtime or authority packages. It gives generated
+  SDKs and callers a ref-only value that can be handed to the owning control
+  plane for admission.
   """
 
   @required_fields [
