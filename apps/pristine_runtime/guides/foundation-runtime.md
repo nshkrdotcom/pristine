@@ -17,7 +17,7 @@ client =
     transport: Pristine.Adapters.Transport.Finch,
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
-    default_auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))],
+    default_auth: [Pristine.Adapters.Auth.Bearer.new("example-api-token")],
     telemetry: [namespace: [:my_sdk]]
   )
 ```

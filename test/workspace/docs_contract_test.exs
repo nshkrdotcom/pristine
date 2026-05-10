@@ -46,7 +46,7 @@ defmodule Pristine.Workspace.DocsContractTest do
     assert testing =~ "mix monorepo.format --check-formatted"
     assert testing =~ "mix mr.format --check-formatted"
     assert testing =~ "mix mr.dialyzer"
-    assert testing =~ "PRISTINE_MONOREPO_MAX_CONCURRENCY"
+    assert testing =~ "--max-concurrency N"
     assert testing =~ "cd apps/pristine_runtime && mix test"
     assert testing =~ "cd apps/pristine_codegen && mix test"
     assert testing =~ "cd apps/pristine_provider_testkit && mix test"

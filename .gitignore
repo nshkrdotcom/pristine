@@ -22,6 +22,8 @@ pristine-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+.dependency_sources.local.exs
+apps/*/.dependency_sources.local.exs
 /priv/plts/
 
 # Generated code

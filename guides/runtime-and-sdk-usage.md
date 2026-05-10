@@ -22,7 +22,7 @@ context =
     transport: Pristine.Adapters.Transport.Finch,
     transport_opts: [finch: MyApp.Finch],
     serializer: Pristine.Adapters.Serializer.JSON,
-    auth: [{Pristine.Adapters.Auth.Bearer, token: System.fetch_env!("API_TOKEN")}]
+    auth: [{Pristine.Adapters.Auth.Bearer, token: "example-api-token"}]
   )
 
 request = %{

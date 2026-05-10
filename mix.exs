@@ -1,3 +1,7 @@
+unless Code.ensure_loaded?(DependencySources) do
+  Code.require_file("build_support/dependency_sources.exs", __DIR__)
+end
+
 defmodule Pristine.Workspace.MixProject do
   use Mix.Project
 
@@ -35,7 +39,7 @@ defmodule Pristine.Workspace.MixProject do
 
   defp deps do
     [
-      {:blitz, "~> 0.3.0", runtime: false},
+      DependencySources.dep(:blitz, __DIR__, runtime: false),
       workspace_package_deps(),
       {:plug, "~> 1.19", only: [:dev, :test], runtime: false},
       {:bandit, "~> 1.10", only: [:dev, :test], runtime: false},
@@ -150,9 +154,7 @@ defmodule Pristine.Workspace.MixProject do
   end
 
   defp workspace_package_deps do
-    Enum.map(@workspace_packages, fn {app, path} ->
-      {app, [path: path]}
-    end)
+    Enum.map(@workspace_packages, fn {app, _path} -> DependencySources.dep(app, __DIR__) end)
   end
 
   defp workspace_dialyzer_paths do
@@ -178,7 +180,6 @@ defmodule Pristine.Workspace.MixProject do
         unset_env: ["HEX_API_KEY"]
       ],
       parallelism: [
-        env: "PRISTINE_MONOREPO_MAX_CONCURRENCY",
         multiplier: :auto,
         base: [
           deps_get: 3,

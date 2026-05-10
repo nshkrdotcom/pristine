@@ -87,13 +87,13 @@ defmodule Pristine.Workspace.MonorepoContractTest do
     assert blitz_opts[:runtime] == false
 
     runtime_opts = dep_opts(deps, :pristine)
-    assert runtime_opts[:path] == "apps/pristine_runtime"
+    assert runtime_opts[:path] == Path.expand("apps/pristine_runtime", workspace_root())
 
     codegen_opts = dep_opts(deps, :pristine_codegen)
-    assert codegen_opts[:path] == "apps/pristine_codegen"
+    assert codegen_opts[:path] == Path.expand("apps/pristine_codegen", workspace_root())
 
     testkit_opts = dep_opts(deps, :pristine_provider_testkit)
-    assert testkit_opts[:path] == "apps/pristine_provider_testkit"
+    assert testkit_opts[:path] == Path.expand("apps/pristine_provider_testkit", workspace_root())
   end
 
   test "root dialyzer config includes shared workspace beam paths" do
@@ -106,5 +106,9 @@ defmodule Pristine.Workspace.MonorepoContractTest do
     assert Path.join([build_path, "lib", "pristine_codegen", "ebin"]) in dialyzer[:paths]
 
     assert Path.join([build_path, "lib", "pristine_provider_testkit", "ebin"]) in dialyzer[:paths]
+  end
+
+  defp workspace_root do
+    Path.expand("../..", __DIR__)
   end
 end

@@ -41,8 +41,7 @@ Use `mr.*` aliases for daily work. Use `monorepo.*` aliases when you want the
 spelled-out task names.
 
 To tune fan-out for a single run, pass `--max-concurrency N` to a
-`mix monorepo.*` command. To set a default locally, export
-`PRISTINE_MONOREPO_MAX_CONCURRENCY`.
+`mix monorepo.*` command.
 
 ## Package-Level Iteration
 

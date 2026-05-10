@@ -1,9 +1,9 @@
-Code.require_file("../../build_support/dependency_resolver.exs", __DIR__)
+unless Code.ensure_loaded?(DependencySources) do
+  Code.require_file("build_support/dependency_sources.exs", __DIR__)
+end
 
 defmodule Pristine.Codegen.MixProject do
   use Mix.Project
-
-  alias Pristine.Build.DependencyResolver
 
   @version "0.1.0"
   @source_url "https://github.com/nshkrdotcom/pristine"
@@ -37,7 +37,7 @@ defmodule Pristine.Codegen.MixProject do
 
   defp deps do
     [
-      DependencyResolver.pristine_runtime(),
+      DependencySources.dep(:pristine, __DIR__),
       {:jason, "~> 1.4"},
       {:yaml_elixir, "~> 2.12"},
       {:sinter, "~> 0.3.1"},
@@ -85,7 +85,7 @@ defmodule Pristine.Codegen.MixProject do
     [
       name: "pristine_codegen",
       description: description(),
-      files: ~w(lib mix.exs README.md guides),
+      files: ~w(lib build_support mix.exs README.md guides),
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       maintainers: ["nshkrdotcom"]

@@ -28,7 +28,7 @@ client =
     circuit_breaker: Pristine.Adapters.CircuitBreaker.Noop,
     telemetry: Pristine.Adapters.Telemetry.Noop,
     default_headers: %{"x-client" => "manual"},
-    default_auth: [Pristine.Adapters.Auth.Bearer.new(System.fetch_env!("API_TOKEN"))]
+    default_auth: [Pristine.Adapters.Auth.Bearer.new("example-api-token")]
   )
 ```
 

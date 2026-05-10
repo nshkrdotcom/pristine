@@ -1,10 +1,12 @@
+unless Code.ensure_loaded?(DependencySources) do
+  Code.require_file("build_support/dependency_sources.exs", __DIR__)
+end
+
 defmodule Pristine.Runtime.MixProject do
   use Mix.Project
 
   @version "0.2.1"
   @source_url "https://github.com/nshkrdotcom/pristine"
-  @execution_plane_version "~> 0.1.0"
-  @execution_plane_http_version "~> 0.1.0"
 
   def project do
     [
@@ -57,38 +59,11 @@ defmodule Pristine.Runtime.MixProject do
   end
 
   defp execution_plane_dep do
-    case execution_plane_workspace_dep_path("core/execution_plane") do
-      nil -> {:execution_plane, @execution_plane_version}
-      path -> {:execution_plane, path: path}
-    end
+    DependencySources.dep(:execution_plane, __DIR__)
   end
 
   defp execution_plane_http_dep do
-    case execution_plane_workspace_dep_path("protocols/execution_plane_http") do
-      nil -> {:execution_plane_http, @execution_plane_http_version}
-      path -> {:execution_plane_http, path: path}
-    end
-  end
-
-  defp execution_plane_workspace_dep_path(relative_child_path) do
-    "../../../execution_plane"
-    |> Path.join(relative_child_path)
-    |> local_dep_path()
-  end
-
-  defp local_dep_path(relative_path) do
-    if local_workspace_deps?() do
-      path = Path.expand(relative_path, __DIR__)
-      if File.dir?(path), do: path
-    end
-  end
-
-  defp local_workspace_deps? do
-    not hex_packaging_task?() and not Enum.member?(Path.split(__DIR__), "deps")
-  end
-
-  defp hex_packaging_task? do
-    Enum.any?(System.argv(), &(&1 in ["hex.build", "hex.publish"]))
+    DependencySources.dep(:execution_plane_http, __DIR__)
   end
 
   defp description do
@@ -133,7 +108,7 @@ defmodule Pristine.Runtime.MixProject do
     [
       name: "pristine",
       description: description(),
-      files: ~w(lib assets mix.exs README.md CHANGELOG.md LICENSE.md),
+      files: ~w(lib assets build_support mix.exs README.md CHANGELOG.md LICENSE.md),
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       maintainers: ["nshkrdotcom"]

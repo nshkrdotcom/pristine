@@ -47,7 +47,7 @@ and are not governed authority.
 {:ok, authorization_request} =
   Pristine.OAuth2.authorization_request(
     provider,
-    client_id: System.fetch_env!("CLIENT_ID"),
+    client_id: "provider-client-id",
     redirect_uri: "http://localhost:4000/callback",
     scopes: ["read"],
     generate_state: true,
@@ -75,8 +75,8 @@ client =
     provider,
     code,
     context: client.context,
-    client_id: System.fetch_env!("CLIENT_ID"),
-    client_secret: System.fetch_env!("CLIENT_SECRET")
+    client_id: "provider-client-id",
+    client_secret: "provider-client-secret"
   )
 ```
 

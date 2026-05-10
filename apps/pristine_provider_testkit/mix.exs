@@ -1,9 +1,9 @@
-Code.require_file("../../build_support/dependency_resolver.exs", __DIR__)
+unless Code.ensure_loaded?(DependencySources) do
+  Code.require_file("build_support/dependency_sources.exs", __DIR__)
+end
 
 defmodule Pristine.ProviderTestkit.MixProject do
   use Mix.Project
-
-  alias Pristine.Build.DependencyResolver
 
   @version "0.1.0"
   @source_url "https://github.com/nshkrdotcom/pristine"
@@ -36,7 +36,7 @@ defmodule Pristine.ProviderTestkit.MixProject do
 
   defp deps do
     [
-      DependencyResolver.pristine_codegen(),
+      DependencySources.dep(:pristine_codegen, __DIR__),
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false}

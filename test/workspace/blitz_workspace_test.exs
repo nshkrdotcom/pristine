@@ -52,7 +52,10 @@ defmodule Pristine.Workspace.BlitzWorkspaceTest do
              Path.expand("apps/pristine_runtime/mix.lock", Blitz.MixWorkspace.root_dir())
 
     assert compile_env["MIX_BUILD_PATH"] ==
-             Path.expand("apps/pristine_codegen/_build/dev", Blitz.MixWorkspace.root_dir())
+             Path.expand(
+               "apps/pristine_codegen/_build/#{Mix.env()}",
+               Blitz.MixWorkspace.root_dir()
+             )
   end
 
   test "extracts runner arguments without disturbing mix task arguments" do
