@@ -8,7 +8,9 @@ defmodule Pristine.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {Pristine.Adapters.Semaphore.Counting.Owner, []}
+      {Pristine.Adapters.Semaphore.Counting.Owner, []},
+      {Registry, keys: :unique, name: Pristine.RuntimeGateway.Registry},
+      {DynamicSupervisor, strategy: :one_for_one, name: Pristine.RuntimeGateway.StreamSupervisor}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

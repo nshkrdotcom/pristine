@@ -17,7 +17,7 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
                 end)
 
   alias Pristine.Adapters.Transport.FinchStream
-  alias Pristine.Core.{Context, Request}
+  alias Pristine.Core.{Context, Request, StreamResponse}
   alias Pristine.Streaming.Event
 
   defmodule SlowStreamPlug do
@@ -32,6 +32,18 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
       conn
       |> put_resp_content_type("text/event-stream")
       |> send_resp(200, "data: hello\n\n")
+    end
+
+    get "/cancellable" do
+      conn =
+        conn
+        |> put_resp_content_type("text/event-stream")
+        |> send_chunked(200)
+
+      {:ok, conn} = chunk(conn, "data: first\n\n")
+      Process.sleep(1_000)
+      _ = chunk(conn, "data: second\n\n")
+      conn
     end
   end
 
@@ -182,6 +194,44 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
       assert {:ok, response} = FinchStream.stream(request, context)
       assert response.status == 200
       assert Enum.to_list(response.stream) == [%Event{data: "hello"}]
+    end
+
+    test "does not read ahead without demand and cancellation closes the live stream" do
+      finch_name = __MODULE__.CancellationFinch
+      {:ok, finch_pid} = Finch.start_link(name: finch_name)
+
+      {:ok, server_pid} =
+        Bandit.start_link(
+          plug: SlowStreamPlug,
+          port: 0,
+          ip: {127, 0, 0, 1},
+          startup_log: false
+        )
+
+      {:ok, {_, port}} = ThousandIsland.listener_info(server_pid)
+
+      on_exit(fn ->
+        stop_supervised_pid(server_pid)
+
+        if Process.alive?(finch_pid) do
+          Process.exit(finch_pid, :normal)
+        end
+      end)
+
+      request = %Request{
+        method: "GET",
+        url: "http://localhost:#{port}/cancellable",
+        headers: %{},
+        metadata: %{timeout: 5_000}
+      }
+
+      context = %Context{transport_opts: [finch: finch_name]}
+
+      assert {:ok, response} = FinchStream.stream(request, context)
+      refute_receive {_ref, :event, _event}, 100
+
+      assert :ok = StreamResponse.cancel(response)
+      assert Enum.to_list(response.stream) == []
     end
   end
 

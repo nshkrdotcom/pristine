@@ -149,23 +149,22 @@ defmodule Pristine.Adapters.Transport.FinchStream do
     Finch.stream(
       finch_request,
       finch_name,
-      {nil, nil, SSEDecoder.new(), []},
+      {nil, nil, SSEDecoder.new()},
       fn
-        {:status, status}, {_, headers, decoder, events} ->
-          {status, headers, decoder, events}
+        {:status, status}, {_, headers, decoder} ->
+          {status, headers, decoder}
 
-        {:headers, headers}, {status, _, decoder, events} ->
+        {:headers, headers}, {status, _, decoder} ->
           header_map = Map.new(headers)
           send(parent, {ref, :metadata, status, header_map})
-          {status, header_map, decoder, events}
+          {status, header_map, decoder}
 
-        {:data, chunk}, {status, headers, decoder, events} ->
+        {:data, chunk}, {status, headers, decoder} ->
           handle_data_chunk(
             chunk,
             status,
             headers,
             decoder,
-            events,
             parent,
             ref,
             last_event_id_ref
@@ -192,6 +191,8 @@ defmodule Pristine.Adapters.Transport.FinchStream do
           {:halt, state}
 
         {r, t, :running} = state ->
+          send(t.pid, {r, :demand})
+
           receive do
             {^r, :event, event} ->
               {[event], state}
@@ -220,11 +221,11 @@ defmodule Pristine.Adapters.Transport.FinchStream do
     |> Stream.reject(&is_nil/1)
   end
 
-  defp handle_data_chunk(chunk, status, headers, decoder, events, parent, ref, last_event_id_ref) do
+  defp handle_data_chunk(chunk, status, headers, decoder, parent, ref, last_event_id_ref) do
     {new_events, new_decoder} = SSEDecoder.feed(decoder, chunk)
     update_last_event_id(last_event_id_ref, decoder, new_decoder)
     send_events(parent, ref, new_events)
-    {status, headers, new_decoder, events ++ new_events}
+    {status, headers, new_decoder}
   end
 
   defp update_last_event_id(last_event_id_ref, decoder, new_decoder) do
@@ -237,7 +238,9 @@ defmodule Pristine.Adapters.Transport.FinchStream do
 
   defp send_events(parent, ref, events) do
     Enum.each(events, fn event ->
-      send(parent, {ref, :event, event})
+      receive do
+        {^ref, :demand} -> send(parent, {ref, :event, event})
+      end
     end)
   end
 
