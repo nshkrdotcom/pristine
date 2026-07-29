@@ -116,56 +116,67 @@ defmodule Pristine.Adapters.Transport.FinchStream do
     # Strategy: Use a Task to run the streaming request, and a Stream.resource
     # that pulls from it via a mailbox pattern
 
-    parent = self()
+    owner = self()
     ref = make_ref()
     {:ok, last_event_id_ref} = Agent.start_link(fn -> nil end)
+    cancelled_ref = :atomics.new(1, [])
 
-    task =
-      Task.async(fn ->
-        run_stream(finch_request, finch_name, timeout, parent, ref, last_event_id_ref)
+    {:ok, producer} =
+      Task.start(fn ->
+        run_stream(finch_request, finch_name, timeout, owner, ref, last_event_id_ref)
       end)
+
+    producer_monitor = Process.monitor(producer)
 
     # Wait for initial metadata (status + headers)
     receive do
       {^ref, :metadata, status, headers} ->
+        Process.demonitor(producer_monitor, [:flush])
+
         # Create the event stream that consumes from the task
-        event_stream = create_event_stream(ref, task, last_event_id_ref)
-        cancel_fun = fn -> cancel_stream(task, ref, parent, last_event_id_ref) end
+        event_stream = create_event_stream(ref, producer, last_event_id_ref, cancelled_ref)
+        cancel_fun = fn -> cancel_stream(producer, last_event_id_ref, cancelled_ref) end
         {:ok, status, headers, event_stream, last_event_id_ref, cancel_fun}
 
       {^ref, :error, reason} ->
-        Task.shutdown(task, :brutal_kill)
+        Process.demonitor(producer_monitor, [:flush])
+        stop_producer(producer)
         stop_last_event_id(last_event_id_ref)
         {:error, reason}
+
+      {:DOWN, ^producer_monitor, :process, ^producer, reason} ->
+        stop_last_event_id(last_event_id_ref)
+        {:error, {:stream_start_failed, reason}}
     after
       timeout ->
-        Task.shutdown(task, :brutal_kill)
+        Process.demonitor(producer_monitor, [:flush])
+        stop_producer(producer)
         stop_last_event_id(last_event_id_ref)
         {:error, :timeout}
     end
   end
 
-  defp run_stream(finch_request, finch_name, timeout, parent, ref, last_event_id_ref) do
+  defp run_stream(finch_request, finch_name, timeout, owner, ref, last_event_id_ref) do
     Finch.stream(
       finch_request,
       finch_name,
-      {nil, nil, SSEDecoder.new()},
+      {nil, nil, SSEDecoder.new(), false},
       fn
-        {:status, status}, {_, headers, decoder} ->
-          {status, headers, decoder}
+        {:status, status}, {_, headers, decoder, metadata_sent?} ->
+          {status, headers, decoder, metadata_sent?}
 
-        {:headers, headers}, {status, _, decoder} ->
+        {:headers, headers}, {status, _, decoder, _metadata_sent?} ->
           header_map = Map.new(headers)
-          send(parent, {ref, :metadata, status, header_map})
-          {status, header_map, decoder}
+          send(owner, {ref, :metadata, status, header_map})
+          {status, header_map, decoder, true}
 
-        {:data, chunk}, {status, headers, decoder} ->
+        {:data, chunk}, {status, headers, decoder, metadata_sent?} ->
           handle_data_chunk(
             chunk,
             status,
             headers,
             decoder,
-            parent,
+            metadata_sent?,
             ref,
             last_event_id_ref
           )
@@ -173,59 +184,85 @@ defmodule Pristine.Adapters.Transport.FinchStream do
       receive_timeout: timeout
     )
     |> case do
+      {:ok, {_status, _headers, _decoder, true}} ->
+        send_terminal_on_demand(ref, :done, timeout)
+
       {:ok, _acc} ->
-        send(parent, {ref, :done})
-        :ok
+        send(owner, {ref, :error, :missing_response_metadata})
+
+      {:error, exception, {_status, _headers, _decoder, true}} ->
+        case send_terminal_on_demand(ref, {:error, exception}, timeout) do
+          :sent -> :ok
+          :expired -> exit(:stream_failed)
+        end
 
       {:error, exception, _partial_response} ->
-        send(parent, {ref, :error, exception})
+        send(owner, {ref, :error, exception})
         {:error, exception}
     end
   end
 
-  defp create_event_stream(ref, task, last_event_id_ref) do
+  defp create_event_stream(ref, producer, last_event_id_ref, cancelled_ref) do
     Stream.resource(
-      fn -> {ref, task, :running} end,
+      fn -> {ref, producer, Process.monitor(producer), :idle} end,
       fn
-        {_ref, _task, :done} = state ->
+        {_ref, _producer, _monitor, :done} = state ->
           {:halt, state}
 
-        {r, t, :running} = state ->
-          send(t.pid, {r, :demand})
+        {r, p, monitor, :idle} ->
+          send(p, {r, :demand, self()})
+          await_stream_message(r, p, monitor, cancelled_ref)
 
-          receive do
-            {^r, :event, event} ->
-              {[event], state}
-
-            {^r, :done} ->
-              {:halt, {r, t, :done}}
-
-            {^r, :error, _reason} ->
-              {:halt, {r, t, :done}}
-          after
-            # Yield control periodically
-            100 ->
-              {[], state}
-          end
+        {r, p, monitor, :waiting} ->
+          await_stream_message(r, p, monitor, cancelled_ref)
       end,
-      fn {_ref, task, _status} ->
-        # Cleanup: ensure task is completed
-        case Task.yield(task, 0) do
-          nil -> Task.shutdown(task, :brutal_kill)
-          _ -> :ok
-        end
-
-        stop_last_event_id(last_event_id_ref)
+      fn {_ref, producer, monitor, _status} ->
+        Process.demonitor(monitor, [:flush])
+        cancel_stream(producer, last_event_id_ref, cancelled_ref)
       end
     )
     |> Stream.reject(&is_nil/1)
   end
 
-  defp handle_data_chunk(chunk, status, headers, decoder, parent, ref, last_event_id_ref) do
+  defp await_stream_message(ref, producer, monitor, cancelled_ref) do
+    receive do
+      {^ref, :event, event} ->
+        {[event], {ref, producer, monitor, :idle}}
+
+      {^ref, :done} ->
+        {:halt, {ref, producer, monitor, :done}}
+
+      {^ref, :error, _reason} ->
+        raise RuntimeError, "Finch stream failed after response metadata"
+
+      {:DOWN, ^monitor, :process, ^producer, :normal} ->
+        {:halt, {ref, producer, monitor, :done}}
+
+      {:DOWN, ^monitor, :process, ^producer, _reason} ->
+        if cancelled?(cancelled_ref) do
+          {:halt, {ref, producer, monitor, :done}}
+        else
+          raise RuntimeError, "Finch stream producer terminated unexpectedly"
+        end
+    after
+      100 ->
+        {[], {ref, producer, monitor, :waiting}}
+    end
+  end
+
+  defp handle_data_chunk(
+         chunk,
+         status,
+         headers,
+         decoder,
+         metadata_sent?,
+         ref,
+         last_event_id_ref
+       ) do
     {new_events, new_decoder} = SSEDecoder.feed(decoder, chunk)
     update_last_event_id(last_event_id_ref, decoder, new_decoder)
-    send_events(parent, ref, new_events)
-    {status, headers, new_decoder}
+    send_events(ref, new_events)
+    {status, headers, new_decoder, metadata_sent?}
   end
 
   defp update_last_event_id(last_event_id_ref, decoder, new_decoder) do
@@ -236,27 +273,56 @@ defmodule Pristine.Adapters.Transport.FinchStream do
     end
   end
 
-  defp send_events(parent, ref, events) do
+  defp send_events(ref, events) do
     Enum.each(events, fn event ->
       receive do
-        {^ref, :demand} -> send(parent, {ref, :event, event})
+        {^ref, :demand, consumer} when is_pid(consumer) ->
+          send(consumer, {ref, :event, event})
       end
     end)
   end
 
-  defp cancel_stream(task, ref, parent, last_event_id_ref) do
-    Task.shutdown(task, :brutal_kill)
-    send(parent, {ref, :done})
+  defp send_terminal_on_demand(ref, terminal, timeout) do
+    receive do
+      {^ref, :demand, consumer} when is_pid(consumer) ->
+        send_terminal(consumer, ref, terminal)
+        :sent
+    after
+      timeout -> :expired
+    end
+  end
+
+  defp send_terminal(consumer, ref, :done), do: send(consumer, {ref, :done})
+
+  defp send_terminal(consumer, ref, {:error, reason}),
+    do: send(consumer, {ref, :error, reason})
+
+  defp cancel_stream(producer, last_event_id_ref, cancelled_ref) do
+    :atomics.put(cancelled_ref, 1, 1)
+    stop_producer(producer)
     stop_last_event_id(last_event_id_ref)
+    :ok
+  end
+
+  defp cancelled?(cancelled_ref), do: :atomics.get(cancelled_ref, 1) == 1
+
+  defp stop_producer(pid) when is_pid(pid) do
+    if Process.alive?(pid), do: Process.exit(pid, :kill)
     :ok
   end
 
   defp stop_last_event_id(pid) when is_pid(pid) do
     if Process.alive?(pid) do
-      Agent.stop(pid)
+      stop_agent(pid)
     else
       :ok
     end
+  end
+
+  defp stop_agent(pid) do
+    Agent.stop(pid)
+  catch
+    :exit, _reason -> :ok
   end
 
   @doc """

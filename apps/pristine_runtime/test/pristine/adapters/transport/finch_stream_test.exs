@@ -16,8 +16,11 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
                     "loopback sockets unavailable in this environment: #{inspect(reason)}"
                 end)
 
+  alias ExecutionPlane.Family.HTTPRequest
+  alias ExecutionPlane.Runtime.Event, as: RuntimeEvent
   alias Pristine.Adapters.Transport.FinchStream
   alias Pristine.Core.{Context, Request, StreamResponse}
+  alias Pristine.RuntimeGateway.Local
   alias Pristine.Streaming.Event
 
   defmodule SlowStreamPlug do
@@ -193,7 +196,9 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
 
       assert {:ok, response} = FinchStream.stream(request, context)
       assert response.status == 200
-      assert Enum.to_list(response.stream) == [%Event{data: "hello"}]
+
+      consumer = Task.async(fn -> Enum.to_list(response.stream) end)
+      assert Task.await(consumer) == [%Event{data: "hello"}]
     end
 
     test "does not read ahead without demand and cancellation closes the live stream" do
@@ -232,6 +237,68 @@ defmodule Pristine.Adapters.Transport.FinchStreamTest do
 
       assert :ok = StreamResponse.cancel(response)
       assert Enum.to_list(response.stream) == []
+    end
+
+    test "the owned local gateway consumes Finch on its runner and cancels the same request" do
+      finch_name = __MODULE__.GatewayFinch
+      {:ok, finch_pid} = Finch.start_link(name: finch_name)
+
+      {:ok, server_pid} =
+        Bandit.start_link(
+          plug: SlowStreamPlug,
+          port: 0,
+          ip: {127, 0, 0, 1},
+          startup_log: false
+        )
+
+      {:ok, {_, port}} = ThousandIsland.listener_info(server_pid)
+
+      on_exit(fn ->
+        stop_supervised_pid(server_pid)
+
+        if Process.alive?(finch_pid) do
+          Process.exit(finch_pid, :normal)
+        end
+      end)
+
+      request = %Request{
+        method: "GET",
+        url: "http://localhost:#{port}/cancellable",
+        headers: %{"X-Idempotency-Key" => "idem-gateway-1"},
+        metadata: %{timeout: 5_000}
+      }
+
+      {:ok, family_request} =
+        HTTPRequest.new(%{
+          request_ref: "http-request://tenant-1/gateway-1",
+          endpoint_ref: "endpoint://test/cancellable",
+          method: "GET",
+          path: "/cancellable",
+          header_policy_ref: "header-policy://tenant-1/test",
+          response_mode: "incremental",
+          idempotency_key: "idem-gateway-1",
+          deadline_at: DateTime.add(DateTime.utc_now(), 5, :second)
+        })
+
+      context = %Context{transport_opts: [finch: finch_name]}
+
+      assert {:ok, active} =
+               Local.stream(
+                 family_request,
+                 self(),
+                 request: request,
+                 context: context,
+                 endpoint: "http://localhost:#{port}",
+                 terminal_retention_ms: 5_000
+               )
+
+      assert_receive %RuntimeEvent{kind: "started"}
+      assert_receive %RuntimeEvent{kind: "backpressure"}
+      assert :ok = Local.demand(active.execution_ref, 1, [])
+      assert_receive %RuntimeEvent{kind: "output", payload: %{"placement" => "local_effect"}}
+
+      assert :ok = Local.cancel(active.execution_ref, [])
+      assert_receive %RuntimeEvent{kind: "receipt", payload: %{"state" => "cancelled"}}
     end
   end
 

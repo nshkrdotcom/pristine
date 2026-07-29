@@ -132,7 +132,7 @@ defmodule Pristine.RuntimeGateway.Materialization do
   end
 
   defp valid_request_uri?(%URI{} = uri) do
-    valid_http_origin?(uri) and is_nil(uri.userinfo)
+    valid_http_origin?(uri) and is_nil(uri.userinfo) and is_nil(uri.fragment)
   end
 
   defp valid_http_origin?(%URI{scheme: scheme, host: host}) do
@@ -159,6 +159,9 @@ defmodule Pristine.RuntimeGateway.Materialization do
 
       normalize_path(request_uri.path) != family_request.path ->
         {:error, error("materialized request path does not match the HTTP family request")}
+
+      not valid_headers?(request.headers) ->
+        {:error, error("materialized request headers are invalid")}
 
       not idempotency_bound?(request.headers, family_request.idempotency_key) ->
         {:error, error("materialized request is missing its bound idempotency key")}
@@ -201,8 +204,14 @@ defmodule Pristine.RuntimeGateway.Materialization do
 
   defp idempotency_bound?(headers, expected) when is_binary(expected) do
     Enum.any?(headers || %{}, fn {name, value} ->
-      normalized_name = name |> to_string() |> String.downcase()
-      String.ends_with?(normalized_name, "idempotency-key") and to_string(value) == expected
+      normalized_name =
+        case safe_string(name) do
+          name when is_binary(name) -> String.downcase(name)
+          nil -> nil
+        end
+
+      normalized_name in ["idempotency-key", "x-idempotency-key"] and
+        safe_string(value) == expected
     end)
   end
 
@@ -239,7 +248,23 @@ defmodule Pristine.RuntimeGateway.Materialization do
   defp normalize_method(method), do: method
 
   defp stringify_headers(headers) do
-    Map.new(headers || %{}, fn {key, value} -> {to_string(key), to_string(value)} end)
+    Map.new(headers || %{}, fn {key, value} -> {safe_string(key), safe_string(value)} end)
+  end
+
+  defp valid_headers?(headers) when is_map(headers) or is_list(headers) do
+    Enum.all?(headers, fn {name, value} ->
+      present_string?(safe_string(name)) and is_binary(safe_string(value))
+    end)
+  rescue
+    _exception -> false
+  end
+
+  defp valid_headers?(_headers), do: false
+
+  defp safe_string(value) do
+    to_string(value)
+  rescue
+    Protocol.UndefinedError -> nil
   end
 
   defp present_string?(value), do: is_binary(value) and String.trim(value) != ""

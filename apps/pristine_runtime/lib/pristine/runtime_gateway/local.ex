@@ -18,6 +18,9 @@ defmodule Pristine.RuntimeGateway.Local do
   @registry Pristine.RuntimeGateway.Registry
   @supervisor Pristine.RuntimeGateway.StreamSupervisor
 
+  @default_max_demand 16
+  @default_terminal_retention_ms 30_000
+
   @impl true
   def unary(family_request, opts) do
     with {:ok, validated} <- Materialization.validate(family_request, opts, :unary),
@@ -44,6 +47,15 @@ defmodule Pristine.RuntimeGateway.Local do
   @impl true
   def stream(family_request, subscriber, opts) when is_pid(subscriber) and is_list(opts) do
     with {:ok, validated} <- Materialization.validate(family_request, opts, :incremental),
+         {:ok, max_demand} <-
+           positive_option(opts, :max_demand, @default_max_demand, "stream max_demand"),
+         {:ok, terminal_retention_ms} <-
+           positive_option(
+             opts,
+             :terminal_retention_ms,
+             @default_terminal_retention_ms,
+             "stream terminal_retention_ms"
+           ),
          :ok <- ensure_stream_runtime(),
          execution_ref <- ExecutionRef.new!(),
          worker_opts <-
@@ -51,8 +63,8 @@ defmodule Pristine.RuntimeGateway.Local do
              execution_ref: execution_ref,
              subscriber: subscriber,
              validated: validated,
-             max_demand: Keyword.get(opts, :max_demand, 16),
-             terminal_retention_ms: Keyword.get(opts, :terminal_retention_ms, 30_000)
+             max_demand: max_demand,
+             terminal_retention_ms: terminal_retention_ms
            ],
          {:ok, pid} <- DynamicSupervisor.start_child(@supervisor, {StreamWorker, worker_opts}) do
       StreamWorker.active(pid)
@@ -75,7 +87,7 @@ defmodule Pristine.RuntimeGateway.Local do
   @impl true
   def demand(execution_ref, credits, _opts) when is_integer(credits) and credits > 0 do
     with {:ok, pid} <- lookup(execution_ref) do
-      StreamWorker.demand(pid, credits)
+      call_worker(fn -> StreamWorker.demand(pid, credits) end)
     end
   end
 
@@ -92,14 +104,14 @@ defmodule Pristine.RuntimeGateway.Local do
   @impl true
   def status(execution_ref, _opts) do
     with {:ok, pid} <- lookup(execution_ref) do
-      StreamWorker.status(pid)
+      call_worker(fn -> StreamWorker.status(pid) end)
     end
   end
 
   @impl true
   def cancel(execution_ref, _opts) do
     with {:ok, pid} <- lookup(execution_ref) do
-      StreamWorker.cancel(pid)
+      call_worker(fn -> StreamWorker.cancel(pid) end)
     end
   end
 
@@ -147,5 +159,27 @@ defmodule Pristine.RuntimeGateway.Local do
       retryable: true,
       ambiguous: false
     )
+  end
+
+  defp call_worker(fun) do
+    fun.()
+  catch
+    :exit, _reason -> {:error, unknown_execution_error()}
+  end
+
+  defp positive_option(opts, key, default, label) do
+    case Keyword.get(opts, key, default) do
+      value when is_integer(value) and value > 0 ->
+        {:ok, value}
+
+      _other ->
+        {:error,
+         Error.new!(
+           category: "invalid_request",
+           message: "#{label} must be a positive integer",
+           retryable: false,
+           ambiguous: false
+         )}
+    end
   end
 end

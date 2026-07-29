@@ -244,7 +244,7 @@ defmodule Pristine.RuntimeGateway.Local.StreamWorker do
   end
 
   defp enumerate_stream(stream, owner) do
-    try do
+    _ =
       Enum.reduce_while(stream, :ok, fn event, :ok ->
         case GenServer.call(owner, {:emit, event}, :infinity) do
           :ok -> {:cont, :ok}
@@ -252,12 +252,11 @@ defmodule Pristine.RuntimeGateway.Local.StreamWorker do
         end
       end)
 
-      GenServer.cast(owner, :source_done)
-    rescue
-      _exception -> GenServer.cast(owner, :source_failed)
-    catch
-      :exit, _reason -> :ok
-    end
+    GenServer.cast(owner, :source_done)
+  rescue
+    _exception -> GenServer.cast(owner, :source_failed)
+  catch
+    :exit, _reason -> :ok
   end
 
   defp release_pending(%{pending: nil} = state), do: transition(state, "running")
