@@ -4,10 +4,8 @@ siblings_root = Path.expand("..", project_root)
 %{
   deps: %{
     blitz: %{
-      path: Path.join(siblings_root, "blitz"),
-      github: %{repo: "nshkrdotcom/blitz", branch: "main"},
       hex: "~> 0.3.0",
-      default_order: [:path, :github, :hex],
+      default_order: [:hex],
       publish_order: [:hex]
     },
     pristine: %{
