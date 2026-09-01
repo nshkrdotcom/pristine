@@ -1,6 +1,4 @@
-unless Code.ensure_loaded?(DependencySources) do
-  Code.require_file("build_support/dependency_sources.exs", __DIR__)
-end
+if bootstrap = System.get_env("MIX_WORKSPACE_OPS_BOOTSTRAP"), do: Code.require_file(bootstrap)
 
 defmodule Pristine.Runtime.MixProject do
   use Mix.Project
@@ -59,11 +57,17 @@ defmodule Pristine.Runtime.MixProject do
   end
 
   defp execution_plane_dep do
-    DependencySources.dep(:execution_plane, __DIR__)
+    workspace_dep({:execution_plane, "~> 0.2.0"})
   end
 
   defp execution_plane_http_dep do
-    DependencySources.dep(:execution_plane_http, __DIR__)
+    workspace_dep({:execution_plane_http, "~> 0.1.0"})
+  end
+
+  defp workspace_dep(committed) do
+    if function_exported?(MixWorkspaceOpsBootstrap, :dep, 2),
+      do: apply(MixWorkspaceOpsBootstrap, :dep, [committed, __DIR__]),
+      else: committed
   end
 
   defp description do
@@ -108,7 +112,7 @@ defmodule Pristine.Runtime.MixProject do
     [
       name: "pristine",
       description: description(),
-      files: ~w(lib assets build_support mix.exs README.md CHANGELOG.md LICENSE.md),
+      files: ~w(lib assets mix.exs README.md CHANGELOG.md LICENSE.md),
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       maintainers: ["nshkrdotcom"]

@@ -8,12 +8,11 @@
 
 ## Execution Plane Stack
 - `pristine` is the semantic HTTP family kit above `execution_plane`; it may carry mapped execution-plane contracts but must not expose raw lower HTTP package surfaces as its product API.
-- Keep dependency resolution publish-aware through
-  `build_support/dependency_sources.config.exs` and the canonical
-  `build_support/dependency_sources.exs` helper.
-- Local dependency-source overrides belong in `.dependency_sources.local.exs`
-  or app-local `.dependency_sources.local.exs` files. Keep those files
-  untracked.
+- Cross-repository source substitution uses MWO's tuple-first
+  `workspace_dep(committed_tuple)` seam. Committed tuples are standalone Hex defaults;
+  MWO activation substitutes only source coordinates.
+- Machine-local source preferences belong in MWO's XDG operator state. Do not install a
+  repository-local dependency-source helper or override file.
 - Dependency source selection must not use environment variables.
 - In local sibling mode, `apps/pristine_runtime` resolves `:execution_plane` to
   `../execution_plane/core/execution_plane` and `:execution_plane_http` to

@@ -1,6 +1,4 @@
-unless Code.ensure_loaded?(DependencySources) do
-  Code.require_file("build_support/dependency_sources.exs", __DIR__)
-end
+if bootstrap = System.get_env("MIX_WORKSPACE_OPS_BOOTSTRAP"), do: Code.require_file(bootstrap)
 
 defmodule Pristine.Codegen.MixProject do
   use Mix.Project
@@ -37,7 +35,7 @@ defmodule Pristine.Codegen.MixProject do
 
   defp deps do
     [
-      DependencySources.dep(:pristine, __DIR__),
+      workspace_dep({:pristine, "~> 0.2.1"}),
       {:jason, "~> 1.4"},
       {:yaml_elixir, "~> 2.12"},
       {:sinter, "~> 0.3.1"},
@@ -45,6 +43,12 @@ defmodule Pristine.Codegen.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false}
     ]
+  end
+
+  defp workspace_dep(committed) do
+    if function_exported?(MixWorkspaceOpsBootstrap, :dep, 2),
+      do: apply(MixWorkspaceOpsBootstrap, :dep, [committed, __DIR__]),
+      else: committed
   end
 
   defp description do
@@ -85,7 +89,7 @@ defmodule Pristine.Codegen.MixProject do
     [
       name: "pristine_codegen",
       description: description(),
-      files: ~w(lib build_support mix.exs README.md guides),
+      files: ~w(lib mix.exs README.md guides),
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       maintainers: ["nshkrdotcom"]
