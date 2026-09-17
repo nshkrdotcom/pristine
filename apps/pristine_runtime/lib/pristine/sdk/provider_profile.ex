@@ -32,6 +32,7 @@ defmodule Pristine.SDK.ProviderProfile do
           rate_limit_retry_groups: retry_group_selector(),
           rate_limit_detector: (integer(), map(), term() -> boolean()) | nil,
           status_retry_overrides: %{optional(integer()) => status_retry_override()},
+          status_retry_ranges: [map()],
           status_code_map: %{optional(integer()) => atom()},
           body_code_map: %{optional(String.t()) => atom()},
           body_code_fields: [String.t()],
@@ -54,6 +55,7 @@ defmodule Pristine.SDK.ProviderProfile do
             rate_limit_retry_groups: nil,
             rate_limit_detector: nil,
             status_retry_overrides: %{},
+            status_retry_ranges: [],
             status_code_map: %{},
             body_code_map: %{},
             body_code_fields: ["code"],
@@ -74,92 +76,102 @@ defmodule Pristine.SDK.ProviderProfile do
   def new(opts) when is_map(opts) do
     provider = Map.get(opts, :provider) || Map.get(opts, "provider")
 
-    if is_nil(provider) do
-      {:error, {:missing_required_option, :provider}}
-    else
-      {:ok,
-       %__MODULE__{
-         provider: provider,
-         default_retry_group: fetch_string(opts, :default_retry_group),
-         retryable_groups:
-           normalize_retry_group_selector(
-             Map.get(opts, :retryable_groups, Map.get(opts, "retryable_groups"))
-           ),
-         transport_retry_groups:
-           normalize_retry_group_selector(
-             Map.get(opts, :transport_retry_groups, Map.get(opts, "transport_retry_groups"))
-           ),
-         rate_limit_retry_groups:
-           normalize_retry_group_selector(
-             Map.get(opts, :rate_limit_retry_groups, Map.get(opts, "rate_limit_retry_groups"))
-           ),
-         rate_limit_detector:
-           Map.get(opts, :rate_limit_detector, Map.get(opts, "rate_limit_detector")),
-         status_retry_overrides:
-           normalize_status_retry_overrides(
-             Map.get(opts, :status_retry_overrides, Map.get(opts, "status_retry_overrides", %{}))
-           ),
-         status_code_map:
-           normalize_integer_key_map(
-             Map.get(opts, :status_code_map, Map.get(opts, "status_code_map", %{}))
-           ),
-         body_code_map:
-           normalize_string_key_map(
-             Map.get(opts, :body_code_map, Map.get(opts, "body_code_map", %{}))
-           ),
-         body_code_fields:
-           normalize_string_list(
-             Map.get(opts, :body_code_fields, Map.get(opts, "body_code_fields", ["code"]))
-           ),
-         message_fields:
-           normalize_string_list(
-             Map.get(opts, :message_fields, Map.get(opts, "message_fields", ["message"]))
-           ),
-         request_id_headers:
-           normalize_string_list(
-             Map.get(opts, :request_id_headers, Map.get(opts, "request_id_headers", []))
-           ),
-         body_request_id_fields:
-           normalize_string_list(
+    with {:ok, ranges} <-
+           normalize_status_retry_ranges(
+             Map.get(opts, :status_retry_ranges, Map.get(opts, "status_retry_ranges", []))
+           ) do
+      if is_nil(provider) do
+        {:error, {:missing_required_option, :provider}}
+      else
+        {:ok,
+         %__MODULE__{
+           provider: provider,
+           default_retry_group: fetch_string(opts, :default_retry_group),
+           retryable_groups:
+             normalize_retry_group_selector(
+               Map.get(opts, :retryable_groups, Map.get(opts, "retryable_groups"))
+             ),
+           transport_retry_groups:
+             normalize_retry_group_selector(
+               Map.get(opts, :transport_retry_groups, Map.get(opts, "transport_retry_groups"))
+             ),
+           rate_limit_retry_groups:
+             normalize_retry_group_selector(
+               Map.get(opts, :rate_limit_retry_groups, Map.get(opts, "rate_limit_retry_groups"))
+             ),
+           rate_limit_detector:
+             Map.get(opts, :rate_limit_detector, Map.get(opts, "rate_limit_detector")),
+           status_retry_overrides:
+             normalize_status_retry_overrides(
+               Map.get(
+                 opts,
+                 :status_retry_overrides,
+                 Map.get(opts, "status_retry_overrides", %{})
+               )
+             ),
+           status_retry_ranges: ranges,
+           status_code_map:
+             normalize_integer_key_map(
+               Map.get(opts, :status_code_map, Map.get(opts, "status_code_map", %{}))
+             ),
+           body_code_map:
+             normalize_string_key_map(
+               Map.get(opts, :body_code_map, Map.get(opts, "body_code_map", %{}))
+             ),
+           body_code_fields:
+             normalize_string_list(
+               Map.get(opts, :body_code_fields, Map.get(opts, "body_code_fields", ["code"]))
+             ),
+           message_fields:
+             normalize_string_list(
+               Map.get(opts, :message_fields, Map.get(opts, "message_fields", ["message"]))
+             ),
+           request_id_headers:
+             normalize_string_list(
+               Map.get(opts, :request_id_headers, Map.get(opts, "request_id_headers", []))
+             ),
+           body_request_id_fields:
+             normalize_string_list(
+               Map.get(
+                 opts,
+                 :body_request_id_fields,
+                 Map.get(opts, "body_request_id_fields", ["request_id"])
+               )
+             ),
+           documentation_url_fields:
+             normalize_string_list(
+               Map.get(
+                 opts,
+                 :documentation_url_fields,
+                 Map.get(opts, "documentation_url_fields", [])
+               )
+             ),
+           additional_data_fields:
+             normalize_string_list(
+               Map.get(opts, :additional_data_fields, Map.get(opts, "additional_data_fields", []))
+             ),
+           retry_after_reset_at_headers:
+             normalize_string_list(
+               Map.get(
+                 opts,
+                 :retry_after_reset_at_headers,
+                 Map.get(opts, "retry_after_reset_at_headers", [])
+               )
+             ),
+           rate_limit_code:
+             Map.get(opts, :rate_limit_code, Map.get(opts, "rate_limit_code", :rate_limited)),
+           response_error_code:
              Map.get(
                opts,
-               :body_request_id_fields,
-               Map.get(opts, "body_request_id_fields", ["request_id"])
-             )
-           ),
-         documentation_url_fields:
-           normalize_string_list(
-             Map.get(
-               opts,
-               :documentation_url_fields,
-               Map.get(opts, "documentation_url_fields", [])
-             )
-           ),
-         additional_data_fields:
-           normalize_string_list(
-             Map.get(opts, :additional_data_fields, Map.get(opts, "additional_data_fields", []))
-           ),
-         retry_after_reset_at_headers:
-           normalize_string_list(
-             Map.get(
-               opts,
-               :retry_after_reset_at_headers,
-               Map.get(opts, "retry_after_reset_at_headers", [])
-             )
-           ),
-         rate_limit_code:
-           Map.get(opts, :rate_limit_code, Map.get(opts, "rate_limit_code", :rate_limited)),
-         response_error_code:
-           Map.get(
-             opts,
-             :response_error_code,
-             Map.get(opts, "response_error_code", :response_error)
-           ),
-         connection_code:
-           Map.get(opts, :connection_code, Map.get(opts, "connection_code", :connection)),
-         validation_code:
-           Map.get(opts, :validation_code, Map.get(opts, "validation_code", :validation))
-       }}
+               :response_error_code,
+               Map.get(opts, "response_error_code", :response_error)
+             ),
+           connection_code:
+             Map.get(opts, :connection_code, Map.get(opts, "connection_code", :connection)),
+           validation_code:
+             Map.get(opts, :validation_code, Map.get(opts, "validation_code", :validation))
+         }}
+      end
     end
   end
 
@@ -252,9 +264,18 @@ defmodule Pristine.SDK.ProviderProfile do
   def rate_limit_retryable?(nil, _endpoint), do: true
 
   @spec status_retry_override(t() | nil, integer() | nil) :: status_retry_override() | nil
-  def status_retry_override(%__MODULE__{status_retry_overrides: overrides}, status)
+  def status_retry_override(
+        %__MODULE__{status_retry_overrides: overrides, status_retry_ranges: ranges},
+        status
+      )
       when is_integer(status) do
-    Map.get(overrides, status)
+    case Map.fetch(overrides, status) do
+      {:ok, override} ->
+        override
+
+      :error ->
+        Enum.find_value(ranges, &matching_range_override(&1, status))
+    end
   end
 
   def status_retry_override(_profile, _status), do: nil
@@ -462,6 +483,47 @@ defmodule Pristine.SDK.ProviderProfile do
     do: normalize_string_list(groups)
 
   defp normalize_retry_group_selector(_groups), do: nil
+
+  defp matching_range_override(%{range: range} = entry, status) do
+    if status in range, do: Map.delete(entry, :range)
+  end
+
+  defp normalize_status_retry_ranges(entries) when is_list(entries) do
+    Enum.reduce_while(entries, {:ok, []}, &append_status_retry_range/2)
+  end
+
+  defp normalize_status_retry_ranges(_entries),
+    do: {:error, {:invalid_status_retry_ranges, :expected_list}}
+
+  defp append_status_retry_range(entry, {:ok, acc}) do
+    case normalize_status_retry_range(entry) do
+      {:ok, normalized} -> append_disjoint_range(normalized, acc)
+      {:error, _reason} = error -> {:halt, error}
+    end
+  end
+
+  defp append_disjoint_range(%{range: range} = entry, acc) do
+    if Enum.any?(acc, &(not Range.disjoint?(&1.range, range))) do
+      {:halt, {:error, {:invalid_status_retry_ranges, :overlap}}}
+    else
+      {:cont, {:ok, acc ++ [entry]}}
+    end
+  end
+
+  defp normalize_status_retry_range(entry) when is_map(entry) do
+    case Map.get(entry, :range, Map.get(entry, "range")) do
+      %Range{first: first, last: last, step: 1} = range
+      when is_integer(first) and is_integer(last) and first >= 100 and last <= 599 and
+             first <= last ->
+        {:ok, Map.put(normalize_status_retry_override(entry), :range, range)}
+
+      _other ->
+        {:error, {:invalid_status_retry_ranges, :invalid_range}}
+    end
+  end
+
+  defp normalize_status_retry_range(_entry),
+    do: {:error, {:invalid_status_retry_ranges, :expected_map}}
 
   defp normalize_status_retry_overrides(overrides) when is_map(overrides) do
     Map.new(overrides, fn {status, override} ->

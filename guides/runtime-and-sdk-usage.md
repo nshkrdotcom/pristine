@@ -105,3 +105,22 @@ provided by the streaming adapters and helper modules such as
 - runtime package overview: `apps/pristine_runtime/README.md`
 - runtime guides in `apps/pristine_runtime/guides/*.md`
 - [Runtime Internals](runtime-internals.md) for the pipeline and adapter model
+
+## HTTP status range overrides
+
+A provider profile can classify an inclusive range of HTTP statuses:
+
+```elixir
+Pristine.SDK.ProviderProfile.new!(
+  provider: :example,
+  status_retry_ranges: [
+    %{range: 500..599, retry?: true,
+      telemetry_classification: :upstream_failure, breaker_outcome: :failure}
+  ]
+)
+```
+
+Exact `status_retry_overrides` take precedence over ranges. Ranges must be
+ascending, unit-step ranges within `100..599` and must not overlap. Each entry
+supports the same override keys as an exact status override. Profiles without
+ranges retain their existing classification behavior.

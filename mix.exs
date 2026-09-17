@@ -3,7 +3,7 @@ if bootstrap = System.get_env("MIX_WORKSPACE_OPS_BOOTSTRAP"), do: Code.require_f
 defmodule Pristine.Workspace.MixProject do
   use Mix.Project
 
-  @version "0.2.1"
+  @version "0.3.0"
   @source_url "https://github.com/nshkrdotcom/pristine"
   @workspace_packages [
     pristine: "apps/pristine_runtime",
@@ -153,7 +153,7 @@ defmodule Pristine.Workspace.MixProject do
 
   defp workspace_package_deps do
     [
-      workspace_dep({:pristine, "~> 0.2.1"}),
+      workspace_dep({:pristine, "~> 0.3.0"}),
       workspace_dep({:pristine_codegen, "~> 0.1.0"}),
       workspace_dep({:pristine_provider_testkit, "~> 0.1.0"})
     ]

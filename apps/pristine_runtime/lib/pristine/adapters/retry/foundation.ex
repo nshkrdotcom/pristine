@@ -4,6 +4,8 @@ defmodule Pristine.Adapters.Retry.Foundation do
 
   This adapter provides:
   - Full retry orchestration via `with_retry/2`
+  - Opt-in `:retry_budget_ms` stops before a delay would reach the total call
+    budget and returns the last result, including time spent in the initial attempt.
   - HTTP-specific retry determination via `should_retry?/1`
   - Retry-After header parsing via `parse_retry_after/1`
   """
@@ -22,21 +24,27 @@ defmodule Pristine.Adapters.Retry.Foundation do
 
     handler = Handler.new(handler_opts(policy))
     wrapped_fun = wrap_fun(fun, policy)
-    delay_fun = delay_fun(policy)
+    budget = Keyword.get(opts, :retry_budget_ms)
+    budget_tag = make_ref()
+    delay_fun = budgeted_delay_fun(policy, budget, time_fun, budget_tag)
 
-    case Runner.run(wrapped_fun,
-           handler: handler,
-           sleep_fun: sleep_fun,
-           before_attempt: before_attempt,
-           delay_fun: delay_fun,
-           max_elapsed_ms: policy.max_elapsed_ms,
-           time_fun: time_fun,
-           rescue_exceptions: false
-         ) do
-      {:ok, {:result, result}} -> result
-      {:error, {:retry, result}} -> result
-      {:error, reason} -> {:error, reason}
-      {:ok, other} -> other
+    try do
+      case Runner.run(wrapped_fun,
+             handler: handler,
+             sleep_fun: sleep_fun,
+             before_attempt: before_attempt,
+             delay_fun: delay_fun,
+             max_elapsed_ms: policy.max_elapsed_ms,
+             time_fun: time_fun,
+             rescue_exceptions: false
+           ) do
+        {:ok, {:result, result}} -> result
+        {:error, {:retry, result}} -> result
+        {:error, reason} -> {:error, reason}
+        {:ok, other} -> other
+      end
+    catch
+      {^budget_tag, result} -> result
     end
   end
 
@@ -89,7 +97,20 @@ defmodule Pristine.Adapters.Retry.Foundation do
 
   @impl true
   def build_backoff(opts \\ []) do
-    Backoff.Policy.new(opts)
+    case {Keyword.get(opts, :base_ms), Keyword.get(opts, :max_ms)} do
+      {0, _max} -> zero_backoff(opts)
+      {_base, 0} -> zero_backoff(opts)
+      _other -> Backoff.Policy.new(opts)
+    end
+  end
+
+  defp zero_backoff(opts) do
+    opts
+    |> Keyword.put(:base_ms, 1)
+    |> Keyword.put(:max_ms, 1)
+    |> Backoff.Policy.new()
+    |> Map.put(:base_ms, 0)
+    |> Map.put(:max_ms, 0)
   end
 
   @doc """
@@ -160,6 +181,24 @@ defmodule Pristine.Adapters.Retry.Foundation do
       else
         {:ok, {:result, result}}
       end
+    end
+  end
+
+  defp budgeted_delay_fun(policy, nil, _time_fun, _tag), do: delay_fun(policy)
+
+  defp budgeted_delay_fun(policy, budget, time_fun, tag)
+       when is_integer(budget) and budget >= 0 do
+    started_at = time_fun.(:millisecond)
+    delay = delay_fun(policy)
+
+    fn result, handler ->
+      milliseconds = delay.(result, handler)
+
+      if time_fun.(:millisecond) - started_at + milliseconds >= budget do
+        throw({tag, unwrap_retry_result(result)})
+      end
+
+      milliseconds
     end
   end
 

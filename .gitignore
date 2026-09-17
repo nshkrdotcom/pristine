@@ -33,3 +33,6 @@ pristine.xml
 pristine*.xml
 *_sdk.xml
 repomix-output.*
+
+# Unpacked runtime package built for review.
+/apps/pristine_runtime/pristine-*/

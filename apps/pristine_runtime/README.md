@@ -11,7 +11,7 @@ Hex consumption.
 Use Hex for normal runtime adoption:
 
 ```elixir
-{:pristine, "~> 0.2.1"}
+{:pristine, "~> 0.3.0"}
 ```
 
 The companion projects `pristine_codegen` and `pristine_provider_testkit` stay
@@ -187,3 +187,7 @@ mix mr.compile
 mix mr.test
 mix ci
 ```
+
+The Foundation retry adapter accepts `retry_budget_ms: 30_000` to stop before
+a retry delay would reach the total call budget, preserving the last result.
+A zero `base_ms` or `max_ms` disables backoff while retaining Retry-After delays.

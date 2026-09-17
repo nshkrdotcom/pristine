@@ -1,7 +1,44 @@
 defmodule Pristine.Adapters.Retry.FoundationTest do
   use ExUnit.Case, async: true
 
+  alias Foundation.Backoff
   alias Pristine.Adapters.Retry.Foundation, as: RetryAdapter
+
+  test "zero initial delay or cap disables backoff" do
+    for opts <- [[base_ms: 0, max_ms: 5_000], [base_ms: 500, max_ms: 0]] do
+      backoff = RetryAdapter.build_backoff(opts)
+
+      for attempt <- [0, 1, 2] do
+        assert Backoff.delay(backoff, attempt) == 0
+      end
+    end
+  end
+
+  test "total retry budget stops before an over-budget delay and keeps the last result" do
+    for budget <- [100, 101] do
+      clock = :counters.new(1, [:atomics])
+      attempts = :counters.new(1, [:atomics])
+
+      result =
+        RetryAdapter.with_retry(
+          fn ->
+            :counters.add(attempts, 1, 1)
+            :counters.add(clock, 1, 40)
+            {:error, :last_failure}
+          end,
+          max_attempts: 3,
+          retry_on: fn _ -> true end,
+          retry_budget_ms: budget,
+          retry_after_ms_fun: fn _ -> 60 end,
+          time_fun: fn :millisecond -> :counters.get(clock, 1) end,
+          sleep_fun: fn ms -> :counters.add(clock, 1, ms) end
+        )
+
+      assert result == {:error, :last_failure}
+      assert :counters.get(attempts, 1) == if(budget == 100, do: 1, else: 2)
+      assert :counters.get(clock, 1) == if(budget == 100, do: 40, else: 140)
+    end
+  end
 
   test "retries when retry_on returns true and returns original result" do
     attempt = :counters.new(1, [:atomics])

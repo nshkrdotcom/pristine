@@ -3,6 +3,54 @@ defmodule Pristine.SDK.ProviderProfileTest do
 
   alias Pristine.SDK.ProviderProfile
 
+  test "status ranges resolve inclusively with exact override precedence" do
+    assert ProviderProfile.new!(provider: :demo).status_retry_ranges == []
+
+    profile =
+      ProviderProfile.new!(
+        provider: :demo,
+        status_retry_ranges: [%{"retry?" => true, :range => 500..599}],
+        status_retry_overrides: %{503 => %{retry?: false}}
+      )
+
+    for status <- [500, 550, 599] do
+      assert ProviderProfile.status_retry_override(profile, status) == %{retry?: true}
+    end
+
+    for status <- [499, 600] do
+      assert ProviderProfile.status_retry_override(profile, status) == nil
+    end
+
+    assert ProviderProfile.status_retry_override(profile, 503) == %{retry?: false}
+  end
+
+  test "invalid and overlapping ranges are rejected at construction" do
+    for entries <- [
+          nil,
+          %{},
+          [nil],
+          [%{}],
+          [%{range: 599..500//-1}],
+          [%{range: 500..599//2}],
+          [%{range: 99..200}],
+          [%{range: 500..600}],
+          [%{range: 500..550}, %{range: 550..599}]
+        ] do
+      assert {:error, {:invalid_status_retry_ranges, _}} =
+               ProviderProfile.new(provider: :demo, status_retry_ranges: entries)
+
+      assert_raise ArgumentError, fn ->
+        ProviderProfile.new!(provider: :demo, status_retry_ranges: entries)
+      end
+    end
+
+    assert {:ok, _} =
+             ProviderProfile.new(
+               provider: :demo,
+               status_retry_ranges: [%{range: 500..550}, %{range: 551..599}]
+             )
+  end
+
   test "status retry overrides keep only bounded keys" do
     profile =
       ProviderProfile.new!(%{

@@ -3,7 +3,61 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
 
   alias ExecutionPlane.Contracts.Failure
   alias Pristine.Adapters.ResultClassifier.HTTP
-  alias Pristine.Core.{EndpointMetadata, Response}
+  alias Pristine.Core.{Context, EndpointMetadata, Response}
+  alias Pristine.SDK.ProviderProfile
+
+  test "range classification is provider-owned and can disable built-in retries" do
+    profile =
+      ProviderProfile.new!(
+        provider: :demo,
+        status_retry_ranges: [
+          %{
+            range: 500..599,
+            retry?: true,
+            telemetry_classification: :upstream_failure,
+            breaker_outcome: :failure
+          }
+        ]
+      )
+
+    for status <- [501, 505, 520, 599] do
+      result =
+        HTTP.classify(
+          {:ok, %Response{status: status}},
+          endpoint(:get),
+          %Context{provider_profile: profile},
+          []
+        )
+
+      assert result.retry?
+      assert result.breaker_outcome == :failure
+      assert result.telemetry.classification == :upstream_failure
+
+      baseline =
+        HTTP.classify(
+          {:ok, %Response{status: status}},
+          endpoint(:get),
+          %Context{},
+          []
+        )
+
+      refute baseline.retry?
+      assert baseline.breaker_outcome == :ignore
+    end
+
+    disabled =
+      ProviderProfile.new!(
+        provider: :demo,
+        status_retry_ranges: [%{range: 500..599, retry?: false}]
+      )
+
+    refute HTTP.classify(
+             {:ok, %Response{status: 503}},
+             endpoint(:get),
+             %Context{provider_profile: disabled},
+             []
+           ).retry?
+  end
 
   describe "classify/4" do
     test "ignores caller-side 4xx responses for circuit breaker health" do
@@ -11,7 +65,7 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
         HTTP.classify(
           {:ok, %Response{status: 404}},
           endpoint(:get),
-          %Pristine.Core.Context{},
+          %Context{},
           []
         )
 
@@ -25,7 +79,7 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
         HTTP.classify(
           {:ok, %Response{status: 503}},
           endpoint(:get),
-          %Pristine.Core.Context{},
+          %Context{},
           []
         )
 
@@ -39,7 +93,7 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
         HTTP.classify(
           {:ok, %Response{status: 503}},
           endpoint(:post),
-          %Pristine.Core.Context{},
+          %Context{},
           []
         )
 
@@ -52,7 +106,7 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
         HTTP.classify(
           {:ok, %Response{status: 503}},
           endpoint(:post, idempotency: true),
-          %Pristine.Core.Context{},
+          %Context{},
           []
         )
 
@@ -65,7 +119,7 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
         HTTP.classify(
           {:ok, %Response{status: 429, headers: %{"retry-after" => "7"}}},
           endpoint(:post),
-          %Pristine.Core.Context{},
+          %Context{},
           []
         )
 
@@ -83,7 +137,7 @@ defmodule Pristine.Adapters.ResultClassifier.HTTPTest do
            {:execution_plane_transport,
             Failure.new!(%{failure_class: :transport_failed, reason: "http request failed"}), %{}}},
           endpoint(:get),
-          %Pristine.Core.Context{},
+          %Context{},
           []
         )
 
