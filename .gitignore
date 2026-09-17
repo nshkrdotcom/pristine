@@ -27,3 +27,9 @@ pristine-*.tar
 # Generated code
 /lib/generated/
 /examples/**/generated/
+
+# Repomix output
+pristine.xml
+pristine*.xml
+*_sdk.xml
+repomix-output.*
