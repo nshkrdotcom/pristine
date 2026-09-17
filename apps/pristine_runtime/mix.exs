@@ -37,27 +37,27 @@ defmodule Pristine.Runtime.MixProject do
     [
       execution_plane_dep(),
       execution_plane_http_dep(),
-      {:jason, "~> 1.4"},
-      {:telemetry, "~> 1.4"},
-      {:finch, "~> 0.21"},
-      {:sinter, "~> 0.3.1"},
+      {:jason, "~> 1.4.5"},
+      {:telemetry, "~> 1.4.2"},
+      {:finch, "~> 0.23.0"},
+      {:sinter, "~> 0.3.2"},
       {:foundation, "~> 0.2.1"},
       {:multipart_ex, "~> 0.1.0"},
       {:telemetry_reporter, "~> 0.1.0", optional: true, runtime: false},
       {:tiktoken_ex, "~> 0.2.0", optional: true, runtime: false},
-      {:uuid, "~> 1.1"},
-      {:mox, "~> 1.2", only: :test, runtime: false},
-      {:plug, "~> 1.19", optional: true, runtime: false},
-      {:plug_cowboy, "~> 2.8", only: [:dev, :test], runtime: false},
-      {:bandit, "~> 1.10", optional: true, runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.40", only: :dev, runtime: false}
+      {:uuid, "~> 1.1.8"},
+      {:mox, "~> 1.3.2", only: :test, runtime: false},
+      {:plug, "~> 1.20.3", optional: true, runtime: false},
+      {:plug_cowboy, "~> 2.9.0", only: [:dev, :test], runtime: false},
+      {:bandit, "~> 1.12.5", optional: true, runtime: false},
+      {:dialyxir, "~> 1.4.8", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.40.4", only: :dev, runtime: false}
     ]
   end
 
   defp execution_plane_dep do
-    workspace_dep({:execution_plane, "~> 0.2.0"})
+    workspace_dep({:execution_plane, "~> 0.3.0"})
   end
 
   defp execution_plane_http_dep do

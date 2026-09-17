@@ -8,22 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-16
+
+- Refresh all runtime, optional, and development dependency requirements and the
+  resolved lockfile, including Execution Plane 0.3.0, Bandit 1.12.5, and Mint 1.10.0.
+
+### Added
+
+- Optional `retry_budget_ms` in the Foundation adapter stops before an over-budget delay and preserves the last result.
+- Zero initial backoff or cap disables backoff while preserving Retry-After.
+- Provider-defined HTTP status range overrides through `status_retry_ranges`.
+- Exact status overrides take precedence over ranges; overlapping ranges are rejected.
+- Existing provider behavior is unchanged when no ranges are configured.
+
 ### Changed
 
 - Added `Pristine.GovernedAuthority` and governed credential auth handling so
   authority-selected HTTP credentials can execute while direct base URLs,
   headers, auth overrides, and OAuth saved-token sources fail closed in
   governed mode.
-- Updated the runtime package source constraint to consume `sinter` `0.3.1`.
-
-## [0.3.0] - 2026-09-16
-
-### Added
-
-- Optional `retry_budget_ms` in the Foundation adapter stops before an over-budget delay and preserves the last result.
-- Provider-defined HTTP status range overrides through `status_retry_ranges`.
-- Exact status overrides take precedence over ranges; overlapping ranges are rejected.
-- Existing provider behavior is unchanged when no ranges are configured.
+- Updated the runtime package source constraint to consume `sinter` `0.3.2`.
+- Unary HTTP execution now uses the separately published `execution_plane` and
+  `execution_plane_http` packages.
 
 ## [0.2.1] - 2026-04-01
 
