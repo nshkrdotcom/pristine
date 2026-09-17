@@ -103,7 +103,7 @@ Prefer `Pristine.Client.new/1` when you need to:
 - run a minimal local or test profile
 - configure both request and stream transports explicitly
 
-## Optional Transport Capability Contract (Unreleased)
+## Optional Transport Capability Contract (Pristine 0.4.0)
 
 `c:Pristine.Ports.Transport.send/2` remains required and backward compatible. A
 transport may additionally implement:
@@ -129,5 +129,8 @@ limit can be advertised as non-negative integers without changing discovery.
 
 Do not advertise cancellation merely because `send_cancelable/3` exists. For a
 Pristine-owned transport, support means the lower HTTP operation is physically
-terminated and cleanup is proven by real integration tests. Third-party transport
-authors own the truthfulness of their declared contract.
+terminated and cleanup is proven by real integration tests. In Pristine 0.4.0, the
+built-in `Pristine.Adapters.Transport.Finch` adapter advertises both unary
+cancellation and cancellation cleanup after real HTTP/1.1 acceptance coverage via
+Execution Plane HTTP 0.2.0. Third-party transport authors own the truthfulness of
+their declared contract.

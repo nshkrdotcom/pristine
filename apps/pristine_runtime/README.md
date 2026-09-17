@@ -145,7 +145,7 @@ context =
 {:ok, response} = Pristine.execute_request(request, context)
 ```
 
-## Unary Cancellation And Transport Capabilities (Unreleased)
+## Unary Cancellation And Transport Capabilities (Pristine 0.4.0)
 
 Cancellation support is explicit and fail-closed. A transport that only
 implements the historical `c:Pristine.Ports.Transport.send/2` callback continues

@@ -107,7 +107,7 @@ limits with a replacement table. Named registry creation follows Foundation's
 normal named-registry behavior. This ownership fix does not add transport queue
 bounds or physical HTTP cancellation guarantees.
 
-## Cancellation During Retry Backoff (Unreleased)
+## Cancellation During Retry Backoff (Pristine 0.4.0)
 
 The existing `Pristine.Adapters.Retry.Foundation` loop accepts the request's
 `Pristine.Cancellation` token. With the normal sleeper, a pending retry delay is

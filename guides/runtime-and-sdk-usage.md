@@ -125,7 +125,7 @@ ascending, unit-step ranges within `100..599` and must not overlap. Each entry
 supports the same override keys as an exact status override. Profiles without
 ranges retain their existing classification behavior.
 
-## Cancelable Unary Requests (Unreleased)
+## Cancelable Unary Requests (Pristine 0.4.0)
 
 Downstream SDKs should discover transport guarantees rather than infer them from
 module names or callback presence:
@@ -153,9 +153,12 @@ A pre-cancelled token terminates the logical request with
 transport that does not advertise the required capabilities fails closed before
 egress. Pristine does not silently use ordinary `send/2` in that case.
 
-The built-in Finch adapter does **not** yet advertise support. This source work
-stays unreleased until its Execution Plane lower hop exposes a verified active
-cancellation primitive and the physical network-abort acceptance test is green.
+The built-in `Pristine.Adapters.Transport.Finch` adapter advertises both required
+capabilities in Pristine 0.4.0. Its cancelable path delegates to Execution Plane
+HTTP 0.2.0, which owns the active OTP `:httpc` request and physical
+`:httpc.cancel_request/1` operation. Pristine acceptance coverage verifies real
+HTTP/1.1 socket cancellation, normal completion, caller death, and watcher cleanup.
+HTTP/2 unary cancellation is not claimed.
 
 Cancellation is lifecycle metadata only. It does not change governed authority,
 target selection, headers, credentials, base URLs, or runtime placement, and it
