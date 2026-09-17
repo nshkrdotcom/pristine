@@ -124,3 +124,39 @@ Exact `status_retry_overrides` take precedence over ranges. Ranges must be
 ascending, unit-step ranges within `100..599` and must not overlap. Each entry
 supports the same override keys as an exact status override. Profiles without
 ranges retain their existing classification behavior.
+
+## Cancelable Unary Requests (Unreleased)
+
+Downstream SDKs should discover transport guarantees rather than infer them from
+module names or callback presence:
+
+```elixir
+capabilities = Pristine.RuntimeCapabilities.transport(context)
+```
+
+For a transport that positively advertises unary cancellation and cleanup:
+
+```elixir
+cancellation = Pristine.Cancellation.new()
+
+task =
+  Task.async(fn ->
+    Pristine.execute_request(request, context, cancellation: cancellation)
+  end)
+
+Pristine.Cancellation.cancel(cancellation)
+Task.await(task)
+```
+
+A pre-cancelled token terminates the logical request with
+`Pristine.Error{type: :cancelled}` before transport egress. An active token on a
+transport that does not advertise the required capabilities fails closed before
+egress. Pristine does not silently use ordinary `send/2` in that case.
+
+The built-in Finch adapter does **not** yet advertise support. This source work
+stays unreleased until its Execution Plane lower hop exposes a verified active
+cancellation primitive and the physical network-abort acceptance test is green.
+
+Cancellation is lifecycle metadata only. It does not change governed authority,
+target selection, headers, credentials, base URLs, or runtime placement, and it
+does not prove that an already-submitted remote side effect did not occur.

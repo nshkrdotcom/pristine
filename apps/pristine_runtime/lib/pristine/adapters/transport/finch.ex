@@ -1,12 +1,26 @@
 defmodule Pristine.Adapters.Transport.Finch do
   @moduledoc """
   Compatibility-named unary HTTP transport adapter backed by the Execution Plane.
+
+  The current adapter deliberately advertises unary cancellation as unsupported.
+  The checked-in integration uses the synchronous `ExecutionPlane.HTTP.unary/2`
+  surface and cannot truthfully expose a cancellable execution handle. This must
+  remain fail-closed until transport-level cancellation is implemented and proven
+  by a real local HTTP acceptance test.
   """
 
   @behaviour Pristine.Ports.Transport
 
   alias ExecutionPlane.HTTP, as: ExecutionPlaneHTTP
   alias Pristine.Core.{Context, Request, Response}
+
+  @impl true
+  def capabilities(%Context{}) do
+    %{
+      unary_cancellation: :unsupported,
+      cancellation_cleanup: :unsupported
+    }
+  end
 
   @impl true
   def send(%Request{} = request, %Context{} = context) do

@@ -8,22 +8,37 @@ defmodule Pristine.Adapters.Retry.Foundation do
     budget and returns the last result, including time spent in the initial attempt.
   - HTTP-specific retry determination via `should_retry?/1`
   - Retry-After header parsing via `parse_retry_after/1`
+  - Optional `Pristine.Cancellation` integration that interrupts the default
+    retry wait and prevents later attempts once cancellation is terminal.
+
+  When a caller supplies a custom `:sleep_fun`, Pristine preserves that hook.
+  Cancellation is checked immediately before and after the custom sleeper; a
+  sleeper that blocks internally must cooperate with the same cancellation token
+  if it needs mid-sleep interruption.
   """
 
   @behaviour Pristine.Ports.Retry
 
   alias Foundation.{Backoff, Retry}
   alias Foundation.Retry.{Handler, HTTP, Runner}
+  alias Pristine.{Cancellation, Error}
 
   @impl true
   def with_retry(fun, opts) when is_function(fun, 0) do
     {policy, opts} = normalize_policy_opts(opts)
-    sleep_fun = Keyword.get(opts, :sleep_fun, &Process.sleep/1)
+    cancellation = normalize_cancellation!(Keyword.get(opts, :cancellation))
+    cancellation_tag = make_ref()
+    configured_sleep_fun = Keyword.get(opts, :sleep_fun)
+    sleep_fun = cancellable_sleep_fun(configured_sleep_fun, cancellation, cancellation_tag)
     time_fun = Keyword.get(opts, :time_fun, &System.monotonic_time/1)
-    before_attempt = Keyword.get(opts, :before_attempt, fn _attempt -> :ok end)
+
+    before_attempt =
+      opts
+      |> Keyword.get(:before_attempt, fn _attempt -> :ok end)
+      |> cancellable_before_attempt(cancellation, cancellation_tag)
 
     handler = Handler.new(handler_opts(policy))
-    wrapped_fun = wrap_fun(fun, policy)
+    wrapped_fun = wrap_fun(fun, policy, cancellation, cancellation_tag)
     budget = Keyword.get(opts, :retry_budget_ms)
     budget_tag = make_ref()
     delay_fun = budgeted_delay_fun(policy, budget, time_fun, budget_tag)
@@ -45,6 +60,7 @@ defmodule Pristine.Adapters.Retry.Foundation do
       end
     catch
       {^budget_tag, result} -> result
+      {^cancellation_tag, %Error{type: :cancelled} = error} -> {:error, error}
     end
   end
 
@@ -157,7 +173,8 @@ defmodule Pristine.Adapters.Retry.Foundation do
   defp normalize_policy_opts(opts) when is_list(opts) do
     case Keyword.pop(opts, :policy) do
       {nil, remaining} ->
-        {normalize_policy(remaining), remaining}
+        policy_opts = Keyword.delete(remaining, :cancellation)
+        {normalize_policy(policy_opts), remaining}
 
       {%Retry.Policy{} = policy, remaining} ->
         {policy, remaining}
@@ -172,8 +189,9 @@ defmodule Pristine.Adapters.Retry.Foundation do
 
   defp normalize_policy_opts(opts), do: {normalize_policy(opts), []}
 
-  defp wrap_fun(fun, %Retry.Policy{} = policy) do
+  defp wrap_fun(fun, %Retry.Policy{} = policy, cancellation, cancellation_tag) do
     fn ->
+      throw_if_cancelled(cancellation, cancellation_tag)
       result = fun.()
 
       if policy.retry_on.(result) do
@@ -181,6 +199,54 @@ defmodule Pristine.Adapters.Retry.Foundation do
       else
         {:ok, {:result, result}}
       end
+    end
+  end
+
+  defp cancellable_before_attempt(before_attempt, nil, _tag), do: before_attempt
+
+  defp cancellable_before_attempt(before_attempt, %Cancellation{} = cancellation, tag) do
+    fn attempt ->
+      throw_if_cancelled(cancellation, tag)
+      before_attempt.(attempt)
+    end
+  end
+
+  defp cancellable_sleep_fun(nil, nil, _tag), do: &Process.sleep/1
+  defp cancellable_sleep_fun(sleep_fun, nil, _tag) when is_function(sleep_fun, 1), do: sleep_fun
+
+  defp cancellable_sleep_fun(nil, %Cancellation{} = cancellation, tag) do
+    fn delay_ms ->
+      case Cancellation.await(cancellation, delay_ms) do
+        :cancelled -> throw({tag, Error.cancelled_error()})
+        :timeout -> :ok
+      end
+    end
+  end
+
+  defp cancellable_sleep_fun(sleep_fun, %Cancellation{} = cancellation, tag)
+       when is_function(sleep_fun, 1) do
+    fn delay_ms ->
+      throw_if_cancelled(cancellation, tag)
+      result = sleep_fun.(delay_ms)
+      throw_if_cancelled(cancellation, tag)
+      result
+    end
+  end
+
+  defp normalize_cancellation!(nil), do: nil
+  defp normalize_cancellation!(%Cancellation{} = cancellation), do: cancellation
+
+  defp normalize_cancellation!(_other) do
+    raise ArgumentError, ":cancellation must be a Pristine.Cancellation token"
+  end
+
+  defp throw_if_cancelled(nil, _tag), do: :ok
+
+  defp throw_if_cancelled(%Cancellation{} = cancellation, tag) do
+    if Cancellation.cancelled?(cancellation) do
+      throw({tag, Error.cancelled_error()})
+    else
+      :ok
     end
   end
 

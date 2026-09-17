@@ -22,7 +22,7 @@ defmodule Pristine.Core.Pipeline do
     Url
   }
 
-  alias Pristine.Operation
+  alias Pristine.{Cancellation, Error, Operation, RuntimeCapabilities}
   alias Pristine.Runtime.Schema, as: RuntimeSchema
   alias Pristine.SDK.ProviderProfile
 
@@ -168,19 +168,25 @@ defmodule Pristine.Core.Pipeline do
 
     try do
       result =
-        with {:ok, {body, content_type}} <-
-               encode_body(serializer, endpoint, payload, context, request_schema, opts),
-             attempt_outcome <-
-               execute_with_retry(
-                 resilience_stack,
-                 retry_key,
-                 endpoint,
-                 body,
-                 content_type,
-                 context,
-                 opts
-               ) do
-          {normalize_transport_result(attempt_result(attempt_outcome)), attempt_outcome}
+        case cancellation_preflight(transport, context, opts) do
+          :ok ->
+            with {:ok, {body, content_type}} <-
+                   encode_body(serializer, endpoint, payload, context, request_schema, opts),
+                 attempt_outcome <-
+                   execute_with_retry(
+                     resilience_stack,
+                     retry_key,
+                     endpoint,
+                     body,
+                     content_type,
+                     context,
+                     opts
+                   ) do
+              {normalize_transport_result(attempt_result(attempt_outcome)), attempt_outcome}
+            end
+
+          {:error, _reason} = error ->
+            error
         end
 
       telemetry_state = %{
@@ -346,16 +352,8 @@ defmodule Pristine.Core.Pipeline do
     telemetry_metadata = Map.merge(telemetry_metadata, classification.telemetry)
     retry_count = current_retry_count(retry_key)
 
-    error =
-      if error_module?(context) do
-        if validation_reason?(reason) do
-          {:error, validation_error(context, reason, nil)}
-        else
-          {:error, connection_error(context, reason)}
-        end
-      else
-        error
-      end
+    error = normalize_pipeline_error(context, error, reason)
+    terminal_result = terminal_result(reason)
 
     maybe_log(
       context,
@@ -374,8 +372,8 @@ defmodule Pristine.Core.Pipeline do
       nil,
       start_time,
       retry_count,
-      :error,
-      reason
+      terminal_result,
+      telemetry_reason(reason)
     )
 
     error
@@ -399,16 +397,8 @@ defmodule Pristine.Core.Pipeline do
     telemetry_metadata = Map.merge(telemetry_metadata, classification.telemetry)
     retry_count = current_retry_count(retry_key)
 
-    error =
-      if error_module?(context) do
-        if validation_reason?(reason) do
-          {:error, validation_error(context, reason, nil)}
-        else
-          {:error, connection_error(context, reason)}
-        end
-      else
-        error
-      end
+    error = normalize_pipeline_error(context, error, reason)
+    terminal_result = terminal_result(reason)
 
     maybe_log(
       context,
@@ -427,12 +417,84 @@ defmodule Pristine.Core.Pipeline do
       nil,
       start_time,
       retry_count,
-      :error,
-      reason
+      terminal_result,
+      telemetry_reason(reason)
     )
 
     error
   end
+
+  defp cancellation_preflight(_transport, _context, opts)
+       when not is_list(opts),
+       do: {:error, {:invalid_cancellation, :invalid_request_options}}
+
+  defp cancellation_preflight(transport, %Context{} = context, opts) do
+    case Keyword.get(opts, :cancellation) do
+      nil ->
+        :ok
+
+      %Cancellation{} = cancellation ->
+        cond do
+          Cancellation.cancelled?(cancellation) ->
+            {:error, Error.cancelled_error(profile: context.provider_profile)}
+
+          true ->
+            with :ok <-
+                   RuntimeCapabilities.require_transport(context, [
+                     :unary_cancellation,
+                     :cancellation_cleanup
+                   ]),
+                 true <-
+                   Code.ensure_loaded?(transport) and
+                     function_exported?(transport, :send_cancelable, 3) do
+              :ok
+            else
+              false ->
+                {:error,
+                 {:unsupported_transport_capabilities, transport, %{send_cancelable: :unverified}}}
+
+              {:error, _reason} = error ->
+                error
+            end
+        end
+
+      _other ->
+        {:error, {:invalid_cancellation, :expected_pristine_cancellation}}
+    end
+  end
+
+  defp normalize_pipeline_error(%Context{} = context, _error, %Error{type: :cancelled} = error) do
+    if is_nil(error.provider) and not is_nil(context.provider_profile) do
+      {:error, Error.cancelled_error(profile: context.provider_profile, message: error.message)}
+    else
+      {:error, error}
+    end
+  end
+
+  defp normalize_pipeline_error(_context, error, {:unsupported_transport_capabilities, _, _}),
+    do: error
+
+  defp normalize_pipeline_error(_context, error, {:invalid_cancellation, _}), do: error
+
+  defp normalize_pipeline_error(%Context{} = context, error, reason) do
+    if error_module?(context) do
+      if validation_reason?(reason) do
+        {:error, validation_error(context, reason, nil)}
+      else
+        {:error, connection_error(context, reason)}
+      end
+    else
+      error
+    end
+  end
+
+  defp terminal_result(%Error{type: :cancelled}), do: :cancelled
+  defp terminal_result(:cancelled), do: :cancelled
+  defp terminal_result(_reason), do: :error
+
+  defp telemetry_reason(%Error{type: :cancelled}), do: :cancelled
+  defp telemetry_reason(:cancelled), do: :cancelled
+  defp telemetry_reason(reason), do: reason
 
   defp build_resilience_stack(
          transport,
@@ -448,7 +510,11 @@ defmodule Pristine.Core.Pipeline do
     cb_name = circuit_breaker_name(endpoint)
     cb_opts = context.circuit_breaker_opts
     rl_opts = rate_limit_opts(endpoint, context)
-    rt_opts = retry_opts(endpoint, context, opts) |> Keyword.merge(retry_overrides)
+
+    rt_opts =
+      retry_opts(endpoint, context, opts)
+      |> Keyword.merge(retry_overrides)
+      |> maybe_put_retry_cancellation(opts)
 
     fn request_or_fun ->
       retry.with_retry(
@@ -614,7 +680,7 @@ defmodule Pristine.Core.Pipeline do
     case circuit_breaker.call(
            cb_name,
            fn ->
-             result = send_request(transport, request, context)
+             result = send_request(transport, request, context, opts)
              classification = classify_result(context, result, endpoint, opts)
              attempt_outcome(result, classification)
            end,
@@ -628,8 +694,21 @@ defmodule Pristine.Core.Pipeline do
     end
   end
 
-  defp send_request(transport, request, context) do
-    case transport.send(request, context) do
+  defp send_request(transport, request, context, opts) do
+    result =
+      case Keyword.get(opts, :cancellation) do
+        nil ->
+          transport.send(request, context)
+
+        %Cancellation{} = cancellation ->
+          if Cancellation.cancelled?(cancellation) do
+            {:error, Error.cancelled_error(profile: context.provider_profile)}
+          else
+            transport.send_cancelable(request, context, cancellation)
+          end
+      end
+
+    case normalize_cancelable_result(result, context) do
       {:ok, %Response{} = response} ->
         metadata = Map.merge(request.metadata || %{}, response.metadata || %{})
         {:ok, %Response{response | metadata: metadata}}
@@ -638,6 +717,12 @@ defmodule Pristine.Core.Pipeline do
         other
     end
   end
+
+  defp normalize_cancelable_result({:error, :cancelled}, %Context{} = context) do
+    {:error, Error.cancelled_error(profile: context.provider_profile)}
+  end
+
+  defp normalize_cancelable_result(result, _context), do: result
 
   @doc false
   def build_request(endpoint, body, content_type, %Context{} = context, opts) do
@@ -914,6 +999,15 @@ defmodule Pristine.Core.Pipeline do
     base_opts
     |> Keyword.merge(policy_opts)
     |> apply_request_retry_opts(endpoint, context, opts)
+  end
+
+  defp maybe_put_retry_cancellation(retry_opts, request_opts) do
+    retry_opts = Keyword.delete(retry_opts, :cancellation)
+
+    case Keyword.fetch(request_opts, :cancellation) do
+      {:ok, cancellation} -> Keyword.put(retry_opts, :cancellation, cancellation)
+      :error -> retry_opts
+    end
   end
 
   defp normalize_retry_policy_opts(nil), do: []

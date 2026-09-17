@@ -66,6 +66,18 @@ The provider-repo test helper layer. It wraps shared freshness and conformance
 checks so downstream SDK repos can verify generated artifacts without copying
 test infrastructure.
 
+## Unreleased Runtime Cancellation Work
+
+The runtime source currently contains an **unreleased** provider-neutral
+cancellation/capability contract: `Pristine.Cancellation`, optional transport
+capability callbacks, and `Pristine.RuntimeCapabilities.transport/1`. This work
+remains on the 0.3.1 version line until built-in Finch cancellation is physically
+verified through the Execution Plane and the complete release gates are green.
+
+`Pristine.Adapters.Transport.Finch` therefore fails closed and advertises unary
+cancellation and cancellation cleanup as unsupported today. See `HANDOFF.md` for
+the exact remaining Execution Plane investigation and acceptance proof.
+
 ## Read Me First
 
 - Runtime package: `apps/pristine_runtime/README.md`

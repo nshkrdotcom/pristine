@@ -102,3 +102,32 @@ Prefer `Pristine.Client.new/1` when you need to:
 - supply custom retry, auth, or telemetry implementations
 - run a minimal local or test profile
 - configure both request and stream transports explicitly
+
+## Optional Transport Capability Contract (Unreleased)
+
+`Pristine.Ports.Transport.send/2` remains required and backward compatible. A
+transport may additionally implement:
+
+```elixir
+def capabilities(context) do
+  %{
+    unary_cancellation: :supported,
+    cancellation_cleanup: :supported
+  }
+end
+
+def send_cancelable(request, context, cancellation) do
+  # Must terminate the underlying unary HTTP operation when cancellation wins.
+end
+```
+
+The capability callback must be side-effect free and must not expose secrets from
+`context`, `transport_opts`, headers, credentials, or request bodies. Absence, an
+empty map, or a malformed value is `:unverified`. Explicit `false` or
+`:unsupported` is unsupported. Numeric future bounds such as a queue or response
+limit can be advertised as non-negative integers without changing discovery.
+
+Do not advertise cancellation merely because `send_cancelable/3` exists. For a
+Pristine-owned transport, support means the lower HTTP operation is physically
+terminated and cleanup is proven by real integration tests. Third-party transport
+authors own the truthfulness of their declared contract.

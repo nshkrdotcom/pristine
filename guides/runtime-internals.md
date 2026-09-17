@@ -52,3 +52,30 @@ provider-specific method signatures.
 refresh still rely on the same transport and serializer seams as ordinary API
 calls. Browser launch, callback capture, and token storage are optional adapter
 boundaries layered around that control plane.
+
+## Cancellation And Capability Flow
+
+Unary cancellation remains inside the existing pipeline rather than introducing
+a second execution path. `Pristine.Core.Pipeline` performs cancellation
+preflight, requires the configured transport to advertise both
+`:unary_cancellation` and `:cancellation_cleanup`, and routes cancelable sends
+only through the optional `Pristine.Ports.Transport.send_cancelable/3` callback.
+A legacy `send/2` transport remains valid for ordinary execution.
+
+`Pristine.Cancellation` is an opaque, terminal token backed by atomic state. A
+small duplicate-key registry owned by the Pristine supervision tree wakes retry
+waiters without creating a process per token. The Foundation retry adapter uses
+the same token in the existing retry loop; cancellation during its normal wait
+returns `%Pristine.Error{type: :cancelled}` and prevents the next attempt.
+
+`Pristine.Adapters.ResultClassifier.HTTP` treats cancellation as non-retryable,
+with breaker outcome `:ignore`, no limiter/admission backoff, and telemetry
+classification `:cancelled`. The existing `Context.result_classifier` module or
+function remains the one generic extension point for provider/SDK-specific result
+classification; no second retry predicate system is added.
+
+Capability discovery is declarative. Missing, malformed, or absent entries are
+`:unverified`; explicit negative entries are `:unsupported`; only positive
+advertisements are `:supported`. Third-party declarations are their owners'
+contracts, while Pristine-owned adapters only advertise support after acceptance
+tests prove it.

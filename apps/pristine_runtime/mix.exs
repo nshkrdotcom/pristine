@@ -47,6 +47,7 @@ defmodule Pristine.Runtime.MixProject do
       {:tiktoken_ex, "~> 0.2.0", optional: true, runtime: false},
       {:uuid, "~> 1.1.8"},
       {:mox, "~> 1.3.2", only: :test, runtime: false},
+      {:supertester, "~> 0.6.0", only: :test, runtime: false},
       {:plug, "~> 1.20.3", optional: true, runtime: false},
       {:plug_cowboy, "~> 2.9.0", only: [:dev, :test], runtime: false},
       {:bandit, "~> 1.12.5", optional: true, runtime: false},

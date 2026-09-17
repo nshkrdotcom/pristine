@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added opaque `Pristine.Cancellation` tokens and a standardized
+  `%Pristine.Error{type: :cancelled}` terminal error.
+- Added optional `Pristine.Ports.Transport.capabilities/1` and
+  `send_cancelable/3` callbacks while keeping `send/2` backward compatible.
+- Added provider-neutral `Pristine.RuntimeCapabilities.transport/1` fail-closed
+  capability discovery.
+- Added cancellation-aware Foundation retry waits and regression tests for token,
+  classifier, capability, retry-delay, and pipeline preflight behavior.
+
+### Changed
+
+- Default HTTP result classification treats cancellation as non-retryable with
+  breaker outcome `:ignore`, no limiter backoff, and `:cancelled` telemetry.
+- Cancelable execution never falls back to ordinary transport `send/2`.
+- Built-in Finch explicitly advertises unary cancellation and cleanup as
+  unsupported until physical Execution Plane cancellation is implemented and
+  proven by the required real-HTTP acceptance test.
+
+### Verification Status
+
+- This work intentionally remains unreleased on the 0.3.1 version line until
+  physical Finch cancellation is implemented through the Execution Plane and the
+  required real-HTTP acceptance/QC gates pass. See `HANDOFF.md` for the remaining
+  integration and verification work.
+
 ## [0.3.1] - 2026-09-17
 
 ### Fixed

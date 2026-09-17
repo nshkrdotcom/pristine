@@ -8,6 +8,7 @@ defmodule Pristine.Error do
   - HTTP response errors (4xx, 5xx)
   - Connection errors
   - Timeout errors
+  - Caller/runtime cancellation
 
   ## Error Types
 
@@ -23,6 +24,7 @@ defmodule Pristine.Error do
   | `:internal_server` | 5xx - Server error |
   | `:timeout` | Request timed out |
   | `:connection` | Connection failed |
+  | `:cancelled` | Request execution was cancelled |
   | `:unknown` | Unknown error type |
 
   ## Example
@@ -58,6 +60,7 @@ defmodule Pristine.Error do
           | :internal_server
           | :timeout
           | :connection
+          | :cancelled
           | :unknown
 
   @type t :: %__MODULE__{
@@ -210,6 +213,24 @@ defmodule Pristine.Error do
   end
 
   @doc """
+  Create a cancellation error.
+
+  Cancellation is terminal and is never retriable, including when a response
+  object happens to contain an `x-should-retry` header.
+  """
+  @spec cancelled_error(keyword()) :: t()
+  def cancelled_error(opts \\ []) when is_list(opts) do
+    profile = Keyword.get(opts, :profile)
+
+    %__MODULE__{
+      type: :cancelled,
+      message: Keyword.get(opts, :message, "Request was cancelled"),
+      provider: provider(profile),
+      headers: %{}
+    }
+  end
+
+  @doc """
   Create a validation error.
   """
   @spec validation_error(term(), term(), keyword()) :: t()
@@ -269,6 +290,8 @@ defmodule Pristine.Error do
       false
   """
   @spec retriable?(t()) :: boolean()
+  def retriable?(%__MODULE__{type: :cancelled}), do: false
+
   def retriable?(%__MODULE__{response: %Response{headers: headers}} = error)
       when is_map(headers) do
     headers = normalize_header_keys(headers)
@@ -324,6 +347,7 @@ defmodule Pristine.Error do
   defp type_to_message(:internal_server), do: "Internal server error"
   defp type_to_message(:timeout), do: "Request timed out"
   defp type_to_message(:connection), do: "Connection failed"
+  defp type_to_message(:cancelled), do: "Request was cancelled"
   defp type_to_message(_), do: "Unknown error"
 
   defp provider(%ProviderProfile{provider: provider}), do: provider

@@ -29,6 +29,8 @@ The public runtime boundary is:
 - `Pristine.foundation_context/1`
 - `Pristine.Response`
 - `Pristine.Error`
+- `Pristine.Cancellation`
+- `Pristine.RuntimeCapabilities`
 - `Pristine.execute/3`
 - `Pristine.execute_request/3`
 - `Pristine.stream/3`
@@ -142,6 +144,56 @@ context =
 
 {:ok, response} = Pristine.execute_request(request, context)
 ```
+
+## Unary Cancellation And Transport Capabilities (Unreleased)
+
+Cancellation support is explicit and fail-closed. A transport that only
+implements the historical `Pristine.Ports.Transport.send/2` callback continues
+to work for ordinary calls, but a call that supplies `cancellation:` requires
+positive `:unary_cancellation` and `:cancellation_cleanup` advertisements plus
+`send_cancelable/3`. Pristine never falls back to `send/2` for that call.
+
+Inspect the configured contract without performing an HTTP request:
+
+```elixir
+report = Pristine.RuntimeCapabilities.transport(context)
+
+case report.capabilities.unary_cancellation.status do
+  :supported -> :transport_declares_support
+  :unsupported -> :transport_declares_no_support
+  :unverified -> :fail_closed
+end
+```
+
+A supported transport can receive an opaque cancellation token:
+
+```elixir
+cancellation = Pristine.Cancellation.new()
+
+task =
+  Task.async(fn ->
+    Pristine.execute_request(request, context, cancellation: cancellation)
+  end)
+
+:ok = Pristine.Cancellation.cancel(cancellation)
+
+case Task.await(task) do
+  {:error, %Pristine.Error{type: :cancelled}} -> :cancelled
+  {:ok, response} -> {:completed, response}
+end
+```
+
+Cancellation is not a transaction rollback. Once a request has been submitted,
+the upstream service may already have received or begun processing it even when
+the local HTTP operation is physically terminated. Pristine does not claim
+exactly-once or remote side-effect rollback semantics.
+
+**Current built-in status:** `Pristine.Adapters.Transport.Finch` explicitly
+advertises both unary cancellation capabilities as `:unsupported`. The checked-in
+adapter uses synchronous `ExecutionPlane.HTTP.unary/2`; the missing active
+execution/cancel primitive and real local-HTTP cancellation proof are tracked in
+the repository `HANDOFF.md`. The package version therefore remains 0.3.1 rather
+than claiming a complete 0.4.0 release.
 
 ## Why This Package Exists
 

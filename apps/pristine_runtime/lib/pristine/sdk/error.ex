@@ -23,6 +23,9 @@ defmodule Pristine.SDK.Error do
   @spec validation_error(term(), term(), keyword()) :: t()
   defdelegate validation_error(reason, body, opts), to: RuntimeError
 
+  @spec cancelled_error(keyword()) :: t()
+  def cancelled_error(opts \\ []), do: RuntimeError.cancelled_error(opts)
+
   @spec timeout_error() :: t()
   defdelegate timeout_error(), to: RuntimeError
 

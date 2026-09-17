@@ -106,3 +106,20 @@ A deleted anonymous registry is an error, not a reason to silently bypass its
 limits with a replacement table. Named registry creation follows Foundation's
 normal named-registry behavior. This ownership fix does not add transport queue
 bounds or physical HTTP cancellation guarantees.
+
+## Cancellation During Retry Backoff (Unreleased)
+
+The existing `Pristine.Adapters.Retry.Foundation` loop accepts the request's
+`Pristine.Cancellation` token. With the normal sleeper, a pending retry delay is
+implemented as a cancellation-aware wait: cancellation returns promptly and no
+later retry attempt begins. Retry-After and normal policy delays still use the
+same Foundation runner and delay calculation.
+
+This does not create a second retry engine and does not replace the existing
+result classifier. `before_attempt`, retry budgets, policy backoff, Retry-After,
+progress timeout, and attempt accounting remain on Foundation.
+
+Custom `sleep_fun` hooks remain supported. Pristine checks cancellation before
+and after such a hook; if a custom sleeper itself blocks for a long interval and
+needs interruption inside that function, it must cooperate with the supplied
+cancellation token.

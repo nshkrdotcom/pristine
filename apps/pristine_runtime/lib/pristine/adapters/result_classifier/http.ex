@@ -34,6 +34,40 @@ defmodule Pristine.Adapters.ResultClassifier.HTTP do
     )
   end
 
+  def classify({:error, %Pristine.Error{type: :cancelled}}, endpoint, context, _opts) do
+    cancellation_result(endpoint, context)
+  end
+
+  def classify({:error, :cancelled}, endpoint, context, _opts) do
+    cancellation_result(endpoint, context)
+  end
+
+  def classify(
+        {:error, {:unsupported_transport_capabilities, _adapter, _missing}},
+        endpoint,
+        context,
+        _opts
+      ) do
+    retry_group = ProviderProfile.retry_group(provider_profile(context), endpoint)
+
+    ResultClassification.normalize(%{
+      retry?: false,
+      breaker_outcome: :ignore,
+      telemetry:
+        telemetry(endpoint, retry_group, :unsupported_transport_capability, false, :ignore)
+    })
+  end
+
+  def classify({:error, {:invalid_cancellation, _reason}}, endpoint, context, _opts) do
+    retry_group = ProviderProfile.retry_group(provider_profile(context), endpoint)
+
+    ResultClassification.normalize(%{
+      retry?: false,
+      breaker_outcome: :ignore,
+      telemetry: telemetry(endpoint, retry_group, :invalid_cancellation, false, :ignore)
+    })
+  end
+
   def classify({:error, :circuit_open}, endpoint, context, _opts) do
     retry_group = ProviderProfile.retry_group(provider_profile(context), endpoint)
 
@@ -60,6 +94,18 @@ defmodule Pristine.Adapters.ResultClassifier.HTTP do
   end
 
   def classify(_result, _endpoint, _context, _opts), do: ResultClassification.normalize(nil)
+
+  defp cancellation_result(endpoint, context) do
+    retry_group = ProviderProfile.retry_group(provider_profile(context), endpoint)
+
+    ResultClassification.normalize(%{
+      retry?: false,
+      retry_after_ms: nil,
+      limiter_backoff_ms: nil,
+      breaker_outcome: :ignore,
+      telemetry: telemetry(endpoint, retry_group, :cancelled, false, :ignore)
+    })
+  end
 
   defp response_classification(%Response{status: status, headers: headers}, endpoint, context) do
     profile = provider_profile(context)

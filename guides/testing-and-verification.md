@@ -67,3 +67,31 @@ mix pristine.codegen.refresh MyProvider.Provider --project-root .
 Provider freshness and conformance assertions should use
 `PristineProviderTestkit.Conformance.verify_provider/2` plus
 `PristineProviderTestkit.Artifacts` for low-level file assertions.
+
+## Cancellation Release Gates
+
+Cancellation changes require deterministic Supertester coverage with no
+`Process.sleep/1`. Unit coverage should include token idempotence/concurrency,
+fail-closed capability normalization, the dedicated cancellation error, default
+classification, retry-wait interruption, and pipeline preflight/no-fallback
+behavior.
+
+The release-blocking acceptance proof for the built-in Finch adapter must use the
+real path:
+
+```text
+Pristine.Core.Pipeline
+-> Pristine.Adapters.Transport.Finch
+-> Execution Plane
+-> real local HTTP endpoint
+```
+
+The endpoint must signal request arrival, hold the response behind a deterministic
+barrier, observe cancellation, and prove the active network request/stream is
+aborted rather than merely observing a caller Task exit. Cleanup checks must cover
+the lower active execution, transport worker, monitors/timers, retry wait, and any
+admission/semaphore state.
+
+Do not mark Finch `:unary_cancellation` or `:cancellation_cleanup` as supported,
+and do not cut Pristine 0.4.0, until that acceptance proof and the advertised
+package/root QC gates actually pass.

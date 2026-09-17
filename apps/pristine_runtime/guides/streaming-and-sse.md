@@ -82,3 +82,14 @@ end)
 
 For SSE helpers, combine `Pristine.stream/3` with `Pristine.Streaming.Event`,
 `Pristine.Streaming.SSEDecoder`, and the stream transport adapters.
+
+## Unary Versus Streaming Cancellation
+
+The new unary `Pristine.Cancellation` contract does not redesign the existing SSE
+stream lifecycle. `Pristine.Adapters.Transport.FinchStream` keeps its established
+stream cancellation/early-halt cleanup behavior and last-event-id bookkeeping.
+Unary capability discovery must not be interpreted as a streaming guarantee, and
+stream cancellation must not be inferred from `:unary_cancellation`.
+
+A future common capability surface may describe streaming guarantees separately
+when they are backed by the existing stream acceptance tests.
