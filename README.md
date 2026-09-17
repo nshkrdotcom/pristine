@@ -25,9 +25,9 @@ The repository root serves as the monorepo control plane for documentation, work
 
 | Package | Location | Distribution | Role |
 |:---|:---|:---|:---|
-| **`pristine`** | [`apps/pristine_runtime`](apps/pristine_runtime) | [Hex.pm](https://hex.pm/packages/pristine) (`~> 0.3.1`) | Semantic HTTP runtime, request pipelines, OAuth2, streaming, and resilience |
-| **`pristine_codegen`** | [`apps/pristine_codegen`](apps/pristine_codegen) | GitHub `subdir:` | OpenAPI provider compiler, Provider IR modeling, and Elixir SDK rendering |
-| **`pristine_provider_testkit`** | [`apps/pristine_provider_testkit`](apps/pristine_provider_testkit) | GitHub `subdir:` (`:test`) | Shared test harness for downstream SDK conformance and artifact freshness |
+| **`pristine`** | [`apps/pristine_runtime`](https://github.com/nshkrdotcom/pristine/tree/main/apps/pristine_runtime) | [Hex.pm](https://hex.pm/packages/pristine) (`~> 0.4.0`) | Semantic HTTP runtime, request pipelines, OAuth2, streaming, and resilience |
+| **`pristine_codegen`** | [`apps/pristine_codegen`](https://github.com/nshkrdotcom/pristine/tree/main/apps/pristine_codegen) | GitHub `subdir:` | OpenAPI provider compiler, Provider IR modeling, and Elixir SDK rendering |
+| **`pristine_provider_testkit`** | [`apps/pristine_provider_testkit`](https://github.com/nshkrdotcom/pristine/tree/main/apps/pristine_provider_testkit) | GitHub `subdir:` (`:test`) | Shared test harness for downstream SDK conformance and artifact freshness |
 
 ## Quick Start
 
@@ -65,7 +65,7 @@ Applications and SDKs consuming the HTTP runtime depend on `:pristine` via Hex:
 ```elixir
 def deps do
   [
-    {:pristine, "~> 0.3.1"}
+    {:pristine, "~> 0.4.0"}
   ]
 end
 ```
@@ -77,7 +77,7 @@ Downstream provider SDKs (such as `github_ex` or `notion_sdk`) consume the compi
 ```elixir
 def deps do
   [
-    {:pristine, "~> 0.3.1"},
+    {:pristine, "~> 0.4.0"},
     {:pristine_codegen,
      github: "nshkrdotcom/pristine",
      branch: "main",
@@ -124,7 +124,7 @@ The published `:pristine` package. It manages:
 The build-time compiler for provider SDKs. It provides:
 - **OpenAPI Translation**: Converts OpenAPI specifications into typed `PristineCodegen.ProviderIR` data structures.
 - **Code Generation**: Generates clean, idiomatic Elixir client modules, schema definitions, and operation helpers.
-- **Mix Tasks**: Includes `mix pristine.codegen.generate`, `mix pristine.codegen.verify`, `mix pristine.codegen.refresh`, and `mix pristine.codegen.ir`.
+- **Mix Tasks**: Includes [`mix pristine.codegen.generate`](guides/code-generation-and-artifacts.md), [`mix pristine.codegen.verify`](guides/code-generation-and-artifacts.md), [`mix pristine.codegen.refresh`](guides/code-generation-and-artifacts.md), and [`mix pristine.codegen.ir`](guides/code-generation-and-artifacts.md).
 
 ### [`apps/pristine_provider_testkit`](apps/pristine_provider_testkit/README.md) — Provider Testkit
 
@@ -136,7 +136,7 @@ Test infrastructure for downstream provider SDK repositories:
 
 The runtime codebase includes a provider-neutral cancellation and transport capability discovery contract (`Pristine.Cancellation`, transport capability callbacks, and `Pristine.RuntimeCapabilities.transport/1`).
 
-This capability remains in active validation on the 0.3.1 version line. Built-in Finch unary transport currently fails closed and advertises unary cancellation as unsupported until end-to-end Execution Plane acceptance testing is completed.
+Built-in Finch unary transport supports physical HTTP/1.1 cancellation through Execution Plane HTTP 0.2.0 and OTP `:httpc`, including cleanup on caller death. A completed response may win a cancellation race; remote side effects cannot be rolled back.
 
 ## Documentation
 

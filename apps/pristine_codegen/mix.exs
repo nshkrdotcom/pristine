@@ -35,7 +35,7 @@ defmodule Pristine.Codegen.MixProject do
 
   defp deps do
     [
-      workspace_dep({:pristine, "~> 0.3.1"}),
+      workspace_dep({:pristine, "~> 0.4.0"}),
       {:jason, "~> 1.4"},
       {:yaml_elixir, "~> 2.12"},
       {:sinter, "~> 0.3.1"},

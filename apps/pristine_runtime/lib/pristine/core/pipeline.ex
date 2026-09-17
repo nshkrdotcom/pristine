@@ -168,25 +168,20 @@ defmodule Pristine.Core.Pipeline do
 
     try do
       result =
-        case cancellation_preflight(transport, context, opts) do
-          :ok ->
-            with {:ok, {body, content_type}} <-
-                   encode_body(serializer, endpoint, payload, context, request_schema, opts),
-                 attempt_outcome <-
-                   execute_with_retry(
-                     resilience_stack,
-                     retry_key,
-                     endpoint,
-                     body,
-                     content_type,
-                     context,
-                     opts
-                   ) do
-              {normalize_transport_result(attempt_result(attempt_outcome)), attempt_outcome}
-            end
-
-          {:error, _reason} = error ->
-            error
+        with :ok <- cancellation_preflight(transport, context, opts),
+             {:ok, {body, content_type}} <-
+               encode_body(serializer, endpoint, payload, context, request_schema, opts),
+             attempt_outcome <-
+               execute_with_retry(
+                 resilience_stack,
+                 retry_key,
+                 endpoint,
+                 body,
+                 content_type,
+                 context,
+                 opts
+               ) do
+          {normalize_transport_result(attempt_result(attempt_outcome)), attempt_outcome}
         end
 
       telemetry_state = %{
@@ -424,42 +419,46 @@ defmodule Pristine.Core.Pipeline do
     error
   end
 
-  defp cancellation_preflight(_transport, _context, opts)
-       when not is_list(opts),
-       do: {:error, {:invalid_cancellation, :invalid_request_options}}
-
   defp cancellation_preflight(transport, %Context{} = context, opts) do
     case Keyword.get(opts, :cancellation) do
       nil ->
         :ok
 
-      %Cancellation{} = cancellation ->
-        cond do
-          Cancellation.cancelled?(cancellation) ->
-            {:error, Error.cancelled_error(profile: context.provider_profile)}
+      value ->
+        validate_cancellation(value, transport, context)
+    end
+  end
 
-          true ->
-            with :ok <-
-                   RuntimeCapabilities.require_transport(context, [
-                     :unary_cancellation,
-                     :cancellation_cleanup
-                   ]),
-                 true <-
-                   Code.ensure_loaded?(transport) and
-                     function_exported?(transport, :send_cancelable, 3) do
-              :ok
-            else
-              false ->
-                {:error,
-                 {:unsupported_transport_capabilities, transport, %{send_cancelable: :unverified}}}
-
-              {:error, _reason} = error ->
-                error
-            end
+  defp validate_cancellation(value, transport, context) do
+    case Cancellation.validate(value) do
+      {:ok, cancellation} ->
+        if Cancellation.cancelled?(cancellation) do
+          {:error, Error.cancelled_error(profile: context.provider_profile)}
+        else
+          require_cancelable_transport(transport, context)
         end
 
-      _other ->
+      :error ->
         {:error, {:invalid_cancellation, :expected_pristine_cancellation}}
+    end
+  end
+
+  defp require_cancelable_transport(transport, context) do
+    with :ok <-
+           RuntimeCapabilities.require_transport(context, [
+             :unary_cancellation,
+             :cancellation_cleanup
+           ]),
+         true <-
+           Code.ensure_loaded?(transport) and function_exported?(transport, :send_cancelable, 3) do
+      :ok
+    else
+      false ->
+        {:error,
+         {:unsupported_transport_capabilities, transport, %{send_cancelable: :unverified}}}
+
+      {:error, _reason} = error ->
+        error
     end
   end
 
@@ -700,7 +699,7 @@ defmodule Pristine.Core.Pipeline do
         nil ->
           transport.send(request, context)
 
-        %Cancellation{} = cancellation ->
+        cancellation ->
           if Cancellation.cancelled?(cancellation) do
             {:error, Error.cancelled_error(profile: context.provider_profile)}
           else

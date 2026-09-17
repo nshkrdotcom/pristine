@@ -92,6 +92,8 @@ aborted rather than merely observing a caller Task exit. Cleanup checks must cov
 the lower active execution, transport worker, monitors/timers, retry wait, and any
 admission/semaphore state.
 
-Do not mark Finch `:unary_cancellation` or `:cancellation_cleanup` as supported,
-and do not cut Pristine 0.4.0, until that acceptance proof and the advertised
-package/root QC gates actually pass.
+The runtime acceptance suite is
+`test/pristine/adapters/transport/finch_cancellation_test.exs`. It exercises real
+HTTP/1.1 socket closure, late-write failure, normal completion, caller death, and
+cancellation watcher cleanup. HTTP/2 unary cancellation is not claimed. Run it
+alongside the retry, classifier, streaming, and full package/root gates.

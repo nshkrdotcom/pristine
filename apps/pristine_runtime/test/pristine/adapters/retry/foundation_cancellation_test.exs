@@ -27,8 +27,8 @@ defmodule Pristine.Adapters.Retry.FoundationCancellationTest do
         )
       end)
 
-    assert_receive :attempt_started
-    assert_receive :retry_wait_started
+    assert_receive :attempt_started, 1_000
+    assert_receive :retry_wait_started, 1_000
 
     assert :ok = Cancellation.cancel(cancellation)
     assert {:error, %Error{type: :cancelled}} = Task.await(retry_task)

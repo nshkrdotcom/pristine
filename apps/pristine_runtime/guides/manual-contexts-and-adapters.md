@@ -105,7 +105,7 @@ Prefer `Pristine.Client.new/1` when you need to:
 
 ## Optional Transport Capability Contract (Unreleased)
 
-`Pristine.Ports.Transport.send/2` remains required and backward compatible. A
+`c:Pristine.Ports.Transport.send/2` remains required and backward compatible. A
 transport may additionally implement:
 
 ```elixir

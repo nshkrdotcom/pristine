@@ -63,7 +63,7 @@ defmodule Pristine.Cancellation do
   remains terminal and observable by later callers.
   """
   @spec await(t(), timeout()) :: await_result()
-  def await(%__MODULE__{} = cancellation, timeout \\ :infinity)
+  def await(cancellation, timeout \\ :infinity)
 
   def await(%__MODULE__{} = cancellation, timeout)
       when timeout == :infinity or (is_integer(timeout) and timeout >= 0) do
@@ -74,8 +74,35 @@ defmodule Pristine.Cancellation do
     end
   end
 
-  defp await_registered(cancellation, timeout) do
-    subscription = make_ref()
+  @doc false
+  @spec validate(term()) :: {:ok, t()} | :error
+  def validate(%__MODULE__{} = token), do: {:ok, token}
+  def validate(_), do: :error
+
+  @doc false
+  @spec watch(t(), (-> term())) :: {Task.t(), reference()}
+  def watch(%__MODULE__{} = cancellation, on_cancel) do
+    stop = make_ref()
+
+    task =
+      Task.async(fn ->
+        case await_registered(cancellation, :infinity, stop) do
+          :cancelled -> on_cancel.()
+          :stopped -> :ok
+        end
+      end)
+
+    {task, stop}
+  end
+
+  @doc false
+  def stop_watcher({task, stop}) do
+    send(task.pid, {:stop_cancellation_watcher, stop})
+    Task.await(task, :infinity)
+  end
+
+  defp await_registered(cancellation, timeout, stop \\ nil) do
+    subscription = :erlang.alias()
 
     case register_waiter(cancellation, subscription) do
       :ok ->
@@ -87,15 +114,21 @@ defmodule Pristine.Cancellation do
             receive do
               {@registry, id, ^subscription, :cancelled} when id == cancellation.id ->
                 :cancelled
+
+              {:stop_cancellation_watcher, ^stop} when is_reference(stop) ->
+                :stopped
             after
               timeout -> :timeout
             end
           end
         after
+          :erlang.unalias(subscription)
           unregister_waiter(cancellation)
+          flush_signal(cancellation, subscription)
         end
 
       :registry_unavailable ->
+        :erlang.unalias(subscription)
         await_without_registry(cancellation, timeout)
     end
   end
@@ -155,9 +188,7 @@ defmodule Pristine.Cancellation do
     case Process.whereis(@registry) do
       pid when is_pid(pid) ->
         Registry.dispatch(@registry, cancellation.id, fn entries ->
-          Enum.each(entries, fn {waiter, subscription} ->
-            send(waiter, {@registry, cancellation.id, subscription, :cancelled})
-          end)
+          notify_entries(entries, cancellation.id)
         end)
 
         :ok
@@ -165,6 +196,12 @@ defmodule Pristine.Cancellation do
       nil ->
         :ok
     end
+  end
+
+  defp notify_entries(entries, id) do
+    Enum.each(entries, fn {_waiter, subscription} ->
+      send(subscription, {@registry, id, subscription, :cancelled})
+    end)
   end
 
   defp flush_signal(cancellation, subscription) do

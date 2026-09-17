@@ -3,7 +3,7 @@ if bootstrap = System.get_env("MIX_WORKSPACE_OPS_BOOTSTRAP"), do: Code.require_f
 defmodule Pristine.Runtime.MixProject do
   use Mix.Project
 
-  @version "0.3.1"
+  @version "0.4.0"
   @source_url "https://github.com/nshkrdotcom/pristine"
 
   def project do
@@ -62,7 +62,7 @@ defmodule Pristine.Runtime.MixProject do
   end
 
   defp execution_plane_http_dep do
-    workspace_dep({:execution_plane_http, "~> 0.1.0"})
+    workspace_dep({:execution_plane_http, "~> 0.2.0"})
   end
 
   defp workspace_dep(committed) do
@@ -81,7 +81,7 @@ defmodule Pristine.Runtime.MixProject do
     [
       main: "readme",
       name: "Pristine",
-      source_ref: "v#{@version}",
+      source_ref: "pristine-v#{@version}",
       source_url: @source_url,
       homepage_url: @source_url,
       assets: %{"assets" => "assets"},

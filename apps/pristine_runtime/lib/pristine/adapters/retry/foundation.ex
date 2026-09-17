@@ -204,7 +204,7 @@ defmodule Pristine.Adapters.Retry.Foundation do
 
   defp cancellable_before_attempt(before_attempt, nil, _tag), do: before_attempt
 
-  defp cancellable_before_attempt(before_attempt, %Cancellation{} = cancellation, tag) do
+  defp cancellable_before_attempt(before_attempt, cancellation, tag) do
     fn attempt ->
       throw_if_cancelled(cancellation, tag)
       before_attempt.(attempt)
@@ -214,7 +214,7 @@ defmodule Pristine.Adapters.Retry.Foundation do
   defp cancellable_sleep_fun(nil, nil, _tag), do: &Process.sleep/1
   defp cancellable_sleep_fun(sleep_fun, nil, _tag) when is_function(sleep_fun, 1), do: sleep_fun
 
-  defp cancellable_sleep_fun(nil, %Cancellation{} = cancellation, tag) do
+  defp cancellable_sleep_fun(nil, cancellation, tag) do
     fn delay_ms ->
       case Cancellation.await(cancellation, delay_ms) do
         :cancelled -> throw({tag, Error.cancelled_error()})
@@ -223,7 +223,7 @@ defmodule Pristine.Adapters.Retry.Foundation do
     end
   end
 
-  defp cancellable_sleep_fun(sleep_fun, %Cancellation{} = cancellation, tag)
+  defp cancellable_sleep_fun(sleep_fun, cancellation, tag)
        when is_function(sleep_fun, 1) do
     fn delay_ms ->
       throw_if_cancelled(cancellation, tag)
@@ -234,15 +234,17 @@ defmodule Pristine.Adapters.Retry.Foundation do
   end
 
   defp normalize_cancellation!(nil), do: nil
-  defp normalize_cancellation!(%Cancellation{} = cancellation), do: cancellation
 
-  defp normalize_cancellation!(_other) do
-    raise ArgumentError, ":cancellation must be a Pristine.Cancellation token"
+  defp normalize_cancellation!(value) do
+    case Cancellation.validate(value) do
+      {:ok, cancellation} -> cancellation
+      :error -> raise ArgumentError, ":cancellation must be a Pristine.Cancellation token"
+    end
   end
 
   defp throw_if_cancelled(nil, _tag), do: :ok
 
-  defp throw_if_cancelled(%Cancellation{} = cancellation, tag) do
+  defp throw_if_cancelled(cancellation, tag) do
     if Cancellation.cancelled?(cancellation) do
       throw({tag, Error.cancelled_error()})
     else

@@ -59,7 +59,7 @@ Unary cancellation remains inside the existing pipeline rather than introducing
 a second execution path. `Pristine.Core.Pipeline` performs cancellation
 preflight, requires the configured transport to advertise both
 `:unary_cancellation` and `:cancellation_cleanup`, and routes cancelable sends
-only through the optional `Pristine.Ports.Transport.send_cancelable/3` callback.
+only through the optional `c:Pristine.Ports.Transport.send_cancelable/3` callback.
 A legacy `send/2` transport remains valid for ordinary execution.
 
 `Pristine.Cancellation` is an opaque, terminal token backed by atomic state. A

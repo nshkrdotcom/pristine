@@ -30,7 +30,7 @@ should consume the child apps they need:
 For a normal runtime dependency, use:
 
 ```elixir
-{:pristine, "~> 0.3.1"}
+{:pristine, "~> 0.4.0"}
 ```
 
 For local development beside this repo, use sibling-relative paths:

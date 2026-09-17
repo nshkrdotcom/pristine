@@ -2,8 +2,8 @@ defmodule Pristine.Core.PipelineCancellationTest do
   use Supertester.ExUnitFoundation, isolation: :full_isolation
 
   alias Pristine.Adapters.{CircuitBreaker, RateLimit, Retry, Serializer}
-  alias Pristine.Core.{Context, Request, Response}
   alias Pristine.{Cancellation, Error}
+  alias Pristine.Core.{Context, Request, Response}
 
   defmodule LegacyTransport do
     @behaviour Pristine.Ports.Transport

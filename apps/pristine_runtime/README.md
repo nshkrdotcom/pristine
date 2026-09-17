@@ -11,7 +11,7 @@ Hex consumption.
 Use Hex for normal runtime adoption:
 
 ```elixir
-{:pristine, "~> 0.3.1"}
+{:pristine, "~> 0.4.0"}
 ```
 
 The companion projects `pristine_codegen` and `pristine_provider_testkit` stay
@@ -148,7 +148,7 @@ context =
 ## Unary Cancellation And Transport Capabilities (Unreleased)
 
 Cancellation support is explicit and fail-closed. A transport that only
-implements the historical `Pristine.Ports.Transport.send/2` callback continues
+implements the historical `c:Pristine.Ports.Transport.send/2` callback continues
 to work for ordinary calls, but a call that supplies `cancellation:` requires
 positive `:unary_cancellation` and `:cancellation_cleanup` advertisements plus
 `send_cancelable/3`. Pristine never falls back to `send/2` for that call.
@@ -188,12 +188,12 @@ the upstream service may already have received or begun processing it even when
 the local HTTP operation is physically terminated. Pristine does not claim
 exactly-once or remote side-effect rollback semantics.
 
-**Current built-in status:** `Pristine.Adapters.Transport.Finch` explicitly
-advertises both unary cancellation capabilities as `:unsupported`. The checked-in
-adapter uses synchronous `ExecutionPlane.HTTP.unary/2`; the missing active
-execution/cancel primitive and real local-HTTP cancellation proof are tracked in
-the repository `HANDOFF.md`. The package version therefore remains 0.3.1 rather
-than claiming a complete 0.4.0 release.
+**Built-in transport:** `Pristine.Adapters.Transport.Finch` supports unary
+cancellation and cleanup through Execution Plane HTTP 0.2.0 sessions and OTP
+`:httpc`. The compatibility name does not imply Finch/Mint owns unary requests.
+Real HTTP/1.1 socket tests cover cancellation, normal completion, and caller death.
+This does not claim HTTP/2 unary support. Default retry waits also wake on
+cancellation; custom sleepers must cooperate to interrupt their own blocking work.
 
 ## Why This Package Exists
 

@@ -118,11 +118,11 @@ defmodule Pristine.RuntimeCapabilitiesTest do
     refute RuntimeCapabilities.supported?(client, :max_response_bytes)
   end
 
-  test "built-in Finch does not claim cancellation before acceptance proof exists" do
+  test "built-in Finch advertises verified unary cancellation" do
     report =
       RuntimeCapabilities.transport(Context.new(transport: Pristine.Adapters.Transport.Finch))
 
-    assert report.capabilities.unary_cancellation.status == :unsupported
-    assert report.capabilities.cancellation_cleanup.status == :unsupported
+    assert report.capabilities.unary_cancellation.status == :supported
+    assert report.capabilities.cancellation_cleanup.status == :supported
   end
 end

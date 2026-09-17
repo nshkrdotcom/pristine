@@ -63,6 +63,7 @@ defmodule Pristine.Workspace.MonorepoContractTest do
     assert Keyword.fetch!(aliases, :"docs.all") == ["monorepo.docs"]
 
     assert Keyword.fetch!(aliases, :ci) == [
+             "blitz.workspace deps_get --",
              "monorepo.format --check-formatted",
              "monorepo.compile",
              "monorepo.test",
@@ -87,13 +88,19 @@ defmodule Pristine.Workspace.MonorepoContractTest do
     assert blitz_opts[:runtime] == false
 
     runtime_opts = dep_opts(deps, :pristine)
-    assert runtime_opts[:path] == Path.expand("apps/pristine_runtime", workspace_root())
+
+    assert Path.expand(runtime_opts[:path], workspace_root()) ==
+             Path.expand("apps/pristine_runtime", workspace_root())
 
     codegen_opts = dep_opts(deps, :pristine_codegen)
-    assert codegen_opts[:path] == Path.expand("apps/pristine_codegen", workspace_root())
+
+    assert Path.expand(codegen_opts[:path], workspace_root()) ==
+             Path.expand("apps/pristine_codegen", workspace_root())
 
     testkit_opts = dep_opts(deps, :pristine_provider_testkit)
-    assert testkit_opts[:path] == Path.expand("apps/pristine_provider_testkit", workspace_root())
+
+    assert Path.expand(testkit_opts[:path], workspace_root()) ==
+             Path.expand("apps/pristine_provider_testkit", workspace_root())
   end
 
   test "root dialyzer config includes shared workspace beam paths" do

@@ -2,23 +2,22 @@ defmodule Pristine.Adapters.Transport.Finch do
   @moduledoc """
   Compatibility-named unary HTTP transport adapter backed by the Execution Plane.
 
-  The current adapter deliberately advertises unary cancellation as unsupported.
-  The checked-in integration uses the synchronous `ExecutionPlane.HTTP.unary/2`
-  surface and cannot truthfully expose a cancellable execution handle. This must
-  remain fail-closed until transport-level cancellation is implemented and proven
-  by a real local HTTP acceptance test.
+  Unary cancellation uses an Execution Plane session backed by OTP `:httpc`.
+  Cancellation waits for the lower execution to terminate. A response that has
+  already completed may win the race; cancellation cannot undo remote effects.
   """
 
   @behaviour Pristine.Ports.Transport
 
   alias ExecutionPlane.HTTP, as: ExecutionPlaneHTTP
+  alias Pristine.{Cancellation, Error}
   alias Pristine.Core.{Context, Request, Response}
 
   @impl true
   def capabilities(%Context{}) do
     %{
-      unary_cancellation: :unsupported,
-      cancellation_cleanup: :unsupported
+      unary_cancellation: :supported,
+      cancellation_cleanup: :supported
     }
   end
 
@@ -33,6 +32,38 @@ defmodule Pristine.Adapters.Transport.Finch do
 
       {:error, _} = error ->
         error
+    end
+  end
+
+  @impl true
+  def send_cancelable(%Request{} = request, %Context{} = context, token) do
+    if Cancellation.cancelled?(token) do
+      {:error, Error.cancelled_error()}
+    else
+      with {:ok, method} <- normalize_method(request.method),
+           {:ok, session} <-
+             request
+             |> build_execution_request(method, context)
+             |> ExecutionPlaneHTTP.start_unary(lineage: execution_lineage(request)) do
+        await_cancelable(session, token)
+      else
+        {:error, _} = error -> normalize_execution_result(error)
+      end
+    end
+  end
+
+  defp await_cancelable(session, token) do
+    watcher =
+      Cancellation.watch(token, fn ->
+        ExecutionPlaneHTTP.cancel_unary(session, :cancelled)
+      end)
+
+    try do
+      session
+      |> ExecutionPlaneHTTP.await_unary()
+      |> normalize_execution_result()
+    after
+      Cancellation.stop_watcher(watcher)
     end
   end
 
@@ -83,9 +114,17 @@ defmodule Pristine.Adapters.Transport.Finch do
      }}
   end
 
-  defp normalize_execution_result({:error, result}) do
+  defp normalize_execution_result(
+         {:error, %{outcome: %{failure: %{failure_class: :cancellation}}}}
+       ) do
+    {:error, Error.cancelled_error()}
+  end
+
+  defp normalize_execution_result({:error, %{outcome: _} = result}) do
     {:error, {:execution_plane_transport, result.outcome.failure, result.outcome.raw_payload}}
   end
+
+  defp normalize_execution_result({:error, _} = error), do: error
 
   defp idempotency_key(headers) when is_map(headers) do
     Enum.find_value(headers, fn {key, value} ->
