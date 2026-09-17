@@ -52,75 +52,8 @@ defmodule Pristine.Adapters.RateLimit.BackoffWindow do
   end
 
   defp resolve_registry(opts) do
-    case Keyword.get(opts, :registry) do
-      nil ->
-        ensure_default_registry()
-
-      registry ->
-        ensure_registry(registry)
-    end
-  end
-
-  defp ensure_default_registry do
-    registry = BackoffWindow.default_registry()
-    ensure_registry(registry, default: true)
-  end
-
-  defp ensure_registry(registry, opts \\ []) do
-    if registry_valid?(registry) do
-      registry
-    else
-      new_registry = create_registry(registry)
-
-      if Keyword.get(opts, :default, false) do
-        :persistent_term.put(
-          {Foundation.RateLimit.BackoffWindow, :default_registry},
-          new_registry
-        )
-      end
-
-      new_registry
-    end
-  end
-
-  defp create_registry(registry) when is_atom(registry) do
-    BackoffWindow.new_registry(name: registry)
-  end
-
-  defp create_registry(_registry) do
-    BackoffWindow.new_registry()
-  end
-
-  defp registry_valid?(registry) when is_reference(registry) do
-    case :lists.search(fn tid -> tid == registry end, :ets.all()) do
-      {:value, tid} -> registry_info_valid?(tid)
-      false -> false
-    end
-  end
-
-  defp registry_valid?(registry) when is_atom(registry) do
-    case :ets.whereis(registry) do
-      :undefined -> false
-      _ -> true
-    end
-  end
-
-  defp registry_valid?(_registry), do: false
-
-  defp registry_info_valid?(registry) do
-    case :ets.info(registry) do
-      :undefined ->
-        false
-
-      info ->
-        case Keyword.get(info, :heir, :none) do
-          :none -> false
-          {heir_pid, _} -> Process.alive?(heir_pid)
-          heir_pid when is_pid(heir_pid) -> Process.alive?(heir_pid)
-          _ -> false
-        end
-    end
-  rescue
-    ArgumentError -> false
+    # Foundation owns default-registry creation and lifetime. Explicit tables
+    # need not have an heir: their creating process owns their lifetime.
+    Keyword.get(opts, :registry) || BackoffWindow.default_registry()
   end
 end

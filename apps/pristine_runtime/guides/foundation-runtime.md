@@ -92,3 +92,17 @@ events = Pristine.Profiles.Foundation.reporter_events(client.context)
 
 :ok = Pristine.Profiles.Foundation.detach_reporter(handler_id)
 ```
+
+## Registry lifetime (Pristine 0.3.1 / Foundation 0.2.2)
+
+Default breaker, rate-limit and semaphore ETS registries belong to Foundation's
+supervised registry owner. Short-lived HTTP workers no longer create competing
+default tables or transfer them to Erlang `:init` on exit. Foundation recovers
+stale default caches after owner restart; that restart resets resilience state.
+
+Explicit registries are caller-owned and need no heir. Create shared explicit
+registries in a long-lived supervised process and pass them via adapter options.
+A deleted anonymous registry is an error, not a reason to silently bypass its
+limits with a replacement table. Named registry creation follows Foundation's
+normal named-registry behavior. This ownership fix does not add transport queue
+bounds or physical HTTP cancellation guarantees.

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-17
+
+### Fixed
+
+- Require Foundation 0.2.2 for supervised default ETS registries and caller-owned
+  explicit registries, eliminating transfers to Erlang `:init` after worker exit.
+- Honor live explicit rate-limit registries without requiring an ETS heir;
+  delegate default-registry ownership/recovery to Foundation instead of creating
+  per-request replacement tables or overwriting Foundation's persistent cache.
+- Include runtime guides in the Hex package used to build documentation.
+
 ## [0.3.0] - 2026-09-16
 
 - Refresh all runtime, optional, and development dependency requirements and the

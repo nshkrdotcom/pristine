@@ -3,7 +3,7 @@ if bootstrap = System.get_env("MIX_WORKSPACE_OPS_BOOTSTRAP"), do: Code.require_f
 defmodule Pristine.Runtime.MixProject do
   use Mix.Project
 
-  @version "0.3.0"
+  @version "0.3.1"
   @source_url "https://github.com/nshkrdotcom/pristine"
 
   def project do
@@ -41,7 +41,7 @@ defmodule Pristine.Runtime.MixProject do
       {:telemetry, "~> 1.4.2"},
       {:finch, "~> 0.23.0"},
       {:sinter, "~> 0.3.2"},
-      {:foundation, "~> 0.2.1"},
+      workspace_dep({:foundation, "~> 0.2.2"}),
       {:multipart_ex, "~> 0.1.0"},
       {:telemetry_reporter, "~> 0.1.0", optional: true, runtime: false},
       {:tiktoken_ex, "~> 0.2.0", optional: true, runtime: false},
@@ -112,7 +112,7 @@ defmodule Pristine.Runtime.MixProject do
     [
       name: "pristine",
       description: description(),
-      files: ~w(lib assets mix.exs README.md CHANGELOG.md LICENSE.md),
+      files: ~w(lib assets guides mix.exs README.md CHANGELOG.md LICENSE.md),
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       maintainers: ["nshkrdotcom"]

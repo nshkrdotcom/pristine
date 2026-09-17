@@ -53,7 +53,7 @@ defmodule Pristine.Workspace.BlitzWorkspaceTest do
 
     assert compile_env["MIX_BUILD_PATH"] ==
              Path.expand(
-               "apps/pristine_codegen/_build/#{Mix.env()}",
+               "apps/pristine_codegen/_build/#{System.get_env("MIX_ENV", "dev")}",
                Blitz.MixWorkspace.root_dir()
              )
   end
