@@ -65,3 +65,12 @@ Pristine QC passed:
 Root CI now bootstraps all isolated dependency trees before impact gates.
 After HTTP publication, the final Hex-only dependency resolution is part of the
 release sequence; it cannot resolve an unpublished HTTP 0.2.0 from Hex today.
+
+## Hex dependency validation — 2026-09-17
+
+Execution Plane HTTP 0.2.0 is now published, with tag
+`execution_plane_http-v0.2.0` pushed. The runtime resolved it from Hex and the
+real checksum is committed in `mix.lock`. Against that published dependency,
+runtime formatting, warnings-as-errors compilation, 347 tests, strict Credo,
+Dialyzer (zero errors/skips), warnings-as-errors docs and the full Hex publish
+dry run all passed. No runtime source changes were required.
