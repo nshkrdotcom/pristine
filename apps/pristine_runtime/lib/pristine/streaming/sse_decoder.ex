@@ -133,7 +133,7 @@ defmodule Pristine.Streaming.SSEDecoder do
         :incomplete
 
       {start, length} ->
-        <<event_block::binary-size(start), _boundary::binary-size(length), rest::binary>> = data
+        <<event_block::binary-size(^start), _boundary::binary-size(^length), rest::binary>> = data
         {event_block, rest}
     end
   end

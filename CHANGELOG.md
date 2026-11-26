@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Require Finch 0.25 and published Execution Plane HTTP 0.2.1 for the HTTP
   runtime. Refresh Sinter to 0.3.3 and Bandit to 1.15.0 for compatibility
   with the current shared HTTP and validation dependency graph.
+- Correct runtime documentation source links and address warnings found when
+  compiling the packaged runtime in an independent consumer. Require Foundation
+  0.2.3 for warning-free compilation without the optional telemetry reporter.
 
 ## [0.4.0] - 2026-09-17
 

@@ -362,7 +362,6 @@ defmodule Pristine.Operation do
     case items do
       [] -> nil
       [_ | _] -> current_page + 1
-      _ -> nil
     end
   end
 

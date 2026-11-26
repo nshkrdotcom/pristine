@@ -1172,8 +1172,6 @@ defmodule Pristine.Core.Pipeline do
     |> Enum.reverse()
   end
 
-  defp normalize_backoff_opts(_opts), do: []
-
   defp normalize_backoff_entry(key, value) do
     case normalize_backoff_key(key) do
       :legacy -> raise_legacy_retry_key!(key)
@@ -1288,7 +1286,7 @@ defmodule Pristine.Core.Pipeline do
     header_name =
       endpoint.idempotency_header || context.idempotency_header || "X-Idempotency-Key"
 
-    key = Keyword.get(opts, :idempotency_key) || UUID.uuid4()
+    key = Keyword.get(opts, :idempotency_key) || new_idempotency_key()
     Map.put(headers, header_name, key)
   end
 
@@ -1372,14 +1370,6 @@ defmodule Pristine.Core.Pipeline do
 
   defp resolve_auth(_auth, _security, {:ok, override}),
     do: normalize_auth_override!(override)
-
-  defp resolve_auth(_auth, [], _override), do: []
-
-  defp resolve_auth(auth, security, _override) when is_list(security) do
-    resolve_security_auth(auth, security)
-  end
-
-  defp resolve_auth(_auth, nil, _override), do: []
 
   defp resolve_security_auth(auth, security) do
     case find_matching_security_modules(auth, security) do
@@ -1508,12 +1498,22 @@ defmodule Pristine.Core.Pipeline do
     if Keyword.has_key?(opts, :idempotency_key) do
       opts
     else
-      Keyword.put(opts, :idempotency_key, UUID.uuid4())
+      Keyword.put(opts, :idempotency_key, new_idempotency_key())
       |> Keyword.put(:idempotency_header, header)
     end
   end
 
   defp ensure_idempotency_key(_endpoint, opts), do: opts
+
+  defp new_idempotency_key do
+    <<first::48, _version::4, second::12, _variant::2, last::62>> =
+      :crypto.strong_rand_bytes(16)
+
+    <<head::binary-4, mid::binary-2, time::binary-2, clock::binary-2, node::binary-6>> =
+      <<first::48, 4::4, second::12, 2::2, last::62>>
+
+    Enum.map_join([head, mid, time, clock, node], "-", &Base.encode16(&1, case: :lower))
+  end
 
   defp execute_with_retry(
          resilience_stack,
@@ -2217,8 +2217,6 @@ defmodule Pristine.Core.Pipeline do
       String.downcase(to_string(key)) == target
     end)
   end
-
-  defp strip_header(headers, _name), do: headers
 
   defp unwrap_response(body, %{response_unwrap: nil}), do: body
 

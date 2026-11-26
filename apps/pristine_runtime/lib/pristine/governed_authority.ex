@@ -228,8 +228,8 @@ defmodule Pristine.GovernedAuthority do
   defp optional_string(opts, key) do
     case fetch_value(opts, key, nil) do
       value when is_binary(value) -> value
-      value when is_atom(value) -> Atom.to_string(value)
       nil -> nil
+      value when is_atom(value) -> Atom.to_string(value)
       value -> to_string(value)
     end
   end

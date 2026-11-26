@@ -150,8 +150,6 @@ defmodule Pristine.RuntimeGateway.Local do
     )
   end
 
-  defp unavailable_error(%Error{} = error), do: error
-
   defp unavailable_error(_reason) do
     Error.new!(
       category: "unavailable",

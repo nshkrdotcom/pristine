@@ -4,6 +4,7 @@ defmodule Pristine.Runtime.MixProject do
   use Mix.Project
 
   @version "0.4.1"
+  @source_ref "pristine-v#{@version}"
   @source_url "https://github.com/nshkrdotcom/pristine"
 
   def project do
@@ -28,7 +29,7 @@ defmodule Pristine.Runtime.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :telemetry],
+      extra_applications: [:crypto, :logger, :telemetry],
       mod: {Pristine.Application, []}
     ]
   end
@@ -41,11 +42,10 @@ defmodule Pristine.Runtime.MixProject do
       {:telemetry, "~> 1.4.3"},
       {:finch, "~> 0.25.0"},
       {:sinter, "~> 0.3.3"},
-      workspace_dep({:foundation, "~> 0.2.2"}),
+      workspace_dep({:foundation, "~> 0.2.3"}),
       {:multipart_ex, "~> 0.1.0"},
       {:telemetry_reporter, "~> 0.1.0", optional: true, runtime: false},
       {:tiktoken_ex, "~> 0.2.0", optional: true, runtime: false},
-      {:uuid, "~> 1.1.8"},
       {:mox, "~> 1.3.2", only: :test, runtime: false},
       {:supertester, "~> 0.6.0", only: :test, runtime: false},
       {:plug, "~> 1.20.3", optional: true, runtime: false},
@@ -81,7 +81,9 @@ defmodule Pristine.Runtime.MixProject do
     [
       main: "readme",
       name: "Pristine",
-      source_ref: "pristine-v#{@version}",
+      source_ref: @source_ref,
+      source_url_pattern:
+        "#{@source_url}/blob/#{@source_ref}/apps/pristine_runtime/%{path}#L%{line}",
       source_url: @source_url,
       homepage_url: @source_url,
       assets: %{"assets" => "assets"},
