@@ -6,6 +6,14 @@ in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-11-25
+
+### Fixed
+
+- Require Finch 0.25 and published Execution Plane HTTP 0.2.1 for the HTTP
+  runtime. Refresh Sinter to 0.3.3 and Bandit to 1.15.0 for compatibility
+  with the current shared HTTP and validation dependency graph.
+
 ## [0.4.0] - 2026-09-17
 
 ### Added

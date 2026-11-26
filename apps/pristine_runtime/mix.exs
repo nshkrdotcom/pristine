@@ -3,7 +3,7 @@ if bootstrap = System.get_env("MIX_WORKSPACE_OPS_BOOTSTRAP"), do: Code.require_f
 defmodule Pristine.Runtime.MixProject do
   use Mix.Project
 
-  @version "0.4.0"
+  @version "0.4.1"
   @source_url "https://github.com/nshkrdotcom/pristine"
 
   def project do
@@ -38,9 +38,9 @@ defmodule Pristine.Runtime.MixProject do
       execution_plane_dep(),
       execution_plane_http_dep(),
       {:jason, "~> 1.4.5"},
-      {:telemetry, "~> 1.4.2"},
-      {:finch, "~> 0.23.0"},
-      {:sinter, "~> 0.3.2"},
+      {:telemetry, "~> 1.4.3"},
+      {:finch, "~> 0.25.0"},
+      {:sinter, "~> 0.3.3"},
       workspace_dep({:foundation, "~> 0.2.2"}),
       {:multipart_ex, "~> 0.1.0"},
       {:telemetry_reporter, "~> 0.1.0", optional: true, runtime: false},
@@ -50,19 +50,19 @@ defmodule Pristine.Runtime.MixProject do
       {:supertester, "~> 0.6.0", only: :test, runtime: false},
       {:plug, "~> 1.20.3", optional: true, runtime: false},
       {:plug_cowboy, "~> 2.9.0", only: [:dev, :test], runtime: false},
-      {:bandit, "~> 1.12.5", optional: true, runtime: false},
-      {:dialyxir, "~> 1.4.8", only: [:dev, :test], runtime: false},
+      {:bandit, "~> 1.15.0", optional: true, runtime: false},
+      {:dialyxir, "~> 1.4.9", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.40.4", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.40.5", only: :dev, runtime: false}
     ]
   end
 
   defp execution_plane_dep do
-    workspace_dep({:execution_plane, "~> 0.3.0"})
+    workspace_dep({:execution_plane, "~> 0.3.2"})
   end
 
   defp execution_plane_http_dep do
-    workspace_dep({:execution_plane_http, "~> 0.2.0"})
+    workspace_dep({:execution_plane_http, "~> 0.2.1"})
   end
 
   defp workspace_dep(committed) do

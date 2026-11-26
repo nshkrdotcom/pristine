@@ -37,16 +37,16 @@ defmodule Pristine.Workspace.MixProject do
 
   defp deps do
     [
-      {:blitz, "~> 0.3.0", runtime: false},
+      {:blitz, "~> 0.4.1", runtime: false},
       workspace_package_deps(),
       {:plug, "~> 1.19", only: [:dev, :test], runtime: false},
-      {:bandit, "~> 1.10", only: [:dev, :test], runtime: false},
+      {:bandit, "~> 1.15.0", only: [:dev, :test], runtime: false},
       {:telemetry_reporter, "~> 0.1.0", only: [:dev, :test], runtime: false},
       {:tiktoken_ex, "~> 0.2.0", only: [:dev, :test], runtime: false},
       {:mox, "~> 1.2", only: :test, runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.40", only: :dev, runtime: false}
+      {:dialyxir, "~> 1.4.9", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.40.5", only: :dev, runtime: false}
     ]
     |> List.flatten()
   end
@@ -154,7 +154,7 @@ defmodule Pristine.Workspace.MixProject do
 
   defp workspace_package_deps do
     [
-      workspace_dep({:pristine, "~> 0.4.0"}),
+      workspace_dep({:pristine, "~> 0.4.1"}),
       workspace_dep({:pristine_codegen, "~> 0.1.0"}),
       workspace_dep({:pristine_provider_testkit, "~> 0.1.0"})
     ]
@@ -208,7 +208,7 @@ defmodule Pristine.Workspace.MixProject do
         test: [args: ["test"], mix_env: "test", color: true],
         credo: [args: ["credo"]],
         dialyzer: [args: ["dialyzer", "--force-check"]],
-        docs: [args: ["docs"]]
+        docs: [args: ["docs", "--warnings-as-errors"]]
       ]
     ]
   end

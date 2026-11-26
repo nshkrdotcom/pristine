@@ -35,9 +35,9 @@ defmodule Pristine.ProviderTestkit.MixProject do
   defp deps do
     [
       workspace_dep({:pristine_codegen, "~> 0.1.0"}),
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.40", only: :dev, runtime: false}
+      {:dialyxir, "~> 1.4.9", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.40.5", only: :dev, runtime: false}
     ]
   end
 

@@ -35,13 +35,13 @@ defmodule Pristine.Codegen.MixProject do
 
   defp deps do
     [
-      workspace_dep({:pristine, "~> 0.4.0"}),
+      workspace_dep({:pristine, "~> 0.4.1"}),
       {:jason, "~> 1.4"},
       {:yaml_elixir, "~> 2.12"},
-      {:sinter, "~> 0.3.1"},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.40", only: :dev, runtime: false}
+      {:sinter, "~> 0.3.3"},
+      {:dialyxir, "~> 1.4.9", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.40.5", only: :dev, runtime: false}
     ]
   end
 

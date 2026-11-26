@@ -25,7 +25,7 @@ The repository root serves as the monorepo control plane for documentation, work
 
 | Package | Location | Distribution | Role |
 |:---|:---|:---|:---|
-| **`pristine`** | [`apps/pristine_runtime`](https://github.com/nshkrdotcom/pristine/tree/main/apps/pristine_runtime) | [Hex.pm](https://hex.pm/packages/pristine) (`~> 0.4.0`) | Semantic HTTP runtime, request pipelines, OAuth2, streaming, and resilience |
+| **`pristine`** | [`apps/pristine_runtime`](https://github.com/nshkrdotcom/pristine/tree/main/apps/pristine_runtime) | [Hex.pm](https://hex.pm/packages/pristine) (`~> 0.4.1`) | Semantic HTTP runtime, request pipelines, OAuth2, streaming, and resilience |
 | **`pristine_codegen`** | [`apps/pristine_codegen`](https://github.com/nshkrdotcom/pristine/tree/main/apps/pristine_codegen) | GitHub `subdir:` | OpenAPI provider compiler, Provider IR modeling, and Elixir SDK rendering |
 | **`pristine_provider_testkit`** | [`apps/pristine_provider_testkit`](https://github.com/nshkrdotcom/pristine/tree/main/apps/pristine_provider_testkit) | GitHub `subdir:` (`:test`) | Shared test harness for downstream SDK conformance and artifact freshness |
 
@@ -65,7 +65,7 @@ Applications and SDKs consuming the HTTP runtime depend on `:pristine` via Hex:
 ```elixir
 def deps do
   [
-    {:pristine, "~> 0.4.0"}
+    {:pristine, "~> 0.4.1"}
   ]
 end
 ```
@@ -77,7 +77,7 @@ Downstream provider SDKs (such as `github_ex` or `notion_sdk`) consume the compi
 ```elixir
 def deps do
   [
-    {:pristine, "~> 0.4.0"},
+    {:pristine, "~> 0.4.1"},
     {:pristine_codegen,
      github: "nshkrdotcom/pristine",
      branch: "main",

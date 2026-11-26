@@ -34,6 +34,6 @@
 - Otherwise run the monorepo aliases advertised by the repo: format, compile, test, Credo, Dialyzer, and docs.
 - For publishable apps, also verify `mix hex.build --unpack` from the app directory.
 
-## Blitz 0.3.0 operational note
+## Blitz 0.4.1 operational note
 
-Root workspace Blitz uses published Hex `~> 0.3.0` by default; `.blitz/` is committed compact impact state after green QC. Source and `mix.exs` changes cascade through reverse workspace dependencies; docs-only changes should stay owner-local.
+Root workspace Blitz uses published Hex `~> 0.4.1` by default; `.blitz/` is committed compact impact state after green QC. Source and `mix.exs` changes cascade through reverse workspace dependencies; docs-only changes should stay owner-local.
